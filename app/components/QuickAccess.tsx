@@ -1,6 +1,9 @@
+import Link from "next/link";
+
 const tiles = [
   {
     label: "Resume Last Lesson",
+    href: "/practice",
     icon: (
       <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
         <rect x="4" y="4" width="24" height="24" rx="3" stroke="currentColor" strokeWidth="1.6" />
@@ -11,6 +14,7 @@ const tiles = [
   },
   {
     label: "Open Question Bank",
+    href: "/practice",
     icon: (
       <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
         <rect x="4" y="6" width="18" height="22" rx="2" stroke="currentColor" strokeWidth="1.6" />
@@ -21,6 +25,7 @@ const tiles = [
   },
   {
     label: "Review Mistake Log",
+    href: "/review",
     icon: (
       <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
         <rect x="6" y="4" width="20" height="24" rx="2" stroke="currentColor" strokeWidth="1.6" />
@@ -32,6 +37,7 @@ const tiles = [
   },
   {
     label: "Start Timed Section",
+    href: "/practice",
     icon: (
       <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
         <circle cx="16" cy="17" r="11" stroke="currentColor" strokeWidth="1.6" />
@@ -50,23 +56,20 @@ export default function QuickAccess() {
       </h2>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {tiles.map((tile) => (
-          <button
+          <Link
             key={tile.label}
-            className="rounded-xl p-6 flex flex-col items-center gap-4 text-sm font-medium transition-all group"
+            href={tile.href}
+            className="rounded-xl p-6 flex flex-col items-center gap-4 text-sm font-medium transition-all"
             style={{
               background: "var(--bg-card)",
               border: "1px solid var(--border)",
               color: "var(--text-secondary)",
+              textDecoration: "none",
             }}
           >
-            <span
-              className="transition-colors"
-              style={{ color: "rgba(100,149,237,0.8)" }}
-            >
-              {tile.icon}
-            </span>
+            <span style={{ color: "rgba(100,149,237,0.8)" }}>{tile.icon}</span>
             <span style={{ color: "var(--text-primary)" }}>{tile.label}</span>
-          </button>
+          </Link>
         ))}
       </div>
     </section>

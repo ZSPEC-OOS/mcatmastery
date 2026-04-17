@@ -1,4 +1,4 @@
-"use client";
+import Link from "next/link";
 
 type Task = {
   id: string;
@@ -7,6 +7,7 @@ type Task = {
   progress: number;
   meta: string;
   action: string;
+  href: string;
   variant: "primary" | "secondary";
 };
 
@@ -18,6 +19,7 @@ const tasks: Task[] = [
     progress: 68,
     meta: "Estimated",
     action: "Resume",
+    href: "/practice",
     variant: "primary",
   },
   {
@@ -27,6 +29,7 @@ const tasks: Task[] = [
     progress: 0,
     meta: "Timed  •  0  •  0/5",
     action: "Begin",
+    href: "/practice",
     variant: "primary",
   },
   {
@@ -36,6 +39,7 @@ const tasks: Task[] = [
     progress: 30,
     meta: "Estimated 30m  0/20",
     action: "Continue",
+    href: "/practice",
     variant: "secondary",
   },
   {
@@ -45,6 +49,7 @@ const tasks: Task[] = [
     progress: 20,
     meta: "Adaptive  0/30 — 0/30",
     action: "Review",
+    href: "/curriculum",
     variant: "secondary",
   },
   {
@@ -52,8 +57,9 @@ const tasks: Task[] = [
     title: "Review Missed Questions",
     subtitle: "",
     progress: 100,
-    meta: "Reviewed items queried Today Today",
+    meta: "Reviewed items queried Today",
     action: "Review Log",
+    href: "/review",
     variant: "secondary",
   },
 ];
@@ -73,15 +79,12 @@ function TaskCard({ task }: { task: Task }) {
 
   return (
     <div
-      className="rounded-xl p-4 flex items-center gap-4 group transition-colors"
-      style={{
-        background: "var(--bg-card)",
-        border: "1px solid var(--border)",
-      }}
+      className="rounded-xl p-4 flex items-center gap-4 transition-colors"
+      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
     >
       {/* Checkbox */}
       <div
-        className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors"
+        className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
         style={{
           border: done ? "none" : "1.5px solid var(--border)",
           background: done ? "var(--accent-blue)" : "transparent",
@@ -106,7 +109,6 @@ function TaskCard({ task }: { task: Task }) {
             </span>
           )}
         </div>
-        {/* Progress bar */}
         <div
           className="h-1.5 rounded-full mb-1.5 overflow-hidden"
           style={{ background: "rgba(255,255,255,0.06)" }}
@@ -128,20 +130,17 @@ function TaskCard({ task }: { task: Task }) {
       </div>
 
       {/* Action button */}
-      <button
+      <Link
+        href={task.href}
         className="px-4 py-1.5 rounded text-xs font-semibold flex-shrink-0 transition-all"
         style={
           task.variant === "primary"
-            ? { background: "var(--accent-blue)", color: "#fff" }
-            : {
-                background: "transparent",
-                color: "var(--text-secondary)",
-                border: "1px solid var(--border)",
-              }
+            ? { background: "var(--accent-blue)", color: "#fff", textDecoration: "none" }
+            : { background: "transparent", color: "var(--text-secondary)", border: "1px solid var(--border)", textDecoration: "none" }
         }
       >
         {task.action}
-      </button>
+      </Link>
     </div>
   );
 }

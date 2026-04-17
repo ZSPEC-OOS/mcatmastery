@@ -53,7 +53,7 @@ export default function CurriculumPage() {
           activeTopic={activeTopic}
           onSelect={(sId, label) => setActiveTopic(`${sId}:${label}`)}
         />
-        <TopicDetail />
+        <TopicDetail topicKey={activeTopic} />
         <RightPanel />
       </div>
 

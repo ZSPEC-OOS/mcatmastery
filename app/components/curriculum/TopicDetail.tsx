@@ -14,7 +14,7 @@ const summaryPoints = [
 ];
 
 const workedOptions = [
-  { id: "A", label: "0.25 V\u2098\u2090\u2093" },
+  { id: "A", label: "0.25 Vmax" },
   { id: "B", label: "0.50 Vmax" },
   { id: "C", label: "0.75 Vmax" },
   { id: "D", label: "1.00 Vmax" },
@@ -22,30 +22,48 @@ const workedOptions = [
 
 const relatedTopics = ["Michaelis-Menten", "Substrate Inhibition", "Allosteric Regulation", "Reaction Mechanisms"];
 
-export default function TopicDetail() {
+const sectionLabels: Record<string, string> = {
+  chem: "Chem/Phys",
+  cars: "CARS",
+  bio: "Bio/Biochem",
+  psych: "Psych/Soc",
+};
+
+// Topics with accuracy < 60% are flagged as weak
+const weakTopics = new Set(["Enzyme Kinetics", "Kinematics", "Identity"]);
+
+type Props = { topicKey: string };
+
+export default function TopicDetail({ topicKey }: Props) {
   const [activeTab, setActiveTab] = useState("Summary");
   const [workedAnswer, setWorkedAnswer] = useState("B");
+
+  const [sectionId, topicLabel] = topicKey.split(":") as [string, string];
+  const sectionLabel = sectionLabels[sectionId] ?? "Chem/Phys";
+  const isWeak = weakTopics.has(topicLabel);
 
   return (
     <div className="flex-1 overflow-y-auto px-7 py-6 min-w-0">
       {/* Breadcrumb */}
       <p className="text-xs mb-2" style={{ color: "var(--text-muted)" }}>
-        Chem/Phys / Biochemistry
+        {sectionLabel} / {topicLabel}
       </p>
 
       {/* Title row */}
       <div className="flex flex-wrap items-start justify-between gap-4 mb-2">
         <div className="flex items-center gap-3 flex-wrap">
           <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
-            Enzyme Kinetics
+            {topicLabel}
           </h1>
-          <span
-            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full"
-            style={{ background: "rgba(240,100,0,0.15)", color: "#f07030", border: "1px solid rgba(240,100,0,0.3)" }}
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-current" />
-            Weak Topic
-          </span>
+          {isWeak && (
+            <span
+              className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full"
+              style={{ background: "rgba(240,100,0,0.15)", color: "#f07030", border: "1px solid rgba(240,100,0,0.3)" }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-current" />
+              Weak Topic
+            </span>
+          )}
         </div>
         <button
           className="px-4 py-2 rounded text-sm font-semibold"
