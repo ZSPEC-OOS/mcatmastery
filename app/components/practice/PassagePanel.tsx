@@ -1,4 +1,6 @@
-export default function PassagePanel() {
+interface Props { onClose?: () => void }
+
+export default function PassagePanel({ onClose }: Props) {
   const questionNums = Array.from({ length: 16 }, (_, i) => i + 1);
 
   const getButtonStyle = (n: number): React.CSSProperties => {
@@ -22,6 +24,20 @@ export default function PassagePanel() {
       }}
     >
       <div className="px-4 py-5">
+        {/* Mobile close button */}
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="md:hidden flex items-center gap-1.5 mb-4 text-xs"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M19 12H5M12 5l-7 7 7 7" />
+            </svg>
+            Back to Question
+          </button>
+        )}
+
         {/* Title */}
         <h2
           className="font-bold text-base mb-3"
