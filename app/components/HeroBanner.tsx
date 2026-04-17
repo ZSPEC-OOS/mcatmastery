@@ -1,7 +1,7 @@
 export default function HeroBanner() {
   return (
     <div
-      className="relative overflow-hidden px-8 py-10"
+      className="relative overflow-hidden px-4 py-7 md:px-8 md:py-10"
       style={{
         background: "linear-gradient(135deg, #0f1b2d 0%, #0d1117 60%, #111827 100%)",
         borderBottom: "1px solid var(--border)",

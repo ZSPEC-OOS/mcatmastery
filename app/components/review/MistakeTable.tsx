@@ -45,117 +45,133 @@ const rows = [
   { id: "01159", section: "Chem/Phys", topic: "Thermodynamics", yourAnswer: "A", correct: "D", errorType: "Timing" as ErrorType, date: "4/16/2024" },
 ];
 
+const Pagination = () => (
+  <div
+    className="px-4 py-3 flex justify-between items-center"
+    style={{ borderTop: "1px solid var(--border)", background: "var(--bg-card)" }}
+  >
+    <div className="flex items-center gap-1">
+      {[1, 2, 3].map((p) => (
+        <button
+          key={p}
+          className="w-7 h-7 flex items-center justify-center rounded text-sm"
+          style={{
+            background: p === 1 ? "var(--accent-blue)" : "transparent",
+            color: p === 1 ? "#fff" : "var(--text-secondary)",
+            border: p === 1 ? "none" : "1px solid var(--border)",
+          }}
+        >
+          {p}
+        </button>
+      ))}
+      <button className="px-2 py-1 text-sm" style={{ color: "var(--text-secondary)", background: "transparent", border: "none" }}>
+        Next›
+      </button>
+    </div>
+    <div className="flex items-center gap-3 text-sm" style={{ color: "var(--text-secondary)" }}>
+      <span>1</span><span>2</span><span>3</span><span>Next</span>
+    </div>
+  </div>
+);
+
 export default function MistakeTable({ selectedId, onSelect }: Props) {
   return (
-    <div
-      className="rounded-xl overflow-hidden mb-6"
-      style={{ border: "1px solid var(--border)" }}
-    >
-      {/* Header row */}
-      <div
-        className="grid text-xs px-4 py-2"
-        style={{
-          background: "rgba(22,27,34,0.8)",
-          color: "var(--text-muted)",
-          gridTemplateColumns: "80px 110px 1fr 90px 80px 130px 90px 90px",
-        }}
-      >
-        <span>#</span>
-        <span>Section</span>
-        <span>Topic</span>
-        <span>Your Answer</span>
-        <span>Answer</span>
-        <span>Error Type</span>
-        <span>Date ↓</span>
-        <span>Status</span>
-      </div>
+    <div className="rounded-xl overflow-hidden mb-6" style={{ border: "1px solid var(--border)" }}>
 
-      {/* Data rows */}
-      {rows.map((row) => {
-        const isSelected = row.id === selectedId;
-        return (
-          <div
-            key={row.id}
-            className="grid items-center cursor-pointer"
-            style={{
-              gridTemplateColumns: "80px 110px 1fr 90px 80px 130px 90px 90px",
-              background: isSelected ? "rgba(45,106,224,0.08)" : "var(--bg-card)",
-              borderLeft: isSelected ? "2px solid var(--accent-blue)" : "2px solid transparent",
-              borderTop: "1px solid var(--border)",
-            }}
-            onClick={() => onSelect(row.id)}
-          >
-            <span className="px-4 py-3 text-sm" style={{ color: "var(--text-secondary)" }}>
-              # {row.id}
-            </span>
-            <span className="px-4 py-3 text-sm flex items-center gap-1.5">
-              <span
-                className="w-2 h-2 rounded-full flex-shrink-0"
-                style={{ background: sectionColors[row.section] ?? "var(--text-muted)" }}
-              />
-              <span style={{ color: "var(--text-primary)" }}>{row.section}</span>
-            </span>
-            <span className="px-4 py-3 text-sm" style={{ color: "var(--text-primary)" }}>
-              {row.topic}
-            </span>
-            <span className="px-4 py-3 text-sm flex items-center gap-1" style={{ color: "#f87171" }}>
-              ✗ {row.yourAnswer}
-            </span>
-            <span className="px-4 py-3 text-sm flex items-center gap-1" style={{ color: "#4ade80" }}>
-              ✓ {row.correct}
-            </span>
-            <span className="px-4 py-3">
-              <span
-                className="text-xs px-2 py-0.5 rounded"
-                style={errorBadgeStyles[row.errorType]}
-              >
-                {row.errorType}
-              </span>
-            </span>
-            <span className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
-              {row.date}
-            </span>
-            <span className="px-4 py-3 text-sm flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full" style={{ background: "#4ade80" }} />
-              <span style={{ color: "#4ade80" }}>Reviewed</span>
-            </span>
-          </div>
-        );
-      })}
-
-      {/* Pagination row */}
-      <div
-        className="px-4 py-3 flex justify-between items-center"
-        style={{ borderTop: "1px solid var(--border)", background: "var(--bg-card)" }}
-      >
-        <div className="flex items-center gap-1">
-          {[1, 2, 3].map((p) => (
-            <button
-              key={p}
-              className="w-7 h-7 flex items-center justify-center rounded text-sm"
+      {/* ── MOBILE card list (hidden on md+) ── */}
+      <div className="md:hidden">
+        {rows.map((row) => {
+          const isSelected = row.id === selectedId;
+          return (
+            <div
+              key={row.id}
+              className="p-4 cursor-pointer"
               style={{
-                background: p === 1 ? "var(--accent-blue)" : "transparent",
-                color: p === 1 ? "#fff" : "var(--text-secondary)",
-                border: p === 1 ? "none" : "1px solid var(--border)",
+                background: isSelected ? "rgba(45,106,224,0.08)" : "var(--bg-card)",
+                borderLeft: isSelected ? "3px solid var(--accent-blue)" : "3px solid transparent",
+                borderBottom: "1px solid var(--border)",
               }}
+              onClick={() => onSelect(row.id)}
             >
-              {p}
-            </button>
-          ))}
-          <button
-            className="px-2 py-1 text-sm"
-            style={{ color: "var(--text-secondary)", background: "transparent", border: "none" }}
-          >
-            Next›
-          </button>
-        </div>
-        <div className="flex items-center gap-3 text-sm" style={{ color: "var(--text-secondary)" }}>
-          <span>1</span>
-          <span>2</span>
-          <span>3</span>
-          <span>Next</span>
-        </div>
+              {/* Row 1: ID + section badge */}
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>#{row.id}</span>
+                  <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: "var(--text-primary)" }}>
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: sectionColors[row.section] ?? "var(--text-muted)" }} />
+                    {row.section}
+                  </span>
+                </div>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>{row.date}</span>
+              </div>
+              {/* Row 2: topic */}
+              <p className="text-sm mb-2 font-medium" style={{ color: "var(--text-primary)" }}>{row.topic}</p>
+              {/* Row 3: answers + badge + status */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-xs" style={{ color: "#f87171" }}>✗ {row.yourAnswer}</span>
+                <span className="text-xs" style={{ color: "#4ade80" }}>✓ {row.correct}</span>
+                <span className="text-xs px-2 py-0.5 rounded ml-auto" style={errorBadgeStyles[row.errorType]}>{row.errorType}</span>
+                <span className="flex items-center gap-1 text-xs" style={{ color: "#4ade80" }}>
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#4ade80" }} />Reviewed
+                </span>
+              </div>
+            </div>
+          );
+        })}
+        <Pagination />
       </div>
+
+      {/* ── DESKTOP table (hidden on mobile) ── */}
+      <div className="hidden md:block">
+        <div
+          className="grid text-xs px-4 py-2"
+          style={{
+            background: "rgba(22,27,34,0.8)",
+            color: "var(--text-muted)",
+            gridTemplateColumns: "80px 110px 1fr 90px 80px 130px 90px 90px",
+          }}
+        >
+          <span>#</span><span>Section</span><span>Topic</span>
+          <span>Your Answer</span><span>Answer</span>
+          <span>Error Type</span><span>Date ↓</span><span>Status</span>
+        </div>
+
+        {rows.map((row) => {
+          const isSelected = row.id === selectedId;
+          return (
+            <div
+              key={row.id}
+              className="grid items-center cursor-pointer"
+              style={{
+                gridTemplateColumns: "80px 110px 1fr 90px 80px 130px 90px 90px",
+                background: isSelected ? "rgba(45,106,224,0.08)" : "var(--bg-card)",
+                borderLeft: isSelected ? "2px solid var(--accent-blue)" : "2px solid transparent",
+                borderTop: "1px solid var(--border)",
+              }}
+              onClick={() => onSelect(row.id)}
+            >
+              <span className="px-4 py-3 text-sm" style={{ color: "var(--text-secondary)" }}># {row.id}</span>
+              <span className="px-4 py-3 text-sm flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: sectionColors[row.section] ?? "var(--text-muted)" }} />
+                <span style={{ color: "var(--text-primary)" }}>{row.section}</span>
+              </span>
+              <span className="px-4 py-3 text-sm" style={{ color: "var(--text-primary)" }}>{row.topic}</span>
+              <span className="px-4 py-3 text-sm flex items-center gap-1" style={{ color: "#f87171" }}>✗ {row.yourAnswer}</span>
+              <span className="px-4 py-3 text-sm flex items-center gap-1" style={{ color: "#4ade80" }}>✓ {row.correct}</span>
+              <span className="px-4 py-3">
+                <span className="text-xs px-2 py-0.5 rounded" style={errorBadgeStyles[row.errorType]}>{row.errorType}</span>
+              </span>
+              <span className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>{row.date}</span>
+              <span className="px-4 py-3 text-sm flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full" style={{ background: "#4ade80" }} />
+                <span style={{ color: "#4ade80" }}>Reviewed</span>
+              </span>
+            </div>
+          );
+        })}
+        <Pagination />
+      </div>
+
     </div>
   );
 }

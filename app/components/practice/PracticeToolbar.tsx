@@ -1,7 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
 
-export default function PracticeToolbar() {
+interface Props { onTogglePassage?: () => void }
+
+export default function PracticeToolbar({ onTogglePassage }: Props) {
   const [seconds, setSeconds] = useState(1005);
 
   useEffect(() => {
@@ -23,8 +25,9 @@ export default function PracticeToolbar() {
         borderBottom: "1px solid var(--border)",
       }}
     >
-      {/* Left: Passage tab */}
-      <div
+      {/* Left: Passage tab — tappable on mobile to show passage overlay */}
+      <button
+        onClick={onTogglePassage}
         className="text-xs font-semibold px-3 py-1 rounded"
         style={{
           background: "rgba(45,106,224,0.12)",
@@ -33,7 +36,7 @@ export default function PracticeToolbar() {
         }}
       >
         PASSAGE
-      </div>
+      </button>
 
       {/* Right: timer + buttons */}
       <div className="flex items-center gap-3">
