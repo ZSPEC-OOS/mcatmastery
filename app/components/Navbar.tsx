@@ -1,16 +1,19 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { usePathname } from "next/navigation";
 
 const navLinks = [
   { label: "Dashboard", href: "/" },
-  { label: "Curriculum", href: "/curriculum" },
   { label: "Practice", href: "/practice" },
+  { label: "Review", href: "/review" },
   { label: "Analytics", href: "/analytics" },
+  { label: "Curriculum", href: "/curriculum" },
 ];
 
 export default function Navbar() {
-  const [active, setActive] = useState("Dashboard");
+  const pathname = usePathname();
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   return (
     <nav
@@ -30,11 +33,10 @@ export default function Navbar() {
             <Link
               key={link.label}
               href={link.href}
-              onClick={() => setActive(link.label)}
               className="px-4 py-1.5 rounded text-sm font-medium transition-colors"
               style={{
-                color: active === link.label ? "var(--text-primary)" : "var(--text-secondary)",
-                background: active === link.label ? "rgba(45,106,224,0.18)" : "transparent",
+                color: isActive(link.href) ? "var(--text-primary)" : "var(--text-secondary)",
+                background: isActive(link.href) ? "rgba(45,106,224,0.18)" : "transparent",
               }}
             >
               {link.label}
