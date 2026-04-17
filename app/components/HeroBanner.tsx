@@ -37,8 +37,9 @@ export default function HeroBanner() {
             Choose a focused plan that matches your schedule, diagnostic results.
           </p>
 
-          <button
-            className="px-6 py-2.5 rounded font-semibold text-sm transition-all"
+          <a
+            href="/practice"
+            className="inline-block px-6 py-2.5 rounded font-semibold text-sm transition-all"
             style={{
               background: "var(--accent-blue)",
               color: "#fff",
@@ -46,7 +47,7 @@ export default function HeroBanner() {
             }}
           >
             Continue Today&apos;s Work
-          </button>
+          </a>
         </div>
 
         {/* Right: performance snapshot card */}
