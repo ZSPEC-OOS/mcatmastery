@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -61,7 +61,7 @@ function GenerateTab() {
       body: JSON.stringify({ section, topic: topic || undefined, count, model, difficulty, dedupThreshold }),
     });
 
-    if (!res.body) { setRunning(false); return; }
+    if (!res.ok || !res.body) { setRunning(false); return; }
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buf = "";
@@ -376,42 +376,9 @@ Output ONLY valid JSON:
 
 type EnvStatus = { anthropic: boolean; database: boolean; clerkPublishable: boolean; clerkSecret: boolean };
 
-function SettingsTab() {
-  const [env, setEnv]                       = useState<EnvStatus | null>(null);
-  const [firestoreEnabled, setFbEnabled]    = useState(false);
-  const [firestoreProject, setFbProject]    = useState("");
-  const [genPrompt, setGenPrompt]           = useState(DEFAULT_GEN_PROMPT);
-  const [valPrompt, setValPrompt]           = useState(DEFAULT_VAL_PROMPT);
-  const [saving, setSaving]                 = useState<string | null>(null);
-  const [saved, setSaved]                   = useState<string | null>(null);
-
-  // Load on mount
-  useState(() => {
-    fetch("/api/admin/settings")
-      .then((r) => r.json())
-      .then((d: { env: EnvStatus; settings: Record<string, string> }) => {
-        setEnv(d.env);
-        if (d.settings.firestore_enabled) setFbEnabled(d.settings.firestore_enabled === "true");
-        if (d.settings.firestore_project_id) setFbProject(d.settings.firestore_project_id);
-        if (d.settings.generation_prompt) setGenPrompt(d.settings.generation_prompt);
-        if (d.settings.validation_prompt) setValPrompt(d.settings.validation_prompt);
-      })
-      .catch(() => {});
-  });
-
-  async function save(group: string, payload: Record<string, string>) {
-    setSaving(group);
-    await fetch("/api/admin/settings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    setSaving(null);
-    setSaved(group);
-    setTimeout(() => setSaved(null), 2000);
-  }
-
-  const EnvRow = ({ label, ok }: { label: string; ok: boolean }) => (
+// Defined outside to avoid recreation on every render
+function EnvRow({ label, ok }: { label: string; ok: boolean }) {
+  return (
     <div className="flex items-center justify-between py-2.5" style={{ borderBottom: "1px solid var(--border)" }}>
       <span className="text-sm font-mono" style={{ color: "var(--text-secondary)" }}>{label}</span>
       <span className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full"
@@ -424,6 +391,44 @@ function SettingsTab() {
       </span>
     </div>
   );
+}
+
+function SettingsTab() {
+  const [env, setEnv]                       = useState<EnvStatus | null>(null);
+  const [firestoreEnabled, setFbEnabled]    = useState(false);
+  const [firestoreProject, setFbProject]    = useState("");
+  const [genPrompt, setGenPrompt]           = useState(DEFAULT_GEN_PROMPT);
+  const [valPrompt, setValPrompt]           = useState(DEFAULT_VAL_PROMPT);
+  const [saving, setSaving]                 = useState<string | null>(null);
+  const [saved, setSaved]                   = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/settings")
+      .then((r) => r.json())
+      .then((d: { env: EnvStatus; settings: Record<string, string> }) => {
+        setEnv(d.env);
+        if (d.settings.firestore_enabled) setFbEnabled(d.settings.firestore_enabled === "true");
+        if (d.settings.firestore_project_id) setFbProject(d.settings.firestore_project_id);
+        if (d.settings.generation_prompt) setGenPrompt(d.settings.generation_prompt);
+        if (d.settings.validation_prompt) setValPrompt(d.settings.validation_prompt);
+      })
+      .catch(() => {});
+  }, []);
+
+  async function save(group: string, payload: Record<string, string>) {
+    setSaving(group);
+    try {
+      await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      setSaved(group);
+      setTimeout(() => setSaved(null), 2000);
+    } finally {
+      setSaving(null);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -549,7 +554,11 @@ function SettingsTab() {
               {saving === "prompts" ? "Saving…" : saved === "prompts" ? "Saved ✓" : "Save Prompts"}
             </button>
             <button
-              onClick={() => { setGenPrompt(DEFAULT_GEN_PROMPT); setValPrompt(DEFAULT_VAL_PROMPT); }}
+              onClick={() => {
+                setGenPrompt(DEFAULT_GEN_PROMPT);
+                setValPrompt(DEFAULT_VAL_PROMPT);
+                save("prompts", { generation_prompt: DEFAULT_GEN_PROMPT, validation_prompt: DEFAULT_VAL_PROMPT });
+              }}
               className="px-4 py-2 rounded-lg text-sm font-medium"
               style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
             >
@@ -577,12 +586,12 @@ function DatabaseTab() {
   const [loading, setLoading]   = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
 
-  useState(() => {
+  useEffect(() => {
     fetch("/api/admin/stats")
       .then((r) => r.json())
       .then((d: Stats) => { setStats(d); setLoading(false); })
       .catch(() => setLoading(false));
-  });
+  }, []);
 
   async function handleDelete(id: string) {
     setDeleting(id);
