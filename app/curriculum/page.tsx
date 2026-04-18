@@ -17,7 +17,7 @@ export default function CurriculumPage() {
       {/* Sub-header: search + filter */}
       <div
         className="px-4 md:px-6 py-3 flex items-center gap-3"
-        style={{ borderBottom: "1px solid var(--border)", background: "rgba(13,17,23,0.8)" }}
+        style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-card)" }}
       >
         {/* Mobile: Topics toggle button */}
         <button
@@ -45,7 +45,7 @@ export default function CurriculumPage() {
         </div>
         <button
           className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium flex-shrink-0"
-          style={{ background: "rgba(45,106,224,0.2)", color: "#6eaeff", border: "1px solid rgba(45,106,224,0.35)" }}
+          style={{ background: "rgba(27,58,107,0.2)", color: "var(--accent-blue)", border: "1px solid rgba(27,58,107,0.35)" }}
         >
           <span className="w-1.5 h-1.5 rounded-full bg-current" />
           <span className="hidden sm:inline">Weak Topics</span>

@@ -101,7 +101,7 @@ export default function TopicDetail({ topicKey }: Props) {
       {/* Tab content */}
       <div className="flex flex-col items-center justify-center py-16 rounded-xl gap-4" style={{ border: "1px solid var(--border)" }}>
         <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-          <rect width="40" height="40" rx="8" fill="rgba(45,106,224,0.1)" />
+          <rect width="40" height="40" rx="8" fill="rgba(27,58,107,0.1)" />
           <path d="M12 20h16M20 12v16" stroke="#5b9cf6" strokeWidth="2" strokeLinecap="round" />
         </svg>
         <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>

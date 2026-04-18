@@ -83,7 +83,7 @@ export default function DatabaseTab() {
         {/* Desktop header */}
         <div
           className="hidden md:grid text-xs px-4 py-2"
-          style={{ gridTemplateColumns: "110px 1fr 80px 110px 60px", background: "rgba(22,27,34,0.8)", color: "var(--text-muted)" }}
+          style={{ gridTemplateColumns: "110px 1fr 80px 110px 60px", background: "var(--bg-elevated)", color: "var(--text-muted)" }}
         >
           <span>Section</span><span>Stem</span><span>Difficulty</span><span>Date</span><span />
         </div>

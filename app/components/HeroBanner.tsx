@@ -25,7 +25,7 @@ export default function HeroBanner() {
     <div
       className="relative overflow-hidden px-4 py-7 md:px-8 md:py-10"
       style={{
-        background: "linear-gradient(135deg, #0f1b2d 0%, #0d1117 60%, #111827 100%)",
+        background: "linear-gradient(135deg, #dce8f8 0%, #F4F7FB 60%, #eef2ff 100%)",
         borderBottom: "1px solid var(--border)",
       }}
     >
@@ -42,7 +42,7 @@ export default function HeroBanner() {
           <div className="flex items-center gap-3 mb-3">
             <span
               className="text-xs font-semibold px-2.5 py-0.5 rounded-full"
-              style={{ background: "rgba(45,106,224,0.2)", color: "#6eaeff", border: "1px solid rgba(45,106,224,0.35)" }}
+              style={{ background: "rgba(27,58,107,0.2)", color: "var(--accent-blue)", border: "1px solid rgba(27,58,107,0.35)" }}
             >
               12-Week Standard
             </span>
@@ -57,7 +57,7 @@ export default function HeroBanner() {
           <a
             href="/practice"
             className="inline-block px-6 py-2.5 rounded font-semibold text-sm"
-            style={{ background: "var(--accent-blue)", color: "#fff", boxShadow: "0 0 20px rgba(45,106,224,0.4)", textDecoration: "none" }}
+            style={{ background: "var(--accent-blue)", color: "#fff", boxShadow: "0 0 20px rgba(27,58,107,0.4)", textDecoration: "none" }}
           >
             Continue Today&apos;s Work
           </a>
@@ -65,7 +65,7 @@ export default function HeroBanner() {
 
         <div
           className="md:w-72 rounded-xl p-5"
-          style={{ background: "rgba(22,27,34,0.85)", border: "1px solid var(--border)", backdropFilter: "blur(12px)" }}
+          style={{ background: "var(--bg-card)", border: "1px solid var(--border)", backdropFilter: "blur(12px)" }}
         >
           <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text-secondary)" }}>
             Performance Snapshot

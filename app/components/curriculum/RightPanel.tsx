@@ -174,7 +174,7 @@ export default function RightPanel({ topicKey }: Props) {
                   background: d.done
                     ? "var(--accent-blue)"
                     : d.active
-                    ? "rgba(45,106,224,0.35)"
+                    ? "rgba(27,58,107,0.35)"
                     : "rgba(255,255,255,0.06)",
                   color: d.done || d.active ? "#fff" : "var(--text-secondary)",
                   border: d.active ? "1px solid var(--accent-blue)" : "none",

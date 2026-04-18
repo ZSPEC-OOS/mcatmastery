@@ -274,9 +274,9 @@ export default function PracticePage() {
         {timed && (
           <span className="font-mono px-2 py-1 rounded"
             style={{
-              background: elapsed > totalTime * 0.8 ? "rgba(248,113,113,0.15)" : "rgba(45,106,224,0.12)",
+              background: elapsed > totalTime * 0.8 ? "rgba(248,113,113,0.15)" : "rgba(27,58,107,0.12)",
               color: elapsed > totalTime * 0.8 ? "#f87171" : "#5b9cf6",
-              border: `1px solid ${elapsed > totalTime * 0.8 ? "rgba(248,113,113,0.3)" : "rgba(45,106,224,0.25)"}`,
+              border: `1px solid ${elapsed > totalTime * 0.8 ? "rgba(248,113,113,0.3)" : "rgba(27,58,107,0.25)"}`,
             }}>
             {fmt(Math.max(0, totalTime - elapsed))}
           </span>
@@ -314,7 +314,7 @@ export default function PracticePage() {
                 if (opt === currentQ.correctAnswer)  { bg = "rgba(74,222,128,0.1)";  border = "#4ade80"; color = "#4ade80"; }
                 else if (opt === selected)           { bg = "rgba(248,113,113,0.1)"; border = "#f87171"; color = "#f87171"; }
               } else if (selected === opt) {
-                bg = "rgba(45,106,224,0.1)"; border = "var(--accent-blue)";
+                bg = "rgba(27,58,107,0.1)"; border = "var(--accent-blue)";
               }
               const radioFilled = (selected === opt && !submitted) || (submitted && opt === currentQ.correctAnswer);
               return (
@@ -338,7 +338,7 @@ export default function PracticePage() {
 
           {showExp && (
             <div className="rounded-xl p-4 mb-4"
-              style={{ background: "rgba(45,106,224,0.06)", border: "1px solid rgba(45,106,224,0.2)" }}>
+              style={{ background: "rgba(27,58,107,0.06)", border: "1px solid rgba(27,58,107,0.2)" }}>
               <p className="text-xs font-semibold uppercase mb-2" style={{ color: "#5b9cf6" }}>Explanation</p>
               <p className="text-sm" style={{ color: "var(--text-secondary)", lineHeight: 1.7 }}>{currentQ.explanation}</p>
             </div>
@@ -347,7 +347,7 @@ export default function PracticePage() {
           <div className="flex-1" />
 
           <div className="sticky bottom-0 py-3 flex items-center justify-between gap-3"
-            style={{ borderTop: "1px solid var(--border)", background: "rgba(13,17,23,0.95)" }}>
+            style={{ borderTop: "1px solid var(--border)", background: "rgba(244,247,251,0.97)" }}>
             <button
               onClick={() => { setIdx(i => Math.max(0, i - 1)); setSelected(null); setSubmitted(false); setShowExp(false); }}
               disabled={idx === 0}

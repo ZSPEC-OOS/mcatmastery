@@ -54,7 +54,7 @@ export default function FilterBar({ section, onSection, errorType, onErrorType, 
                 border: "1px solid var(--border)",
                 borderRight: i < 2 ? "none" : undefined,
                 color: status === s ? "var(--text-primary)" : "var(--text-secondary)",
-                background: status === s ? "rgba(45,106,224,0.15)" : "transparent",
+                background: status === s ? "rgba(27,58,107,0.15)" : "transparent",
                 borderRadius: i === 0 ? "6px 0 0 6px" : i === 2 ? "0 6px 6px 0" : "0",
               }}
             >

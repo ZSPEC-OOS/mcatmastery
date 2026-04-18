@@ -1,24 +1,38 @@
 @import "tailwindcss";
 
 :root {
-  --bg-primary: #0d1117;
-  --bg-card: #161b22;
-  --bg-card-hover: #1c2128;
-  --border: #30363d;
-  --accent-blue: #2d6ae0;
-  --accent-blue-hover: #3a7ae8;
-  --text-primary: #e6edf3;
-  --text-secondary: #8b949e;
-  --text-muted: #6e7681;
+  /* Backgrounds */
+  --bg-primary:    #F4F7FB;
+  --bg-card:       #FFFFFF;
+  --bg-card-hover: #EEF2FF;
+  --bg-input:      #EEF2F8;
+  --bg-elevated:   #F0F4FA;
+
+  /* Borders */
+  --border: #D1DBF0;
+
+  /* Brand */
+  --accent-blue:       #1B3A6B;
+  --accent-blue-hover: #2B4F91;
+  --accent-red:        #C8102E;
+
+  /* Text */
+  --text-primary:   #0F1E3D;
+  --text-secondary: #4A5A7A;
+  --text-muted:     #8093B0;
+
+  /* Nav */
+  --nav-bg: rgba(255,255,255,0.97);
 }
 
 @theme inline {
-  --color-bg-primary: var(--bg-primary);
-  --color-bg-card: var(--bg-card);
-  --color-border: var(--border);
-  --color-accent-blue: var(--accent-blue);
-  --color-text-primary: var(--text-primary);
-  --color-text-secondary: var(--text-secondary);
+  --color-bg-primary:      var(--bg-primary);
+  --color-bg-card:         var(--bg-card);
+  --color-border:          var(--border);
+  --color-accent-blue:     var(--accent-blue);
+  --color-accent-red:      var(--accent-red);
+  --color-text-primary:    var(--text-primary);
+  --color-text-secondary:  var(--text-secondary);
 }
 
 body {

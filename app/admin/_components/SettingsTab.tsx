@@ -162,7 +162,7 @@ export default function SettingsTab() {
               onChange={(e) => setFbProject(e.target.value)}
               placeholder="my-project-12345"
               className="w-full px-3 py-2 rounded-lg text-sm"
-              style={{ background: "rgba(13,17,23,0.6)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
+              style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
             />
           </div>
 
@@ -201,7 +201,7 @@ export default function SettingsTab() {
               onChange={(e) => setGenPrompt(e.target.value)}
               rows={10}
               className="w-full px-3 py-2 rounded-lg text-xs font-mono resize-y"
-              style={{ background: "rgba(13,17,23,0.6)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
+              style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
             />
           </div>
           <div>
@@ -213,7 +213,7 @@ export default function SettingsTab() {
               onChange={(e) => setValPrompt(e.target.value)}
               rows={8}
               className="w-full px-3 py-2 rounded-lg text-xs font-mono resize-y"
-              style={{ background: "rgba(13,17,23,0.6)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
+              style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
             />
           </div>
           <div className="flex gap-3">

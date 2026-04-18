@@ -105,7 +105,7 @@ export default function GenerateTab() {
                 <div className="flex items-center gap-2 mb-1">
                   <span
                     className="w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0"
-                    style={{ background: "rgba(45,106,224,0.18)", color: "var(--accent-blue)" }}
+                    style={{ background: "rgba(27,58,107,0.18)", color: "var(--accent-blue)" }}
                   >
                     {s.n}
                   </span>
@@ -184,7 +184,7 @@ export default function GenerateTab() {
                   onClick={() => setModel(m.id)}
                   className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs"
                   style={{
-                    background: model === m.id ? "rgba(45,106,224,0.12)" : "var(--bg-card)",
+                    background: model === m.id ? "rgba(27,58,107,0.12)" : "var(--bg-card)",
                     border: `1px solid ${model === m.id ? "var(--accent-blue)" : "var(--border)"}`,
                     color: "var(--text-secondary)",
                   }}
@@ -206,7 +206,7 @@ export default function GenerateTab() {
                   onClick={() => setDifficulty(d)}
                   className="px-3 py-1.5 rounded-lg text-xs font-semibold capitalize"
                   style={{
-                    background: difficulty === d ? "rgba(45,106,224,0.15)" : "var(--bg-card)",
+                    background: difficulty === d ? "rgba(27,58,107,0.15)" : "var(--bg-card)",
                     border: `1px solid ${difficulty === d ? "var(--accent-blue)" : "var(--border)"}`,
                     color: difficulty === d ? "var(--accent-blue)" : "var(--text-secondary)",
                   }}

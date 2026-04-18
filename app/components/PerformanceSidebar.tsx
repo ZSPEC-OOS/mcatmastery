@@ -138,8 +138,8 @@ export default function PerformanceSidebar() {
               <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: "visible" }}>
                 <defs>
                   <linearGradient id="accGrad2" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="rgba(45,106,224,0.3)" />
-                    <stop offset="100%" stopColor="rgba(45,106,224,0)" />
+                    <stop offset="0%" stopColor="rgba(27,58,107,0.3)" />
+                    <stop offset="100%" stopColor="rgba(27,58,107,0)" />
                   </linearGradient>
                 </defs>
                 {[0, 0.5, 1].map(t => (
