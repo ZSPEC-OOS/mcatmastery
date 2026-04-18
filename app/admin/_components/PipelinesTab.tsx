@@ -276,10 +276,188 @@ function PDFPipeline() {
 }
 
 function WISPPipeline() {
+  const [endpoint, setEndpoint] = useState("");
+  const [apiKey, setApiKey]     = useState("");
+  const [section, setSection]   = useState<Section>("Bio/Biochem");
+  const [topic, setTopic]       = useState("");
+  const [count, setCount]       = useState(5);
+  const [model, setModel]       = useState("claude-opus-4-7");
+  const [dedup, setDedup]       = useState(0.75);
+  const [running, setRunning]   = useState(false);
+  const [events, setEvents]     = useState<SseEvent[]>([]);
+  const [progress, setProgress] = useState({ current: 0, total: 0 });
+
+  const canRun = endpoint.length > 0 && !running;
+
+  async function handleSearch() {
+    if (!canRun) return;
+    setRunning(true);
+    setEvents([]);
+    setProgress({ current: 0, total: count });
+
+    const res = await fetch("/api/admin/pipeline/wisp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        wispEndpoint: endpoint,
+        wispApiKey:   apiKey || undefined,
+        section,
+        topic:        topic || undefined,
+        count,
+        model,
+        dedupThreshold: dedup,
+      }),
+    });
+
+    if (!res.ok) {
+      setEvents([{ type: "error", message: `Server error ${res.status}` }]);
+      setRunning(false);
+      return;
+    }
+
+    await readSse(res, (ev) => {
+      if (ev.type === "progress") setProgress({ current: ev.current, total: ev.total });
+      setEvents((prev) => [...prev, ev]);
+    });
+    setRunning(false);
+  }
+
   return (
-    <div className="rounded-xl px-5 py-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-      <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>WISP Web Research</p>
-      <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>Coming next step.</p>
+    <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+      <div className="px-5 py-3.5" style={{ background: "var(--bg-card)", borderBottom: "1px solid var(--border)" }}>
+        <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>WISP Web Research</p>
+        <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+          Searches the web via a self-hosted WISP API, extracts question material, then refines and verifies each question.
+        </p>
+      </div>
+
+      <div className="px-5 py-5 space-y-5">
+
+        {/* Endpoint + API key */}
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+              WISP Endpoint URL
+            </label>
+            <input
+              type="url"
+              value={endpoint}
+              onChange={(e) => setEndpoint(e.target.value)}
+              placeholder="https://wisp.example.com"
+              className="w-full px-3 py-2 rounded-lg text-sm"
+              style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+              API Key <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(optional)</span>
+            </label>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="Bearer token"
+              className="w-full px-3 py-2 rounded-lg text-sm"
+              style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
+            />
+          </div>
+        </div>
+
+        {/* Section */}
+        <div>
+          <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Section</label>
+          <div className="grid grid-cols-2 gap-2">
+            {SECTIONS.map((s) => (
+              <button key={s} onClick={() => setSection(s)}
+                className="py-2 px-3 rounded-lg text-xs font-semibold text-left flex items-center gap-2"
+                style={{
+                  background: section === s ? `${SECTION_COLORS[s]}22` : "var(--bg-elevated)",
+                  border: `1px solid ${section === s ? SECTION_COLORS[s] : "var(--border)"}`,
+                  color: section === s ? SECTION_COLORS[s] : "var(--text-secondary)",
+                }}
+              >
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: SECTION_COLORS[s] }} />
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Topic */}
+        <div>
+          <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+            Topic hint <span style={{ fontWeight: 400 }}>(optional)</span>
+          </label>
+          <input
+            type="text"
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            placeholder="e.g. Enzyme Kinetics"
+            className="w-full px-3 py-2 rounded-lg text-sm"
+            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
+          />
+        </div>
+
+        {/* Count + Model */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+              Count — <span style={{ color: "var(--text-primary)" }}>{count}</span>
+            </label>
+            <input type="range" min={1} max={30} value={count}
+              onChange={(e) => setCount(Number(e.target.value))} className="w-full" />
+            <div className="flex justify-between text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+              <span>1</span><span>30</span>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Model</label>
+            <div className="space-y-1">
+              {MODELS.map((m) => (
+                <button key={m.id} onClick={() => setModel(m.id)}
+                  className="w-full px-3 py-1.5 rounded-lg text-xs text-left"
+                  style={{
+                    background: model === m.id ? "rgba(27,58,107,0.12)" : "var(--bg-elevated)",
+                    border: `1px solid ${model === m.id ? "var(--accent-blue)" : "var(--border)"}`,
+                    color: model === m.id ? "var(--accent-blue)" : "var(--text-secondary)",
+                    fontWeight: model === m.id ? 600 : 400,
+                  }}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Dedup */}
+        <div>
+          <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+            Dedup Threshold — <span style={{ color: "var(--text-primary)" }}>{dedup.toFixed(2)}</span>
+          </label>
+          <input type="range" min={0.3} max={0.99} step={0.01} value={dedup}
+            onChange={(e) => setDedup(Number(e.target.value))} className="w-full" />
+          <div className="flex justify-between text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+            <span>0.30 strict</span><span>0.99 loose</span>
+          </div>
+        </div>
+
+        <button
+          onClick={handleSearch}
+          disabled={!canRun}
+          className="w-full py-2.5 rounded-lg text-sm font-semibold"
+          style={{
+            background: canRun ? "var(--accent-blue)" : "var(--bg-elevated)",
+            color: canRun ? "#fff" : "var(--text-muted)",
+            border: canRun ? "none" : "1px solid var(--border)",
+            cursor: canRun ? "pointer" : "not-allowed",
+          }}
+        >
+          {running ? `Processing ${progress.current} / ${progress.total}…` : "Search & Extract Questions"}
+        </button>
+
+        <LiveOutput events={events} running={running} progress={progress} />
+      </div>
     </div>
   );
 }
