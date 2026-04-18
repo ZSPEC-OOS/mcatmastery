@@ -14,8 +14,23 @@ export default function TopicDetail({ topicKey }: Props) {
   const [accuracy, setAccuracy]   = useState<number | null>(null);
   const [attempted, setAttempted] = useState<number>(0);
 
-  const [sectionId, topicLabel] = topicKey.split(":") as [string, string];
+  const [sectionId, topicLabel] = (topicKey || ":").split(":") as [string, string];
   const sectionLabel = SECTION_LABELS[sectionId] ?? sectionId;
+
+  if (!topicKey) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--border)" strokeWidth="1.4" strokeLinecap="round">
+          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+          <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+        </svg>
+        <div>
+          <p className="text-sm font-medium mb-1" style={{ color: "var(--text-primary)" }}>Select a topic</p>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Choose a topic from the sidebar to see details, stats, and practice questions.</p>
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     setActiveTab("Summary");
