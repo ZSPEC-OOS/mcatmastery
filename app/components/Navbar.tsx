@@ -63,6 +63,7 @@ export default function Navbar() {
 
           {/* Right side */}
           <div className="flex items-center gap-1">
+            {/* Desktop-only: clock + bookmark */}
             <div className="hidden md:flex items-center gap-1">
               <button
                 className="w-8 h-8 flex items-center justify-center rounded-lg"
@@ -78,15 +79,17 @@ export default function Navbar() {
               >
                 <BookmarkIcon />
               </button>
-              <Link
-                href="/admin"
-                className="w-8 h-8 flex items-center justify-center rounded-lg"
-                style={{ color: "var(--text-muted)" }}
-                title="Admin Settings"
-              >
-                <SettingsIcon />
-              </Link>
             </div>
+
+            {/* Gear — always visible */}
+            <Link
+              href="/admin"
+              className="w-9 h-9 flex items-center justify-center rounded-lg"
+              style={{ color: "var(--text-muted)" }}
+              title="Admin Settings"
+            >
+              <SettingsIcon />
+            </Link>
 
             {/* Hamburger — mobile only */}
             <button
@@ -127,6 +130,20 @@ export default function Navbar() {
               {link.label}
             </Link>
           ))}
+          <Link
+            href="/admin"
+            onClick={() => setMobileOpen(false)}
+            className="flex items-center gap-2.5 px-5 py-3.5 text-sm font-medium"
+            style={{
+              color: pathname.startsWith("/admin") ? "var(--accent-blue)" : "var(--text-muted)",
+              borderLeft: pathname.startsWith("/admin") ? "2px solid var(--accent-blue)" : "2px solid transparent",
+              background: pathname.startsWith("/admin") ? "rgba(27,58,107,0.05)" : "transparent",
+              borderTop: "1px solid var(--border)",
+            }}
+          >
+            <SettingsIcon />
+            Admin
+          </Link>
         </div>
       )}
     </>
