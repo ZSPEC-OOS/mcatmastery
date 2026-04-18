@@ -94,7 +94,7 @@ export default function CurriculumPage() {
 
         {/* Right panel — hidden on mobile */}
         <div className="hidden lg:flex flex-shrink-0">
-          <RightPanel />
+          <RightPanel topicKey={activeTopic} />
         </div>
       </div>
 

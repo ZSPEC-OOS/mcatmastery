@@ -2,7 +2,13 @@
 import { useEffect, useState } from "react";
 import { fetchMistakes, type SessionQuestion, type Section } from "../../../lib/api-client";
 
-interface Props { selectedId: string; onSelect: (id: string) => void; }
+interface Props {
+  selectedId: string;
+  onSelect: (id: string) => void;
+  filterSection?: string;
+  filterErrorType?: string;
+  filterStatus?: string;
+}
 
 const SECTION_COLORS: Record<string, string> = {
   "Chem/Phys": "#5b9cf6", "CARS": "#f0a500", "Bio/Biochem": "#4ade80", "Psych/Soc": "#a78bfa",
@@ -27,7 +33,7 @@ const SEED: SessionQuestion[] = [
     question: { id: "01159", section: "Chem/Phys" as Section, topic: "Thermodynamics", stem: "For a spontaneous reaction at constant T and P:", optionA: "", optionB: "", optionC: "", optionD: "", correctAnswer: "D", explanation: "", difficulty: "easy", aiGenerated: true, passage: null, createdAt: "2024-04-16" } },
 ];
 
-export default function MistakeTable({ selectedId, onSelect }: Props) {
+export default function MistakeTable({ selectedId, onSelect, filterSection, filterErrorType, filterStatus }: Props) {
   const [rows, setRows]       = useState<SessionQuestion[]>(SEED);
   const [loading, setLoading] = useState(true);
 
@@ -37,6 +43,13 @@ export default function MistakeTable({ selectedId, onSelect }: Props) {
       .catch(() => { /* keep seed */ })
       .finally(() => setLoading(false));
   }, []);
+
+  const displayRows = rows.filter(row => {
+    if (filterSection && row.question.section !== filterSection) return false;
+    if (filterErrorType && row.errorType !== filterErrorType) return false;
+    if (filterStatus && row.reviewStatus !== filterStatus) return false;
+    return true;
+  });
 
   const fmtDate = (s: string | null) =>
     s ? new Date(s).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" }) : "—";
@@ -51,7 +64,7 @@ export default function MistakeTable({ selectedId, onSelect }: Props) {
 
       {/* Mobile card list */}
       <div className="md:hidden">
-        {rows.map(row => {
+        {displayRows.map(row => {
           const isSelected = row.id === selectedId;
           const q = row.question;
           return (
@@ -103,7 +116,7 @@ export default function MistakeTable({ selectedId, onSelect }: Props) {
           <span>Your Answer</span><span>Answer</span>
           <span>Error Type</span><span>Date</span><span>Status</span>
         </div>
-        {rows.map(row => {
+        {displayRows.map(row => {
           const isSelected = row.id === selectedId;
           const q = row.question;
           return (

@@ -1,146 +1,116 @@
+"use client";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
-type Task = {
+interface StudyTask {
   id: string;
   title: string;
-  subtitle: string;
-  progress: number;
-  meta: string;
-  action: string;
-  href: string;
-  variant: "primary" | "secondary";
-};
+  section: string | null;
+  completed: boolean;
+  dueDate: string | null;
+}
 
-const tasks: Task[] = [
-  {
-    id: "chem",
-    title: "Chem/Phys Review",
-    subtitle: "(45 min)",
-    progress: 68,
-    meta: "Estimated",
-    action: "Resume",
-    href: "/practice",
-    variant: "primary",
-  },
-  {
-    id: "cars",
-    title: "CARS Passage Set",
-    subtitle: "(5 Passages)",
-    progress: 0,
-    meta: "Timed  •  0  •  0/5",
-    action: "Begin",
-    href: "/practice",
-    variant: "primary",
-  },
-  {
-    id: "bio",
-    title: "Bio/Biochem Questions",
-    subtitle: "(20 Questions)",
-    progress: 30,
-    meta: "Estimated 30m  0/20",
-    action: "Continue",
-    href: "/practice",
-    variant: "secondary",
-  },
-  {
-    id: "flash",
-    title: "Flashcards",
-    subtitle: "(30 Cards)",
-    progress: 20,
-    meta: "Adaptive  0/30 — 0/30",
-    action: "Review",
-    href: "/curriculum",
-    variant: "secondary",
-  },
-  {
-    id: "missed",
-    title: "Review Missed Questions",
-    subtitle: "",
-    progress: 100,
-    meta: "Reviewed items queried Today",
-    action: "Review Log",
-    href: "/review",
-    variant: "secondary",
-  },
+function taskConfig(title: string) {
+  const t = title.toLowerCase();
+  if (t.includes("cars"))                        return { subtitle: "(5 Passages)",  href: "/practice",   variant: "primary"   as const, action: "Begin" };
+  if (t.includes("chem"))                        return { subtitle: "(45 min)",       href: "/practice",   variant: "primary"   as const, action: "Resume" };
+  if (t.includes("bio"))                         return { subtitle: "(20 Questions)", href: "/practice",   variant: "secondary" as const, action: "Continue" };
+  if (t.includes("flash"))                       return { subtitle: "(30 Cards)",     href: "/curriculum", variant: "secondary" as const, action: "Review" };
+  if (t.includes("review") || t.includes("missed")) return { subtitle: "",           href: "/review",     variant: "secondary" as const, action: "Review Log" };
+  return { subtitle: "", href: "/practice", variant: "secondary" as const, action: "Start" };
+}
+
+const SEED_TASKS: StudyTask[] = [
+  { id: "t1", title: "Chem/Phys Review",       section: "Chem/Phys",  completed: true,  dueDate: null },
+  { id: "t2", title: "CARS Passage Set",        section: "CARS",       completed: false, dueDate: null },
+  { id: "t3", title: "Bio/Biochem Questions",   section: "Bio/Biochem",completed: false, dueDate: null },
+  { id: "t4", title: "Flashcards",              section: null,         completed: false, dueDate: null },
+  { id: "t5", title: "Review Missed Questions", section: null,         completed: false, dueDate: null },
 ];
 
 export default function TaskList() {
+  const [tasks, setTasks] = useState<StudyTask[]>(SEED_TASKS);
+
+  useEffect(() => {
+    fetch("/api/study-tasks")
+      .then(r => r.json())
+      .then((data: StudyTask[]) => { if (data.length > 0) setTasks(data); })
+      .catch(() => {});
+  }, []);
+
+  const toggleTask = async (id: string, completed: boolean) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, completed } : t));
+    try {
+      await fetch("/api/study-tasks", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, completed }),
+      });
+    } catch {
+      setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !completed } : t));
+    }
+  };
+
   return (
     <div className="space-y-3">
-      {tasks.map((task) => (
-        <TaskCard key={task.id} task={task} />
-      ))}
-    </div>
-  );
-}
-
-function TaskCard({ task }: { task: Task }) {
-  const done = task.progress === 100;
-
-  return (
-    <div
-      className="rounded-xl p-4 flex items-center gap-4 transition-colors"
-      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
-    >
-      {/* Checkbox */}
-      <div
-        className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
-        style={{
-          border: done ? "none" : "1.5px solid var(--border)",
-          background: done ? "var(--accent-blue)" : "transparent",
-        }}
-      >
-        {done && (
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <path d="M2 5l2.5 2.5L8 3" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-        )}
-      </div>
-
-      {/* Text + progress */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1.5">
-          <span className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>
-            {task.title}
-          </span>
-          {task.subtitle && (
-            <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
-              {task.subtitle}
-            </span>
-          )}
-        </div>
-        <div
-          className="h-1.5 rounded-full mb-1.5 overflow-hidden"
-          style={{ background: "rgba(255,255,255,0.06)" }}
-        >
+      {tasks.map(task => {
+        const cfg = taskConfig(task.title);
+        return (
           <div
-            className="h-full rounded-full"
-            style={{
-              width: `${task.progress}%`,
-              background:
-                task.progress === 100
-                  ? "var(--accent-blue)"
-                  : "linear-gradient(90deg, var(--accent-blue), #5b9cf6)",
-            }}
-          />
-        </div>
-        <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-          {task.meta}
-        </span>
-      </div>
+            key={task.id}
+            className="rounded-xl p-4 flex items-center gap-4"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+          >
+            <button
+              onClick={() => toggleTask(task.id, !task.completed)}
+              className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
+              style={{
+                border: task.completed ? "none" : "1.5px solid var(--border)",
+                background: task.completed ? "var(--accent-blue)" : "transparent",
+              }}
+            >
+              {task.completed && (
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path d="M2 5l2.5 2.5L8 3" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              )}
+            </button>
 
-      {/* Action button */}
-      <Link
-        href={task.href}
-        className="px-4 py-1.5 rounded text-xs font-semibold flex-shrink-0 transition-all"
-        style={
-          task.variant === "primary"
-            ? { background: "var(--accent-blue)", color: "#fff", textDecoration: "none" }
-            : { background: "transparent", color: "var(--text-secondary)", border: "1px solid var(--border)", textDecoration: "none" }
-        }
-      >
-        {task.action}
-      </Link>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>
+                  {task.title}
+                </span>
+                {cfg.subtitle && (
+                  <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{cfg.subtitle}</span>
+                )}
+              </div>
+              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: task.completed ? "100%" : "0%",
+                    background: "var(--accent-blue)",
+                    transition: "width 0.4s ease",
+                  }}
+                />
+              </div>
+            </div>
+
+            <Link
+              href={cfg.href}
+              className="px-4 py-1.5 rounded text-xs font-semibold flex-shrink-0"
+              style={
+                cfg.variant === "primary"
+                  ? { background: "var(--accent-blue)", color: "#fff", textDecoration: "none" }
+                  : { background: "transparent", color: "var(--text-secondary)", border: "1px solid var(--border)", textDecoration: "none" }
+              }
+            >
+              {task.completed ? "Done" : cfg.action}
+            </Link>
+          </div>
+        );
+      })}
     </div>
   );
 }
