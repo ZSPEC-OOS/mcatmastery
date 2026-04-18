@@ -1,46 +1,39 @@
 "use client";
-import { useState } from "react";
-import MichaelisCurve from "./MichaelisCurve";
+import { useEffect, useState } from "react";
 
 const tabs = ["Summary", "Formulas", "Key Concepts", "Examples"];
 
-const summaryPoints = [
-  "Enzymes lower activation energy (Ea)",
-  "Km = [S] when reaction rate = ½ Vmax",
-  "Lower Km = higher affinity",
-  "Competitive inhibitors ↑ apparent Km, no change in Vmax",
-  "Noncompetitive inhibitors ↓ Vmax, Km unchanged",
-  "Allosteric enzymes show sigmoidal, not hyperbolic curves",
-];
-
-const workedOptions = [
-  { id: "A", label: "0.25 Vmax" },
-  { id: "B", label: "0.50 Vmax" },
-  { id: "C", label: "0.75 Vmax" },
-  { id: "D", label: "1.00 Vmax" },
-];
-
-const relatedTopics = ["Michaelis-Menten", "Substrate Inhibition", "Allosteric Regulation", "Reaction Mechanisms"];
-
-const sectionLabels: Record<string, string> = {
-  chem: "Chem/Phys",
-  cars: "CARS",
-  bio: "Bio/Biochem",
-  psych: "Psych/Soc",
+const SECTION_LABELS: Record<string, string> = {
+  chem: "Chem/Phys", cars: "CARS", bio: "Bio/Biochem", psych: "Psych/Soc",
 };
-
-// Topics with accuracy < 60% are flagged as weak
-const weakTopics = new Set(["Enzyme Kinetics", "Kinematics", "Identity"]);
 
 type Props = { topicKey: string };
 
 export default function TopicDetail({ topicKey }: Props) {
   const [activeTab, setActiveTab] = useState("Summary");
-  const [workedAnswer, setWorkedAnswer] = useState("B");
+  const [accuracy, setAccuracy]   = useState<number | null>(null);
+  const [attempted, setAttempted] = useState<number>(0);
 
   const [sectionId, topicLabel] = topicKey.split(":") as [string, string];
-  const sectionLabel = sectionLabels[sectionId] ?? "Chem/Phys";
-  const isWeak = weakTopics.has(topicLabel);
+  const sectionLabel = SECTION_LABELS[sectionId] ?? sectionId;
+
+  useEffect(() => {
+    setActiveTab("Summary");
+    setAccuracy(null);
+    setAttempted(0);
+    fetch("/api/curriculum")
+      .then(r => r.json())
+      .then((data: { topicAccuracy: { topic: string; accuracy: number; attempted: number }[] }) => {
+        const match = data.topicAccuracy?.find(t => t.topic === topicLabel);
+        if (match) {
+          setAccuracy(match.accuracy);
+          setAttempted(match.attempted);
+        }
+      })
+      .catch(() => {});
+  }, [topicKey, topicLabel]);
+
+  const isWeak = accuracy !== null && accuracy < 60;
 
   return (
     <div className="flex-1 overflow-y-auto px-7 py-6 min-w-0">
@@ -65,19 +58,26 @@ export default function TopicDetail({ topicKey }: Props) {
             </span>
           )}
         </div>
-        <button
+        <a
+          href={`/practice?topic=${encodeURIComponent(topicLabel)}`}
           className="px-4 py-2 rounded text-sm font-semibold"
-          style={{ background: "var(--accent-blue)", color: "#fff" }}
+          style={{ background: "var(--accent-blue)", color: "#fff", textDecoration: "none" }}
         >
-          Start Practice (12)
-        </button>
+          Start Practice
+        </a>
       </div>
 
       {/* Stats */}
       <div className="flex items-center gap-3 mb-5 text-sm" style={{ color: "var(--text-secondary)" }}>
-        <span>Your Accuracy: <strong style={{ color: "#e05c5c" }}>45%</strong></span>
-        <span style={{ color: "var(--border)" }}>|</span>
-        <span>Questions Attempted: <strong style={{ color: "var(--text-primary)" }}>32</strong></span>
+        {accuracy !== null ? (
+          <>
+            <span>Your Accuracy: <strong style={{ color: isWeak ? "#e05c5c" : "#4ade80" }}>{accuracy}%</strong></span>
+            <span style={{ color: "var(--border)" }}>|</span>
+            <span>Questions Attempted: <strong style={{ color: "var(--text-primary)" }}>{attempted}</strong></span>
+          </>
+        ) : (
+          <span style={{ color: "var(--text-muted)" }}>No attempts yet for this topic.</span>
+        )}
       </div>
 
       {/* Tabs */}
@@ -98,142 +98,26 @@ export default function TopicDetail({ topicKey }: Props) {
         ))}
       </div>
 
-      {/* Summary tab */}
-      {activeTab === "Summary" && (
-        <div className="space-y-7">
-          {/* High-Yield Summary */}
-          <section>
-            <h2 className="text-sm font-bold mb-3" style={{ color: "var(--text-primary)" }}>
-              High-Yield Summary
-            </h2>
-            <ul className="space-y-2">
-              {summaryPoints.map((pt) => (
-                <li key={pt} className="flex items-start gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
-                  <span
-                    className="w-4 h-4 rounded flex-shrink-0 mt-0.5 flex items-center justify-center"
-                    style={{ background: "rgba(45,106,224,0.25)" }}
-                  >
-                    <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-                      <path d="M1.5 4l1.8 1.8L6.5 2.5" stroke="#5b9cf6" strokeWidth="1.4" strokeLinecap="round" />
-                    </svg>
-                  </span>
-                  {pt}
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          {/* Key Graph */}
-          <section>
-            <h2 className="text-sm font-bold mb-3" style={{ color: "var(--text-primary)" }}>
-              Key Graph
-            </h2>
-            <div
-              className="rounded-xl p-4"
-              style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)" }}
-            >
-              <MichaelisCurve />
-            </div>
-          </section>
-
-          {/* Worked Example */}
-          <section>
-            <div className="flex items-center gap-3 mb-3">
-              <h2 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
-                Worked Example
-              </h2>
-              <span
-                className="text-xs px-2 py-0.5 rounded"
-                style={{ background: "rgba(45,106,224,0.2)", color: "#6eaeff", border: "1px solid rgba(45,106,224,0.3)" }}
-              >
-                From Your Mistakes ▾
-              </span>
-            </div>
-
-            <div
-              className="rounded-xl p-5"
-              style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)" }}
-            >
-              <p className="text-sm mb-4" style={{ color: "var(--text-primary)" }}>
-                If K<sub>m</sub> = 10 mM and [S] = 10 mM, what is v relative to V<sub>max</sub>?
-              </p>
-              <div className="flex flex-col md:flex-row gap-6">
-                {/* Options */}
-                <div className="space-y-2.5 flex-1">
-                  {workedOptions.map((opt) => {
-                    const sel = workedAnswer === opt.id;
-                    return (
-                      <label key={opt.id} className="flex items-center gap-2.5 cursor-pointer">
-                        <div
-                          className="w-4 h-4 rounded-full flex-shrink-0 flex items-center justify-center"
-                          style={{
-                            border: sel ? "none" : "1.5px solid var(--border)",
-                            background: sel ? "var(--accent-blue)" : "transparent",
-                          }}
-                          onClick={() => setWorkedAnswer(opt.id)}
-                        >
-                          {sel && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                        </div>
-                        <span
-                          className="text-sm"
-                          style={{ color: sel ? "var(--text-primary)" : "var(--text-secondary)", fontWeight: sel ? 600 : 400 }}
-                        >
-                          {opt.id}. {opt.label}
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-
-                {/* Explanation */}
-                <div className="flex-1">
-                  <p className="text-xs font-semibold mb-1" style={{ color: "var(--text-muted)" }}>Explanation</p>
-                  <p className="text-xs mb-2" style={{ color: "var(--text-secondary)" }}>
-                    When [S] = K<sub>m</sub>, the reaction rate v = ½ V<sub>max</sub>.
-                  </p>
-                  <p className="text-xs mb-2" style={{ color: "var(--text-secondary)" }}>
-                    This comes directly from the Michaelis-Menten equation:
-                  </p>
-                  <div
-                    className="rounded px-3 py-2 text-xs font-mono"
-                    style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-primary)" }}
-                  >
-                    v = V<sub>max</sub>[S] / (K<sub>m</sub> + [S]) = V<sub>max</sub> / 2
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* Related Topics */}
-          <section
-            className="rounded-xl p-5"
-            style={{ border: "1px solid var(--border)" }}
-          >
-            <h2 className="text-sm font-bold mb-3" style={{ color: "var(--text-primary)" }}>
-              Related Topics to Review
-            </h2>
-            <div className="flex flex-wrap gap-2">
-              {relatedTopics.map((t) => (
-                <span
-                  key={t}
-                  className="text-xs px-3 py-1.5 rounded-full cursor-pointer"
-                  style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-secondary)", border: "1px solid var(--border)" }}
-                >
-                  {t} ×
-                </span>
-              ))}
-            </div>
-          </section>
-        </div>
-      )}
-
-      {/* Placeholder for other tabs */}
-      {activeTab !== "Summary" && (
-        <div className="flex items-center justify-center h-48 rounded-xl" style={{ border: "1px solid var(--border)" }}>
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>{activeTab} content coming soon</p>
-        </div>
-      )}
+      {/* Tab content */}
+      <div className="flex flex-col items-center justify-center py-16 rounded-xl gap-4" style={{ border: "1px solid var(--border)" }}>
+        <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <rect width="40" height="40" rx="8" fill="rgba(45,106,224,0.1)" />
+          <path d="M12 20h16M20 12v16" stroke="#5b9cf6" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+        <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+          {activeTab} content for {topicLabel}
+        </p>
+        <p className="text-xs text-center max-w-xs" style={{ color: "var(--text-muted)" }}>
+          Practice questions to build your knowledge. Your mistakes and notes will appear here as you study.
+        </p>
+        <a
+          href={`/practice?topic=${encodeURIComponent(topicLabel)}`}
+          className="px-5 py-2 rounded text-sm font-semibold"
+          style={{ background: "var(--accent-blue)", color: "#fff", textDecoration: "none" }}
+        >
+          Start Practicing
+        </a>
+      </div>
     </div>
   );
 }

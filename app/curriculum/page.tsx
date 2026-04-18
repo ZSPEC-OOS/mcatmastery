@@ -48,8 +48,8 @@ export default function CurriculumPage() {
           style={{ background: "rgba(45,106,224,0.2)", color: "#6eaeff", border: "1px solid rgba(45,106,224,0.35)" }}
         >
           <span className="w-1.5 h-1.5 rounded-full bg-current" />
-          <span className="hidden sm:inline">Weak Topics (3)</span>
-          <span className="sm:hidden">Weak (3)</span>
+          <span className="hidden sm:inline">Weak Topics</span>
+          <span className="sm:hidden">Weak</span>
         </button>
       </div>
 

@@ -12,30 +12,24 @@ interface StudyTask {
 
 function taskConfig(title: string) {
   const t = title.toLowerCase();
-  if (t.includes("cars"))                        return { subtitle: "(5 Passages)",  href: "/practice",   variant: "primary"   as const, action: "Begin" };
-  if (t.includes("chem"))                        return { subtitle: "(45 min)",       href: "/practice",   variant: "primary"   as const, action: "Resume" };
-  if (t.includes("bio"))                         return { subtitle: "(20 Questions)", href: "/practice",   variant: "secondary" as const, action: "Continue" };
-  if (t.includes("flash"))                       return { subtitle: "(30 Cards)",     href: "/curriculum", variant: "secondary" as const, action: "Review" };
-  if (t.includes("review") || t.includes("missed")) return { subtitle: "",           href: "/review",     variant: "secondary" as const, action: "Review Log" };
+  if (t.includes("cars"))                            return { subtitle: "(5 Passages)",  href: "/practice",   variant: "primary"   as const, action: "Begin" };
+  if (t.includes("chem"))                            return { subtitle: "(45 min)",       href: "/practice",   variant: "primary"   as const, action: "Resume" };
+  if (t.includes("bio"))                             return { subtitle: "(20 Questions)", href: "/practice",   variant: "secondary" as const, action: "Continue" };
+  if (t.includes("flash"))                           return { subtitle: "(30 Cards)",     href: "/curriculum", variant: "secondary" as const, action: "Review" };
+  if (t.includes("review") || t.includes("missed"))  return { subtitle: "",              href: "/review",     variant: "secondary" as const, action: "Review Log" };
   return { subtitle: "", href: "/practice", variant: "secondary" as const, action: "Start" };
 }
 
-const SEED_TASKS: StudyTask[] = [
-  { id: "t1", title: "Chem/Phys Review",       section: "Chem/Phys",  completed: true,  dueDate: null },
-  { id: "t2", title: "CARS Passage Set",        section: "CARS",       completed: false, dueDate: null },
-  { id: "t3", title: "Bio/Biochem Questions",   section: "Bio/Biochem",completed: false, dueDate: null },
-  { id: "t4", title: "Flashcards",              section: null,         completed: false, dueDate: null },
-  { id: "t5", title: "Review Missed Questions", section: null,         completed: false, dueDate: null },
-];
-
 export default function TaskList() {
-  const [tasks, setTasks] = useState<StudyTask[]>(SEED_TASKS);
+  const [tasks, setTasks]     = useState<StudyTask[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch("/api/study-tasks")
       .then(r => r.json())
-      .then((data: StudyTask[]) => { if (data.length > 0) setTasks(data); })
-      .catch(() => {});
+      .then((data: StudyTask[]) => { if (Array.isArray(data)) setTasks(data); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   const toggleTask = async (id: string, completed: boolean) => {
@@ -50,6 +44,26 @@ export default function TaskList() {
       setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !completed } : t));
     }
   };
+
+  if (loading) {
+    return (
+      <div className="rounded-xl p-6 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading tasks…</p>
+      </div>
+    );
+  }
+
+  if (tasks.length === 0) {
+    return (
+      <div className="rounded-xl p-6 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>No study tasks yet. Start a practice session to get started.</p>
+        <Link href="/practice" className="inline-block mt-3 px-4 py-2 rounded text-xs font-semibold"
+          style={{ background: "var(--accent-blue)", color: "#fff", textDecoration: "none" }}>
+          Start Practicing
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
