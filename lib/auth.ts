@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { db } from "./db";
 
 export async function requireUser() {
@@ -7,9 +7,8 @@ export async function requireUser() {
 
   let user = await db.user.findUnique({ where: { id: userId } });
   if (!user) {
-    const clerkUser = await import("@clerk/nextjs/server").then((m) =>
-      m.clerkClient().users.getUser(userId)
-    );
+    const client = await clerkClient();
+    const clerkUser = await client.users.getUser(userId);
     user = await db.user.create({
       data: {
         id: userId,

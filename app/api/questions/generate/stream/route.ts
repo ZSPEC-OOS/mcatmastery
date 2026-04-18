@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
               continue;
             }
 
-            const allStems = [...existing.map((q) => q.stem), ...generated];
+            const allStems = [...existing.map((q: { stem: string }) => q.stem), ...generated];
             const isDup = allStems.some(
               (stem) => jaccardSimilarity(stem, parsed.stem as string) > 0.75
             );

@@ -20,7 +20,7 @@ export async function GET() {
     ]);
 
     const total = sessionQuestions.length;
-    const correct = sessionQuestions.filter((q) => q.isCorrect).length;
+    const correct = sessionQuestions.filter((q: (typeof sessionQuestions)[0]) => q.isCorrect).length;
     const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
 
     const sectionMap: Record<string, { correct: number; total: number }> = {};
@@ -32,7 +32,7 @@ export async function GET() {
     }
 
     const errorMap: Record<string, number> = {};
-    for (const sq of sessionQuestions.filter((q) => !q.isCorrect && q.errorType)) {
+    for (const sq of sessionQuestions.filter((q: (typeof sessionQuestions)[0]) => !q.isCorrect && q.errorType)) {
       errorMap[sq.errorType!] = (errorMap[sq.errorType!] ?? 0) + 1;
     }
 
