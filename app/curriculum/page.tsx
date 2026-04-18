@@ -7,7 +7,7 @@ import TopicDetail from "../components/curriculum/TopicDetail";
 import RightPanel from "../components/curriculum/RightPanel";
 
 export default function CurriculumPage() {
-  const [activeTopic, setActiveTopic] = useState("chem:Enzyme Kinetics");
+  const [activeTopic, setActiveTopic] = useState("");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   return (
