@@ -177,7 +177,7 @@ export default function PracticePage() {
           <button onClick={handleGenerate}
             className="w-full py-2.5 rounded text-sm font-semibold"
             style={{ background: "var(--accent-blue)", color: "#fff", border: "none" }}>
-            Generate Questions
+            Start Practice
           </button>
         </div>
       </main>
