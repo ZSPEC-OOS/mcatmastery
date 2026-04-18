@@ -58,9 +58,9 @@ export default function Navbar() {
               <button className="w-8 h-8 flex items-center justify-center rounded-full" style={{ color: "var(--text-secondary)" }} title="Bookmarks">
                 <BookmarkIcon />
               </button>
-              <button className="w-8 h-8 flex items-center justify-center rounded-full" style={{ color: "var(--text-secondary)" }} title="Settings">
+              <Link href="/admin" className="w-8 h-8 flex items-center justify-center rounded-full" style={{ color: "var(--text-secondary)" }} title="Admin Settings">
                 <SettingsIcon />
-              </button>
+              </Link>
             </div>
 
             {/* Hamburger — mobile only */}

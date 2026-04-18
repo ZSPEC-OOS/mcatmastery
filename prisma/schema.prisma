@@ -104,3 +104,9 @@ model StudyTask {
 
   user        User @relation(fields: [userId], references: [id])
 }
+
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
