@@ -1,6 +1,35 @@
 "use client";
 import { useState, useRef } from "react";
-import { SECTION_COLORS } from "./shared";
+import { SECTION_COLORS, DIFF_COLORS } from "./shared";
+
+type SseEvent =
+  | { type: "status";   message: string }
+  | { type: "progress"; current: number; total: number }
+  | { type: "question"; question: { id: string; section: string; topic: string; stem: string; difficulty: string }; source?: string }
+  | { type: "skip";     reason: string; flags?: string[]; index: number; source?: string }
+  | { type: "error";    message: string }
+  | { type: "done";     generated: number; total: number };
+
+async function readSse(
+  res: Response,
+  onEvent: (ev: SseEvent) => void,
+): Promise<void> {
+  if (!res.body) return;
+  const reader  = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      try { onEvent(JSON.parse(line.slice(6)) as SseEvent); } catch { /* skip */ }
+    }
+  }
+}
 
 type Section = "Chem/Phys" | "CARS" | "Bio/Biochem" | "Psych/Soc";
 const SECTIONS: Section[] = ["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"];
@@ -79,6 +108,9 @@ function PDFPipeline() {
   const [dedup, setDedup]       = useState(0.75);
   const [file, setFile]         = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [running, setRunning]   = useState(false);
+  const [events, setEvents]     = useState<SseEvent[]>([]);
+  const [progress, setProgress] = useState({ current: 0, total: 0 });
   const inputRef = useRef<HTMLInputElement>(null);
 
   function onDrop(e: React.DragEvent) {
@@ -86,6 +118,33 @@ function PDFPipeline() {
     setDragOver(false);
     const f = e.dataTransfer.files[0];
     if (f?.type === "application/pdf") setFile(f);
+  }
+
+  async function handleExtract() {
+    if (!file) return;
+    setRunning(true);
+    setEvents([]);
+    setProgress({ current: 0, total: count });
+
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("section", section);
+    fd.append("count", String(count));
+    fd.append("model", model);
+    fd.append("dedupThreshold", String(dedup));
+
+    const res = await fetch("/api/admin/pipeline/pdf", { method: "POST", body: fd });
+    if (!res.ok) {
+      setEvents([{ type: "error", message: `Server error ${res.status}` }]);
+      setRunning(false);
+      return;
+    }
+
+    await readSse(res, (ev) => {
+      if (ev.type === "progress") setProgress({ current: ev.current, total: ev.total });
+      setEvents((prev) => [...prev, ev]);
+    });
+    setRunning(false);
   }
 
   return (
@@ -197,17 +256,20 @@ function PDFPipeline() {
         </div>
 
         <button
-          disabled={!file}
+          onClick={handleExtract}
+          disabled={!file || running}
           className="w-full py-2.5 rounded-lg text-sm font-semibold"
           style={{
-            background: file ? "var(--accent-blue)" : "var(--bg-elevated)",
-            color: file ? "#fff" : "var(--text-muted)",
-            border: file ? "none" : "1px solid var(--border)",
-            cursor: file ? "pointer" : "not-allowed",
+            background: file && !running ? "var(--accent-blue)" : "var(--bg-elevated)",
+            color: file && !running ? "#fff" : "var(--text-muted)",
+            border: file && !running ? "none" : "1px solid var(--border)",
+            cursor: file && !running ? "pointer" : "not-allowed",
           }}
         >
-          Extract &amp; Verify Questions
+          {running ? `Processing ${progress.current} / ${progress.total}…` : "Extract & Verify Questions"}
         </button>
+
+        <LiveOutput events={events} running={running} progress={progress} />
       </div>
     </div>
   );
@@ -218,6 +280,87 @@ function WISPPipeline() {
     <div className="rounded-xl px-5 py-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
       <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>WISP Web Research</p>
       <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>Coming next step.</p>
+    </div>
+  );
+}
+
+function LiveOutput({ events, running, progress }: {
+  events: SseEvent[];
+  running: boolean;
+  progress: { current: number; total: number };
+}) {
+  if (events.length === 0 && !running) return null;
+
+  const done = events.find((e) => e.type === "done") as Extract<SseEvent, { type: "done" }> | undefined;
+  const status = [...events].reverse().find((e) => e.type === "status") as Extract<SseEvent, { type: "status" }> | undefined;
+
+  return (
+    <div className="space-y-3 mt-1">
+      {/* Progress bar */}
+      {running && progress.total > 0 && (
+        <div className="rounded-full overflow-hidden h-1.5" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
+          <div
+            className="h-full transition-all duration-300"
+            style={{ width: `${(progress.current / progress.total) * 100}%`, background: "var(--accent-blue)" }}
+          />
+        </div>
+      )}
+
+      {/* Status message */}
+      {status && running && (
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>{status.message}</p>
+      )}
+
+      {/* Done banner */}
+      {done && !running && (
+        <div className="px-4 py-3 rounded-lg text-sm font-semibold"
+          style={{ background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.3)", color: "#4ade80" }}>
+          ✓ Done — {done.generated} of {done.total} question{done.generated !== 1 ? "s" : ""} saved
+        </div>
+      )}
+
+      {/* Event cards */}
+      <div className="space-y-2">
+        {events.map((ev, i) => {
+          if (ev.type === "question") return (
+            <div key={i} className="rounded-lg px-4 py-3" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: SECTION_COLORS[ev.question.section] }} />
+                <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>{ev.question.section}</span>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>· {ev.question.topic}</span>
+                <span className="ml-auto px-2 py-0.5 rounded text-xs font-semibold"
+                  style={{ background: `${DIFF_COLORS[ev.question.difficulty]}20`, color: DIFF_COLORS[ev.question.difficulty] }}>
+                  {ev.question.difficulty}
+                </span>
+              </div>
+              <p className="text-sm" style={{ color: "var(--text-primary)" }}>
+                {ev.question.stem.length > 140 ? ev.question.stem.slice(0, 140) + "…" : ev.question.stem}
+              </p>
+              {ev.source && (
+                <p className="text-xs mt-1 truncate" style={{ color: "var(--text-muted)" }}>{ev.source}</p>
+              )}
+            </div>
+          );
+          if (ev.type === "skip") return (
+            <div key={i} className="px-3 py-2 rounded-lg text-xs flex items-center gap-2"
+              style={{ background: "rgba(224,92,92,0.08)", border: "1px solid rgba(224,92,92,0.2)", color: "#e05c5c" }}>
+              <span>⊘ Skipped</span>
+              <span style={{ opacity: 0.7 }}>·</span>
+              <span style={{ color: "var(--text-muted)" }}>{ev.reason.replace(/_/g, " ")}</span>
+              {ev.flags && ev.flags.length > 0 && (
+                <span style={{ color: "var(--text-muted)" }}>— {ev.flags.join("; ")}</span>
+              )}
+            </div>
+          );
+          if (ev.type === "error") return (
+            <div key={i} className="px-3 py-2 rounded-lg text-xs"
+              style={{ background: "rgba(224,92,92,0.1)", border: "1px solid rgba(224,92,92,0.3)", color: "#e05c5c" }}>
+              ✗ {ev.message}
+            </div>
+          );
+          return null;
+        })}
+      </div>
     </div>
   );
 }
