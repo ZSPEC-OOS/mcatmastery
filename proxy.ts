@@ -1,7 +1,7 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextFetchEvent, NextRequest, NextResponse } from "next/server";
 
-const isPublic = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)"]);
+const isPublic = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)", "/admin(.*)"]);
 
 const hasClerkSecret = Boolean(process.env.CLERK_SECRET_KEY);
 
