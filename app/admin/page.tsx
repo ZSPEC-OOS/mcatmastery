@@ -6,8 +6,9 @@ import Footer from "../components/Footer";
 import GenerateTab from "./_components/GenerateTab";
 import SettingsTab from "./_components/SettingsTab";
 import DatabaseTab from "./_components/DatabaseTab";
+import PipelinesTab from "./_components/PipelinesTab";
 
-type Tab = "generate" | "settings" | "database";
+type Tab = "generate" | "pipelines" | "settings" | "database";
 
 const ADMIN_USER = "admin";
 const ADMIN_PASS = "MCATadmin";
@@ -155,26 +156,27 @@ export default function AdminPage() {
           </button>
         </div>
 
-        <div className="flex gap-0 mb-6" style={{ borderBottom: "1px solid var(--border)" }}>
-          {(["generate", "settings", "database"] as Tab[]).map((t) => (
+        <div className="flex gap-0 mb-6 overflow-x-auto" style={{ borderBottom: "1px solid var(--border)" }}>
+          {(["generate", "pipelines", "settings", "database"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className="px-5 pb-2.5 text-sm font-medium"
+              className="px-5 pb-2.5 text-sm font-medium whitespace-nowrap"
               style={{
                 color: tab === t ? "var(--text-primary)" : "var(--text-secondary)",
                 borderBottom: tab === t ? "2px solid var(--accent-blue)" : "2px solid transparent",
                 marginBottom: -1,
               }}
             >
-              {t === "generate" ? "Question Generation" : t === "settings" ? "Settings" : "Database"}
+              {t === "generate" ? "Question Generation" : t === "pipelines" ? "Pipelines" : t === "settings" ? "Settings" : "Database"}
             </button>
           ))}
         </div>
 
-        {tab === "generate" && <GenerateTab />}
-        {tab === "settings" && <SettingsTab />}
-        {tab === "database" && <DatabaseTab />}
+        {tab === "generate"  && <GenerateTab />}
+        {tab === "pipelines" && <PipelinesTab />}
+        {tab === "settings"  && <SettingsTab />}
+        {tab === "database"  && <DatabaseTab />}
       </div>
 
       <Footer />
