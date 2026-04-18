@@ -1,8 +1,7 @@
-// Typed client helpers — call from client components
-
-type Section = "Chem/Phys" | "CARS" | "Bio/Biochem" | "Psych/Soc";
-type Answer = "A" | "B" | "C" | "D";
-type ErrorType = "Content Gap" | "Logic Error" | "Misread Question" | "Timing";
+export type Section = "Chem/Phys" | "CARS" | "Bio/Biochem" | "Psych/Soc";
+export type Answer  = "A" | "B" | "C" | "D";
+export type ErrorType = "Content Gap" | "Logic Error" | "Misread Question" | "Timing";
+export type ReviewStatus = "pending" | "reviewed";
 
 export interface Question {
   id: string;
@@ -10,15 +9,34 @@ export interface Question {
   topic: string;
   passage: string | null;
   stem: string;
-  optionA: string;
-  optionB: string;
-  optionC: string;
-  optionD: string;
+  optionA: string; optionB: string; optionC: string; optionD: string;
   correctAnswer: Answer;
   explanation: string;
   difficulty: string;
   aiGenerated: boolean;
   createdAt: string;
+}
+
+export interface SessionQuestion {
+  id: string;
+  sessionId: string;
+  questionId: string;
+  question: Question;
+  userAnswer: Answer | null;
+  isCorrect: boolean | null;
+  errorType: ErrorType | null;
+  flagged: boolean;
+  confidence: "low" | "medium" | "high" | null;
+  reviewStatus: ReviewStatus;
+  answeredAt: string | null;
+}
+
+export interface FLScore {
+  id: string;
+  testName: string;
+  chemPhys: number; cars: number; bioBiochem: number; psychSoc: number;
+  total: number;
+  takenAt: string;
 }
 
 export interface Analytics {
@@ -29,62 +47,33 @@ export interface Analytics {
   flScores: FLScore[];
 }
 
-export interface FLScore {
-  id: string;
-  testName: string;
-  chemPhys: number;
-  cars: number;
-  bioBiochem: number;
-  psychSoc: number;
-  total: number;
-  takenAt: string;
-}
+// ─── Session Questions (mistake log) ────────────────────────────────────────
 
-// --- Questions ---
-
-export async function fetchQuestions(params?: {
-  section?: Section;
-  topic?: string;
-  limit?: number;
-  cursor?: string;
-}): Promise<{ questions: Question[]; nextCursor: string | null }> {
+export async function fetchMistakes(params?: {
+  section?: Section; wrong?: boolean; limit?: number; cursor?: string;
+}): Promise<{ questions: SessionQuestion[]; nextCursor: string | null }> {
   const sp = new URLSearchParams();
   if (params?.section) sp.set("section", params.section);
-  if (params?.topic) sp.set("topic", params.topic);
-  if (params?.limit) sp.set("limit", String(params.limit));
-  if (params?.cursor) sp.set("cursor", params.cursor);
+  if (params?.wrong)   sp.set("wrong", "true");
+  if (params?.limit)   sp.set("limit", String(params.limit));
+  if (params?.cursor)  sp.set("cursor", params.cursor);
   const res = await fetch(`/api/questions?${sp}`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
-export async function answerQuestion(
-  questionId: string,
+export async function patchSessionQuestion(
+  id: string,
   data: {
-    userAnswer: Answer;
-    isCorrect: boolean;
-    errorType?: ErrorType;
-    confidence?: "low" | "medium" | "high";
-  }
-) {
-  const res = await fetch(`/api/questions/${questionId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
-
-export async function updateQuestion(
-  questionId: string,
-  data: {
-    errorType?: ErrorType;
-    reviewStatus?: "pending" | "reviewed";
+    userAnswer?: Answer;
+    isCorrect?: boolean;
+    errorType?: ErrorType | null;
     flagged?: boolean;
+    confidence?: "low" | "medium" | "high" | null;
+    reviewStatus?: ReviewStatus;
   }
-) {
-  const res = await fetch(`/api/questions/${questionId}`, {
+): Promise<SessionQuestion> {
+  const res = await fetch(`/api/questions/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -93,12 +82,17 @@ export async function updateQuestion(
   return res.json();
 }
 
-// SSE streaming generator — yields events as they arrive
+// ─── Generation (SSE) ────────────────────────────────────────────────────────
+
+export type SSEEvent =
+  | { type: "progress"; current: number; total: number }
+  | { type: "question"; question: Question }
+  | { type: "skip"; reason: string; index: number }
+  | { type: "done"; generated: number };
+
 export async function* generateQuestions(params: {
-  section: Section;
-  topic?: string;
-  count?: number;
-}) {
+  section: Section; topic?: string; count?: number;
+}): AsyncGenerator<SSEEvent> {
   const res = await fetch("/api/questions/generate/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -106,7 +100,7 @@ export async function* generateQuestions(params: {
   });
   if (!res.ok || !res.body) throw new Error(await res.text());
 
-  const reader = res.body.getReader();
+  const reader  = res.body.getReader();
   const decoder = new TextDecoder();
   let buf = "";
 
@@ -114,16 +108,38 @@ export async function* generateQuestions(params: {
     const { done, value } = await reader.read();
     if (done) break;
     buf += decoder.decode(value, { stream: true });
-    const lines = buf.split("\n\n");
-    buf = lines.pop() ?? "";
-    for (const chunk of lines) {
+    const chunks = buf.split("\n\n");
+    buf = chunks.pop() ?? "";
+    for (const chunk of chunks) {
       const line = chunk.replace(/^data: /, "").trim();
-      if (line) yield JSON.parse(line);
+      if (line) yield JSON.parse(line) as SSEEvent;
     }
   }
 }
 
-// --- Analytics ---
+// ─── Sessions ────────────────────────────────────────────────────────────────
+
+export async function createSession(section: Section, timed: boolean) {
+  const res = await fetch("/api/sessions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ section, timeLimitSeconds: timed ? 95 * 60 : null }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<{ id: string }>;
+}
+
+export async function completeSession(sessionId: string) {
+  const res = await fetch("/api/sessions", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// ─── Analytics ───────────────────────────────────────────────────────────────
 
 export async function fetchAnalytics(): Promise<Analytics> {
   const res = await fetch("/api/analytics");
@@ -131,15 +147,11 @@ export async function fetchAnalytics(): Promise<Analytics> {
   return res.json();
 }
 
-// --- Full-Length Scores ---
+// ─── FL Scores ────────────────────────────────────────────────────────────────
 
 export async function addFLScore(data: {
-  testName: string;
-  chemPhys: number;
-  cars: number;
-  bioBiochem: number;
-  psychSoc: number;
-  takenAt?: string;
+  testName: string; chemPhys: number; cars: number;
+  bioBiochem: number; psychSoc: number; takenAt?: string;
 }): Promise<FLScore> {
   const res = await fetch("/api/fl-scores", {
     method: "POST",
@@ -150,18 +162,23 @@ export async function addFLScore(data: {
   return res.json();
 }
 
-// --- Notes ---
+// ─── Notes ───────────────────────────────────────────────────────────────────
 
-export async function saveNote(data: {
-  content: string;
-  questionId?: string;
-  topic?: string;
-}) {
+export async function saveNote(data: { content: string; questionId?: string; topic?: string }) {
   const res = await fetch("/api/notes", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function fetchNotes(params?: { questionId?: string; topic?: string }) {
+  const sp = new URLSearchParams();
+  if (params?.questionId) sp.set("questionId", params.questionId);
+  if (params?.topic)      sp.set("topic", params.topic);
+  const res = await fetch(`/api/notes?${sp}`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

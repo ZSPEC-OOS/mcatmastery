@@ -1,49 +1,46 @@
-import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
+import { NextResponse } from "next/server";
 import { requireUser } from "../../../../lib/auth";
 import { db } from "../../../../lib/db";
+import { z } from "zod";
 
-const UpdateSchema = z.object({
-  userAnswer: z.enum(["A", "B", "C", "D"]).optional(),
-  isCorrect: z.boolean().optional(),
-  errorType: z.enum(["Content Gap", "Logic Error", "Misread Question", "Timing"]).optional(),
-  flagged: z.boolean().optional(),
-  confidence: z.enum(["low", "medium", "high"]).optional(),
+const PatchSchema = z.object({
+  userAnswer:   z.enum(["A", "B", "C", "D"]).optional(),
+  isCorrect:    z.boolean().optional(),
+  errorType:    z.enum(["Content Gap", "Logic Error", "Misread Question", "Timing"]).nullable().optional(),
+  flagged:      z.boolean().optional(),
+  confidence:   z.enum(["low", "medium", "high"]).nullable().optional(),
   reviewStatus: z.enum(["pending", "reviewed"]).optional(),
 });
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    await requireUser();
-    const { id } = await params;
-    const question = await db.question.findUnique({ where: { id } });
-    if (!question) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    return NextResponse.json(question);
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-}
-
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     const user = await requireUser();
     const { id } = await params;
-    const body = UpdateSchema.parse(await req.json());
+    const body = PatchSchema.parse(await req.json());
 
-    // Updates are stored on the SessionQuestion, find the latest one for this user
-    const sq = await db.sessionQuestion.findFirst({
-      where: { questionId: id, session: { userId: user.id } },
-      orderBy: { answeredAt: "desc" },
+    const sq = await db.sessionQuestion.findUnique({
+      where: { id },
+      include: { session: { select: { userId: true } } },
     });
-    if (!sq) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!sq || sq.session.userId !== user.id)
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const updated = await db.sessionQuestion.update({
-      where: { id: sq.id },
-      data: { ...body, answeredAt: body.userAnswer ? new Date() : undefined },
+      where: { id },
+      data: {
+        ...body,
+        ...(body.userAnswer ? { answeredAt: new Date() } : {}),
+      },
+      include: { question: true },
     });
+
     return NextResponse.json(updated);
-  } catch (err) {
-    if (err instanceof z.ZodError) return NextResponse.json({ error: err.issues }, { status: 400 });
+  } catch (e) {
+    if (e instanceof z.ZodError)
+      return NextResponse.json({ error: e.issues }, { status: 400 });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 }
