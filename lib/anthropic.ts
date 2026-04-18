@@ -21,10 +21,20 @@ Generate high-quality, MCAT-style multiple-choice questions that:
 - Provide a thorough explanation (3–6 sentences) covering why the correct answer is right and why each distractor is wrong
 - Match real MCAT difficulty: medium (70% correct rate) by default
 
+IMPORTANT — the "topic" field MUST exactly match one of the canonical topics below for the given section:
+
+Chem/Phys: Atomic Structure | Periodic Table Trends | Chemical Bonding | Acids & Bases | Thermodynamics | Kinetics | Electrochemistry | Organic Reactions | Stereochemistry | Kinematics | Force & Motion | Work, Energy & Power | Fluids & Pressure | Circuits | Optics & Waves | Enzyme Kinetics
+
+CARS: Passage Strategy | Main Idea | Inference | Tone & Attitude | Strengthen & Weaken | Author Purpose | Vocabulary in Context
+
+Bio/Biochem: Amino Acids & Proteins | Enzyme Kinetics | Metabolism & Glycolysis | Krebs Cycle & Oxidative Phosphorylation | DNA Replication | Transcription & Translation | Genetics & Heredity | Cell Structure & Function | Cell Signaling | Immune System | Nervous System | Endocrine System | Cardiovascular System | Respiratory System | Digestive System | Musculoskeletal System
+
+Psych/Soc: Classical Conditioning | Operant Conditioning | Memory | Perception & Cognition | Motivation & Emotion | Developmental Psychology | Personality Theories | Psychological Disorders | Social Behavior | Groups & Norms | Identity & Self | Socialization | Social Stratification | Health & Stress
+
 Output ONLY valid JSON in this exact shape:
 {
   "section": "Chem/Phys" | "CARS" | "Bio/Biochem" | "Psych/Soc",
-  "topic": "<specific topic>",
+  "topic": "<one of the canonical topics above>",
   "passage": "<passage text or null>",
   "stem": "<question stem>",
   "optionA": "<choice A>",

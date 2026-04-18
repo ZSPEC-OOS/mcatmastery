@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireUser } from "../../../../lib/auth";
 import { db } from "../../../../lib/db";
 import { anthropic, GENERATION_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT } from "../../../../lib/anthropic";
+import { syncQuestionToFirestore } from "../../../../lib/firestore";
 
 const AdminGenerateSchema = z.object({
   section:        z.enum(["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"]),
@@ -40,11 +41,10 @@ export async function POST(req: NextRequest) {
     const genPrompt = customGen?.value || GENERATION_SYSTEM_PROMPT;
     const valPrompt = customVal?.value || VALIDATION_SYSTEM_PROMPT;
 
+    // Load ALL stems for this section — no limit, full dedup coverage
     const existing = await db.question.findMany({
       where: { section: body.section },
       select: { stem: true },
-      take: 100,
-      orderBy: { createdAt: "desc" },
     });
 
     const encoder = new TextEncoder();
@@ -156,6 +156,8 @@ export async function POST(req: NextRequest) {
 
             generated.push(final.stem as string);
             enqueue({ type: "question", question: saved });
+            // Fire-and-forget Firestore sync (non-blocking)
+            syncQuestionToFirestore(saved as unknown as Record<string, unknown>).catch(() => {});
           } catch (err) {
             enqueue({
               type: "skip",

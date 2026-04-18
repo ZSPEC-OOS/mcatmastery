@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "../../../lib/auth";
 import { db } from "../../../lib/db";
 import { z } from "zod";
+import { syncSessionAnswerToFirestore } from "../../../lib/firestore";
 
 const Schema = z.object({
   sessionId:        z.string(),
@@ -37,6 +38,17 @@ export async function POST(req: Request) {
         answeredAt: new Date(),
       },
     });
+    // Fire-and-forget Firestore sync (non-blocking)
+    syncSessionAnswerToFirestore({
+      sessionId:        body.sessionId,
+      questionId:       body.questionId,
+      userId:           user.id,
+      userAnswer:       body.userAnswer,
+      isCorrect:        body.isCorrect,
+      answeredAt:       sq.answeredAt ?? new Date(),
+      timeSpentSeconds: body.timeSpentSeconds,
+    }).catch(() => {});
+
     return NextResponse.json(sq);
   } catch (e) {
     if (e instanceof z.ZodError)
