@@ -1,39 +1,34 @@
-import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
+import { NextResponse } from "next/server";
 import { requireUser } from "../../../lib/auth";
 import { db } from "../../../lib/db";
 
-const QuerySchema = z.object({
-  section: z.string().optional(),
-  topic: z.string().optional(),
-  limit: z.coerce.number().min(1).max(100).default(20),
-  cursor: z.string().optional(),
-});
-
-export async function GET(req: NextRequest) {
+export async function GET(req: Request) {
   try {
-    await requireUser();
-    const { section, topic, limit, cursor } = QuerySchema.parse(
-      Object.fromEntries(req.nextUrl.searchParams)
-    );
+    const user = await requireUser();
+    const { searchParams } = new URL(req.url);
+    const section = searchParams.get("section");
+    const wrongOnly = searchParams.get("wrong") === "true";
+    const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 200);
+    const cursor = searchParams.get("cursor") || undefined;
 
-    const questions = await db.question.findMany({
+    const sessionQuestions = await db.sessionQuestion.findMany({
       where: {
-        ...(section ? { section } : {}),
-        ...(topic ? { topic: { contains: topic, mode: "insensitive" } } : {}),
+        session: { userId: user.id },
+        ...(wrongOnly ? { isCorrect: false } : {}),
+        ...(section ? { question: { section } } : {}),
       },
+      include: { question: true },
+      orderBy: { answeredAt: "desc" },
       take: limit + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      orderBy: { createdAt: "desc" },
     });
 
-    const hasMore = questions.length > limit;
-    return NextResponse.json({
-      questions: hasMore ? questions.slice(0, limit) : questions,
-      nextCursor: hasMore ? questions[limit - 1].id : null,
-    });
-  } catch (err) {
-    if (err instanceof z.ZodError) return NextResponse.json({ error: err.issues }, { status: 400 });
+    const hasMore = sessionQuestions.length > limit;
+    const items = hasMore ? sessionQuestions.slice(0, limit) : sessionQuestions;
+    const nextCursor = hasMore ? items[items.length - 1].id : null;
+
+    return NextResponse.json({ questions: items, nextCursor });
+  } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 }
