@@ -11,6 +11,16 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const hasClerkPublishableKey = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+
+  if (!hasClerkPublishableKey) {
+    return (
+      <html lang="en" className={`${geist.variable} h-full`}>
+        <body className="min-h-full flex flex-col antialiased">{children}</body>
+      </html>
+    );
+  }
+
   return (
     <ClerkProvider>
       <html lang="en" className={`${geist.variable} h-full`}>
