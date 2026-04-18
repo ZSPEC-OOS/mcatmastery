@@ -134,7 +134,7 @@ export default function TopicSidebar({ activeTopic, onSelect }: Props) {
                     onClick={() => onSelect(sec.id, t.label)}
                     className="w-full flex items-center px-4 py-1.5 text-left"
                     style={{
-                      background: isActive ? "rgba(45,106,224,0.12)" : "transparent",
+                      background: isActive ? "rgba(27,58,107,0.12)" : "transparent",
                       borderLeft: isActive ? "2px solid var(--accent-blue)" : "2px solid transparent",
                     }}
                   >

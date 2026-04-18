@@ -14,7 +14,7 @@ const SECTION_COLORS: Record<string, string> = {
   "Chem/Phys": "#5b9cf6", "CARS": "#f0a500", "Bio/Biochem": "#4ade80", "Psych/Soc": "#a78bfa",
 };
 const ERROR_STYLES: Record<string, React.CSSProperties> = {
-  "Content Gap":      { background: "rgba(45,106,224,0.2)",  color: "#6eaeff",  border: "1px solid rgba(45,106,224,0.35)"  },
+  "Content Gap":      { background: "rgba(27,58,107,0.2)",  color: "var(--accent-blue)",  border: "1px solid rgba(27,58,107,0.35)"  },
   "Logic Error":      { background: "rgba(240,165,0,0.2)",   color: "#f0c060",  border: "1px solid rgba(240,165,0,0.35)"   },
   "Misread Question": { background: "rgba(168,85,247,0.2)",  color: "#c084fc",  border: "1px solid rgba(168,85,247,0.35)"  },
   "Timing":           { background: "rgba(74,222,128,0.2)",  color: "#4ade80",  border: "1px solid rgba(74,222,128,0.35)"  },
@@ -68,7 +68,7 @@ export default function MistakeTable({ selectedId, onSelect, filterSection, filt
           return (
             <div key={row.id} onClick={() => onSelect(row.id)} className="p-4 cursor-pointer"
               style={{
-                background: isSelected ? "rgba(45,106,224,0.08)" : "var(--bg-card)",
+                background: isSelected ? "rgba(27,58,107,0.08)" : "var(--bg-card)",
                 borderLeft: `3px solid ${isSelected ? "var(--accent-blue)" : "transparent"}`,
                 borderBottom: "1px solid var(--border)",
               }}>
@@ -108,7 +108,7 @@ export default function MistakeTable({ selectedId, onSelect, filterSection, filt
       {/* Desktop table */}
       <div className="hidden md:block">
         <div className="grid text-xs px-4 py-2"
-          style={{ background: "rgba(22,27,34,0.8)", color: "var(--text-muted)",
+          style={{ background: "var(--bg-elevated)", color: "var(--text-muted)",
             gridTemplateColumns: "80px 110px 1fr 90px 80px 140px 100px 90px" }}>
           <span>#</span><span>Section</span><span>Topic</span>
           <span>Your Answer</span><span>Answer</span>
@@ -122,7 +122,7 @@ export default function MistakeTable({ selectedId, onSelect, filterSection, filt
               className="grid items-center cursor-pointer"
               style={{
                 gridTemplateColumns: "80px 110px 1fr 90px 80px 140px 100px 90px",
-                background: isSelected ? "rgba(45,106,224,0.08)" : "var(--bg-card)",
+                background: isSelected ? "rgba(27,58,107,0.08)" : "var(--bg-card)",
                 borderLeft: `2px solid ${isSelected ? "var(--accent-blue)" : "transparent"}`,
                 borderTop: "1px solid var(--border)",
               }}>
