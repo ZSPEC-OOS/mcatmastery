@@ -10,14 +10,14 @@ const SECTIONS: Section[] = [
     label: "Chem/Phys",
     color: "#5b9cf6",
     topics: [
-      { label: "Kinematics", pct: 56 },
-      { label: "Fluids", pct: 72 },
-      { label: "Circuits", pct: 64 },
-      { label: "Thermodynamics", pct: 70 },
-      { label: "Enzyme Kinetics", pct: 45 },
-      { label: "Electrochemistry", pct: 78 },
-      { label: "Optics & Waves", pct: 82 },
-      { label: "Atomic Structure", pct: 69 },
+      { label: "Kinematics", pct: 0 },
+      { label: "Fluids", pct: 0 },
+      { label: "Circuits", pct: 0 },
+      { label: "Thermodynamics", pct: 0 },
+      { label: "Enzyme Kinetics", pct: 0 },
+      { label: "Electrochemistry", pct: 0 },
+      { label: "Optics & Waves", pct: 0 },
+      { label: "Atomic Structure", pct: 0 },
     ],
   },
   {
@@ -25,10 +25,10 @@ const SECTIONS: Section[] = [
     label: "CARS",
     color: "#f0a500",
     topics: [
-      { label: "Passage Strategy", pct: 70 },
-      { label: "Inference", pct: 62 },
-      { label: "Main Idea", pct: 75 },
-      { label: "Tone & Attitude", pct: 68 },
+      { label: "Passage Strategy", pct: 0 },
+      { label: "Inference", pct: 0 },
+      { label: "Main Idea", pct: 0 },
+      { label: "Tone & Attitude", pct: 0 },
     ],
   },
   {
@@ -36,10 +36,10 @@ const SECTIONS: Section[] = [
     label: "Bio/Biochem",
     color: "#4ade80",
     topics: [
-      { label: "Amino Acids", pct: 79 },
-      { label: "Metabolism", pct: 73 },
-      { label: "Cell Biology", pct: 68 },
-      { label: "Enzyme Kinetics", pct: 67 },
+      { label: "Amino Acids", pct: 0 },
+      { label: "Metabolism", pct: 0 },
+      { label: "Cell Biology", pct: 0 },
+      { label: "Enzyme Kinetics", pct: 0 },
     ],
   },
   {
@@ -47,10 +47,10 @@ const SECTIONS: Section[] = [
     label: "Psych/Soc",
     color: "#a78bfa",
     topics: [
-      { label: "Learning", pct: 61 },
-      { label: "Memory", pct: 65 },
-      { label: "Identity", pct: 58 },
-      { label: "Behavior", pct: 72 },
+      { label: "Learning", pct: 0 },
+      { label: "Memory", pct: 0 },
+      { label: "Identity", pct: 0 },
+      { label: "Behavior", pct: 0 },
     ],
   },
 ];
@@ -150,9 +150,9 @@ export default function TopicSidebar({ activeTopic, onSelect }: Props) {
                     </span>
                     <span
                       className="text-xs font-semibold ml-2"
-                      style={{ color: isActive ? "var(--accent-blue)" : pctColor(pct) }}
+                      style={{ color: isActive ? "var(--accent-blue)" : pct > 0 ? pctColor(pct) : "var(--text-muted)" }}
                     >
-                      {pct}%
+                      {pct > 0 ? `${pct}%` : "—"}
                     </span>
                   </button>
                 );

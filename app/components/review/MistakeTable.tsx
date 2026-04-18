@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { fetchMistakes, type SessionQuestion, type Section } from "../../../lib/api-client";
+import { fetchMistakes, type SessionQuestion } from "../../../lib/api-client";
 
 interface Props {
   selectedId: string;
@@ -20,27 +20,14 @@ const ERROR_STYLES: Record<string, React.CSSProperties> = {
   "Timing":           { background: "rgba(74,222,128,0.2)",  color: "#4ade80",  border: "1px solid rgba(74,222,128,0.35)"  },
 };
 
-const SEED: SessionQuestion[] = [
-  { id: "01834", sessionId: "", questionId: "", answeredAt: null, flagged: false, confidence: null, reviewStatus: "reviewed", isCorrect: false, userAnswer: "C", errorType: "Content Gap",
-    question: { id: "01834", section: "Chem/Phys" as Section, topic: "Enzyme Kinetics", stem: "Which of the following correctly describes competitive inhibition?", optionA: "", optionB: "", optionC: "", optionD: "", correctAnswer: "B", explanation: "", difficulty: "medium", aiGenerated: true, passage: null, createdAt: "2024-06-24" } },
-  { id: "01367", sessionId: "", questionId: "", answeredAt: null, flagged: false, confidence: null, reviewStatus: "reviewed", isCorrect: false, userAnswer: "A", errorType: "Logic Error",
-    question: { id: "01367", section: "CARS" as Section, topic: "Inference Questions", stem: "The author's primary purpose is best described as:", optionA: "", optionB: "", optionC: "", optionD: "", correctAnswer: "C", explanation: "", difficulty: "hard", aiGenerated: true, passage: null, createdAt: "2024-04-22" } },
-  { id: "01432", sessionId: "", questionId: "", answeredAt: null, flagged: false, confidence: null, reviewStatus: "reviewed", isCorrect: false, userAnswer: "D", errorType: "Misread Question",
-    question: { id: "01432", section: "Bio/Biochem" as Section, topic: "Amino Acids", stem: "Which amino acid forms disulfide bonds?", optionA: "", optionB: "", optionC: "", optionD: "", correctAnswer: "C", explanation: "", difficulty: "easy", aiGenerated: true, passage: null, createdAt: "2024-04-10" } },
-  { id: "01398", sessionId: "", questionId: "", answeredAt: null, flagged: false, confidence: null, reviewStatus: "reviewed", isCorrect: false, userAnswer: "B", errorType: "Misread Question",
-    question: { id: "01398", section: "Psych/Soc" as Section, topic: "Self Identity Development", stem: "Erikson's early adulthood stage involves:", optionA: "", optionB: "", optionC: "", optionD: "", correctAnswer: "C", explanation: "", difficulty: "easy", aiGenerated: true, passage: null, createdAt: "2024-06-11" } },
-  { id: "01159", sessionId: "", questionId: "", answeredAt: null, flagged: false, confidence: null, reviewStatus: "pending", isCorrect: false, userAnswer: "A", errorType: "Timing",
-    question: { id: "01159", section: "Chem/Phys" as Section, topic: "Thermodynamics", stem: "For a spontaneous reaction at constant T and P:", optionA: "", optionB: "", optionC: "", optionD: "", correctAnswer: "D", explanation: "", difficulty: "easy", aiGenerated: true, passage: null, createdAt: "2024-04-16" } },
-];
-
 export default function MistakeTable({ selectedId, onSelect, filterSection, filterErrorType, filterStatus }: Props) {
-  const [rows, setRows]       = useState<SessionQuestion[]>(SEED);
+  const [rows, setRows]       = useState<SessionQuestion[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchMistakes({ wrong: true, limit: 50 })
-      .then(r => { if (r.questions.length > 0) setRows(r.questions); })
-      .catch(() => { /* keep seed */ })
+      .then(r => { setRows(r.questions); })
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -53,6 +40,17 @@ export default function MistakeTable({ selectedId, onSelect, filterSection, filt
 
   const fmtDate = (s: string | null) =>
     s ? new Date(s).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" }) : "—";
+
+  if (!loading && rows.length === 0) {
+    return (
+      <div className="rounded-xl p-10 text-center mb-6" style={{ border: "1px solid var(--border)" }}>
+        <p className="text-sm mb-1" style={{ color: "var(--text-primary)" }}>No mistakes yet</p>
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          Complete practice sessions and wrong answers will appear here for review.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-xl overflow-hidden mb-6" style={{ border: "1px solid var(--border)" }}>

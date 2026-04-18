@@ -17,8 +17,8 @@ export default function HeroBanner() {
       .catch(() => {});
   }, []);
 
-  const lastFL  = stats?.lastFL ?? 509;
-  const target  = 515;
+  const lastFL    = stats?.lastFL ?? null;
+  const target    = 515;
   const weekLabel = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 
   return (
@@ -71,9 +71,9 @@ export default function HeroBanner() {
             Performance Snapshot
           </h3>
           <div className="space-y-3">
-            <Row label="Last Full-Length score" value={String(lastFL)} highlight />
-            <Row label="Target score" value={String(target)} />
-            <Row label="Week progress" value={weekLabel} small />
+            <Row label="Last Full-Length score" value={lastFL !== null ? String(lastFL) : "—"} highlight />
+            <Row label="Target score"           value={String(target)} />
+            <Row label="Week progress"          value={weekLabel} small />
             {stats?.recentAcc != null && (
               <Row label="7-day accuracy" value={`${stats.recentAcc}%`} />
             )}
