@@ -1,10 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Topic = { label: string; pct: number };
 type Section = { id: string; label: string; color: string; topics: Topic[] };
 
-const sections: Section[] = [
+const SECTIONS: Section[] = [
   {
     id: "chem",
     label: "Chem/Phys",
@@ -68,6 +68,20 @@ type Props = {
 
 export default function TopicSidebar({ activeTopic, onSelect }: Props) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ chem: true, cars: true, bio: true, psych: true });
+  const [accMap, setAccMap] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    fetch("/api/curriculum")
+      .then(r => r.json())
+      .then((data: { topicAccuracy: { topic: string; accuracy: number }[] }) => {
+        if (data.topicAccuracy?.length > 0) {
+          const m: Record<string, number> = {};
+          for (const t of data.topicAccuracy) m[t.topic] = t.accuracy;
+          setAccMap(m);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   function toggle(id: string) {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -87,9 +101,8 @@ export default function TopicSidebar({ activeTopic, onSelect }: Props) {
         Sections
       </p>
 
-      {sections.map((sec) => (
+      {SECTIONS.map((sec) => (
         <div key={sec.id}>
-          {/* Section header */}
           <button
             className="w-full flex items-center justify-between px-4 py-2 text-left"
             onClick={() => toggle(sec.id)}
@@ -110,11 +123,11 @@ export default function TopicSidebar({ activeTopic, onSelect }: Props) {
             </svg>
           </button>
 
-          {/* Topic list */}
           {expanded[sec.id] && (
             <div className="mb-1">
               {sec.topics.map((t) => {
                 const isActive = activeTopic === `${sec.id}:${t.label}`;
+                const pct = accMap[t.label] ?? t.pct;
                 return (
                   <button
                     key={t.label}
@@ -137,9 +150,9 @@ export default function TopicSidebar({ activeTopic, onSelect }: Props) {
                     </span>
                     <span
                       className="text-xs font-semibold ml-2"
-                      style={{ color: isActive ? "var(--accent-blue)" : pctColor(t.pct) }}
+                      style={{ color: isActive ? "var(--accent-blue)" : pctColor(pct) }}
                     >
-                      {t.pct}%
+                      {pct}%
                     </span>
                   </button>
                 );

@@ -7,13 +7,15 @@ import MistakeTable from "../components/review/MistakeTable";
 import QuestionDetailPanel from "../components/review/QuestionDetailPanel";
 
 export default function ReviewPage() {
-  const [selectedId, setSelectedId] = useState<string>("01834");
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [section,   setSection]     = useState("");
+  const [errorType, setErrorType]   = useState("");
+  const [status,    setStatus]      = useState("");
 
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
       <div className="max-w-6xl mx-auto px-6 py-8 w-full flex-1">
-        {/* Header row */}
         <div className="flex justify-between items-center mb-2">
           <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
             Review / Mistake Log
@@ -30,13 +32,22 @@ export default function ReviewPage() {
           </button>
         </div>
 
-        {/* Subtitle */}
         <p className="text-sm mb-6" style={{ color: "var(--text-secondary)" }}>
           Review missed questions, correct errors, and track your progress.
         </p>
 
-        <FilterBar />
-        <MistakeTable selectedId={selectedId} onSelect={setSelectedId} />
+        <FilterBar
+          section={section}     onSection={setSection}
+          errorType={errorType} onErrorType={setErrorType}
+          status={status}       onStatus={setStatus}
+        />
+        <MistakeTable
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          filterSection={section || undefined}
+          filterErrorType={errorType || undefined}
+          filterStatus={status || undefined}
+        />
         {selectedId && (
           <QuestionDetailPanel id={selectedId} onClose={() => setSelectedId("")} />
         )}

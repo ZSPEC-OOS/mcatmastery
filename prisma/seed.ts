@@ -80,6 +80,21 @@ async function main() {
   }
 
   console.log(`Seeded ${questions.length} questions.`);
+
+  const userId = process.env.SEED_USER_ID;
+  if (userId) {
+    await db.studyTask.deleteMany({ where: { userId } });
+    await db.studyTask.createMany({
+      data: [
+        { userId, title: "Chem/Phys Review",       section: "Chem/Phys",   completed: false },
+        { userId, title: "CARS Passage Set",        section: "CARS",        completed: false },
+        { userId, title: "Bio/Biochem Questions",   section: "Bio/Biochem", completed: false },
+        { userId, title: "Flashcards",              section: null,          completed: false },
+        { userId, title: "Review Missed Questions", section: null,          completed: false },
+      ],
+    });
+    console.log("Seeded 5 study tasks.");
+  }
 }
 
 main()
