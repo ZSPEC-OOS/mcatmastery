@@ -2,12 +2,66 @@ import { db } from "./db";
 import { anthropic, VALIDATION_SYSTEM_PROMPT } from "./anthropic";
 import { syncQuestionToFirestore } from "./firestore";
 
-export function jaccardSimilarity(a: string, b: string): number {
-  const setA = new Set(a.toLowerCase().split(/\s+/));
-  const setB = new Set(b.toLowerCase().split(/\s+/));
-  const intersection = [...setA].filter((w) => setB.has(w)).length;
-  const union = new Set([...setA, ...setB]).size;
+const STOPWORDS = new Set([
+  "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "if", "in", "into", "is", "it",
+  "of", "on", "or", "that", "the", "their", "then", "there", "these", "this", "to", "was", "were", "with",
+]);
+
+function normalizeText(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenSet(input: string): Set<string> {
+  return new Set(
+    normalizeText(input)
+      .split(" ")
+      .filter((token) => token.length > 1 && !STOPWORDS.has(token)),
+  );
+}
+
+function charNgrams(input: string, size = 3): Set<string> {
+  const compact = normalizeText(input).replace(/\s+/g, " ");
+  if (compact.length < size) return new Set([compact]);
+  const grams = new Set<string>();
+  for (let i = 0; i <= compact.length - size; i++) {
+    grams.add(compact.slice(i, i + size));
+  }
+  return grams;
+}
+
+function setJaccard(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 && b.size === 0) return 0;
+  let intersection = 0;
+  for (const token of a) {
+    if (b.has(token)) intersection++;
+  }
+  const union = new Set([...a, ...b]).size;
   return union === 0 ? 0 : intersection / union;
+}
+
+export function jaccardSimilarity(a: string, b: string): number {
+  return setJaccard(tokenSet(a), tokenSet(b));
+}
+
+export function stemSimilarity(a: string, b: string): number {
+  const normalizedA = normalizeText(a);
+  const normalizedB = normalizeText(b);
+  if (!normalizedA || !normalizedB) return 0;
+  if (normalizedA === normalizedB) return 1;
+
+  const tokenSim = setJaccard(tokenSet(a), tokenSet(b));
+  const gramSim = setJaccard(charNgrams(a), charNgrams(b));
+  const containment = normalizedA.includes(normalizedB) || normalizedB.includes(normalizedA) ? 1 : 0;
+
+  return Math.max(tokenSim, gramSim * 0.9, containment * 0.95);
+}
+
+export function isDuplicateStem(candidate: string, stems: string[], threshold: number): boolean {
+  return stems.some((stem) => stemSimilarity(stem, candidate) >= threshold);
 }
 
 export function sseChunk(data: unknown): string {
@@ -26,11 +80,11 @@ export async function verifyAndSave(
   },
 ): Promise<{ saved: Record<string, unknown> | null; reason?: string; flags?: string[] }> {
   const valPrompt = opts.valPrompt ?? VALIDATION_SYSTEM_PROMPT;
+  const candidateStem = ((parsed.stem as string) ?? "").trim();
+  if (!candidateStem) return { saved: null, reason: "missing_stem" };
 
   const allStems = [...opts.existingStems, ...opts.sessionStems];
-  const isDup = allStems.some(
-    (stem) => jaccardSimilarity(stem, (parsed.stem as string) ?? "") > opts.dedupThreshold,
-  );
+  const isDup = isDuplicateStem(candidateStem, allStems, opts.dedupThreshold);
   if (isDup) return { saved: null, reason: "duplicate" };
 
   let validation: { pass: boolean; flags: string[]; corrected_question: Record<string, unknown> | null };

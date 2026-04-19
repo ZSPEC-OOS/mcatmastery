@@ -103,9 +103,8 @@ function AIPipeline() {
 
 function PDFPipeline() {
   const [section, setSection]   = useState<Section>("Bio/Biochem");
-  const [count, setCount]       = useState(5);
   const [model, setModel]       = useState("claude-opus-4-7");
-  const [dedup, setDedup]       = useState(0.75);
+  const [dedup, setDedup]       = useState(0.72);
   const [file, setFile]         = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [running, setRunning]   = useState(false);
@@ -124,12 +123,11 @@ function PDFPipeline() {
     if (!file) return;
     setRunning(true);
     setEvents([]);
-    setProgress({ current: 0, total: count });
+    setProgress({ current: 0, total: 0 });
 
     const fd = new FormData();
     fd.append("file", file);
     fd.append("section", section);
-    fd.append("count", String(count));
     fd.append("model", model);
     fd.append("dedupThreshold", String(dedup));
 
@@ -211,36 +209,27 @@ function PDFPipeline() {
           </div>
         </div>
 
-        {/* Count + Model row */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-              Count — <span style={{ color: "var(--text-primary)" }}>{count}</span>
-            </label>
-            <input type="range" min={1} max={30} value={count}
-              onChange={(e) => setCount(Number(e.target.value))} className="w-full" />
-            <div className="flex justify-between text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-              <span>1</span><span>30</span>
-            </div>
+        {/* Model */}
+        <div>
+          <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Model</label>
+          <div className="space-y-1">
+            {MODELS.map((m) => (
+              <button key={m.id} onClick={() => setModel(m.id)}
+                className="w-full px-3 py-1.5 rounded-lg text-xs text-left"
+                style={{
+                  background: model === m.id ? "rgba(27,58,107,0.12)" : "var(--bg-elevated)",
+                  border: `1px solid ${model === m.id ? "var(--accent-blue)" : "var(--border)"}`,
+                  color: model === m.id ? "var(--accent-blue)" : "var(--text-secondary)",
+                  fontWeight: model === m.id ? 600 : 400,
+                }}
+              >
+                {m.label}
+              </button>
+            ))}
           </div>
-          <div>
-            <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Model</label>
-            <div className="space-y-1">
-              {MODELS.map((m) => (
-                <button key={m.id} onClick={() => setModel(m.id)}
-                  className="w-full px-3 py-1.5 rounded-lg text-xs text-left"
-                  style={{
-                    background: model === m.id ? "rgba(27,58,107,0.12)" : "var(--bg-elevated)",
-                    border: `1px solid ${model === m.id ? "var(--accent-blue)" : "var(--border)"}`,
-                    color: model === m.id ? "var(--accent-blue)" : "var(--text-secondary)",
-                    fontWeight: model === m.id ? 600 : 400,
-                  }}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
-          </div>
+          <p className="text-xs mt-1.5" style={{ color: "var(--text-muted)" }}>
+            Question volume is auto-sized from PDF length for better coverage.
+          </p>
         </div>
 
         {/* Dedup */}
@@ -266,7 +255,7 @@ function PDFPipeline() {
             cursor: file && !running ? "pointer" : "not-allowed",
           }}
         >
-          {running ? `Processing ${progress.current} / ${progress.total}…` : "Extract & Verify Questions"}
+          {running ? `Processing ${progress.current}${progress.total ? ` / ${progress.total}` : ""}…` : "Extract & Verify Questions"}
         </button>
 
         <LiveOutput events={events} running={running} progress={progress} />
