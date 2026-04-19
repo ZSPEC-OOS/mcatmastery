@@ -33,13 +33,23 @@ export default function Navbar() {
       >
         <div className="max-w-6xl mx-auto px-4 md:px-6 h-14 flex items-center justify-between">
 
-          {/* Logo */}
+          {/* Logo — swaps with theme */}
           <Link href="/" className="flex items-center">
             <Image
-              src="/logo.PNG"
+              src="/logolight.png"
               alt="MCAT Mastery"
               width={160}
               height={40}
+              className="logo-light"
+              style={{ objectFit: "contain", height: "36px", width: "auto" }}
+              priority
+            />
+            <Image
+              src="/logodark.png"
+              alt="MCAT Mastery"
+              width={160}
+              height={40}
+              className="logo-dark"
               style={{ objectFit: "contain", height: "36px", width: "auto" }}
               priority
             />
