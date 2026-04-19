@@ -8,6 +8,9 @@ const geist = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
 export const metadata: Metadata = {
   title: "MCAT Mastery — Adaptive MCAT Prep",
   description: "Personalized MCAT study plans, practice questions, and analytics to help you hit your target score.",
+  icons: {
+    apple: "/apple-touch-icon.jpeg",
+  },
 };
 
 export const viewport: Viewport = {
