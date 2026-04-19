@@ -26,7 +26,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   if (!hasClerkPublishableKey) {
     return (
       <html lang="en" className={`${geist.variable} h-full`}>
-        <body className="min-h-full flex flex-col antialiased"><PinGate>{children}</PinGate></body>
+        <body className="min-h-full flex flex-col antialiased">
+          <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})()` }} />
+          <PinGate>{children}</PinGate>
+        </body>
       </html>
     );
   }
@@ -34,7 +37,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <ClerkProvider>
       <html lang="en" className={`${geist.variable} h-full`}>
-        <body className="min-h-full flex flex-col antialiased"><PinGate>{children}</PinGate></body>
+        <body className="min-h-full flex flex-col antialiased">
+          <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})()` }} />
+          <PinGate>{children}</PinGate>
+        </body>
       </html>
     </ClerkProvider>
   );
