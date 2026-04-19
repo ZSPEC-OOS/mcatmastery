@@ -4,6 +4,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { clearCurrentUser } from "./PinAuth";
+import ThemeToggle from "./ThemeToggle";
 
 const navLinks = [
   { label: "Dashboard",  href: "/" },
@@ -64,6 +65,9 @@ export default function Navbar() {
 
           {/* Right side */}
           <div className="flex items-center gap-1">
+            {/* Theme toggle — always visible */}
+            <ThemeToggle />
+
             {/* Gear — always visible */}
             <Link
               href="/admin"
