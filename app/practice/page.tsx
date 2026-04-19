@@ -16,10 +16,11 @@ const S = {
 };
 
 export default function PracticePage() {
-  const [section, setSection]     = useState<Section>("Bio/Biochem");
+  const [sections, setSections]   = useState<Section[]>(["Bio/Biochem"]);
   const [topic, setTopic]         = useState("");
   const [count, setCount]         = useState(5);
-  const [timed, setTimed]         = useState(false);
+  const [timeMode, setTimeMode]   = useState<"untimed" | "default" | "custom">("untimed");
+  const [customMins, setCustomMins] = useState(10);
 
   const [phase, setPhase]         = useState<Phase>("config");
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -37,7 +38,16 @@ export default function PracticePage() {
   const qStartRef                 = useRef(Date.now());
 
   const currentQ = questions[idx] ?? null;
-  const totalTime = count * 95;
+  const timed = timeMode !== "untimed";
+  const totalTime = timeMode === "custom" ? customMins * 60 : count * 95;
+
+  function toggleSection(s: Section) {
+    setSections(prev =>
+      prev.includes(s)
+        ? prev.length > 1 ? prev.filter(x => x !== s) : prev
+        : [...prev, s]
+    );
+  }
 
   useEffect(() => {
     if (phase !== "active") return;
@@ -55,15 +65,23 @@ export default function PracticePage() {
     setElapsed(0);
 
     try {
-      const sess = await createSession(section, timed);
+      const sess = await createSession(sections[0], timed);
       setSessionId(sess.id);
 
       const collected: Question[] = [];
-      for await (const event of generateQuestions({ section, topic: topic || undefined, count })) {
-        const e = event as SSEEvent;
-        if (e.type === "progress") setProgress({ current: e.current, total: e.total });
-        if (e.type === "question") collected.push(e.question);
+      const perSection = Math.max(1, Math.ceil(count / sections.length));
+      let globalIdx = 0;
+
+      for (const sec of sections) {
+        const secCount = Math.min(perSection, count - collected.length);
+        if (secCount <= 0) break;
+        for await (const event of generateQuestions({ section: sec, topic: topic || undefined, count: secCount })) {
+          const e = event as SSEEvent;
+          if (e.type === "progress") setProgress({ current: globalIdx + e.current, total: count });
+          if (e.type === "question") { collected.push(e.question); globalIdx++; }
+        }
       }
+
       setQuestions(collected);
       setPhase("active");
       qStartRef.current = Date.now();
@@ -71,7 +89,7 @@ export default function PracticePage() {
       console.error(err);
       setPhase("config");
     }
-  }, [section, topic, count, timed]);
+  }, [sections, topic, count, timed]);
 
   const handleSubmit = useCallback(async () => {
     if (!selected || !currentQ) return;
@@ -121,19 +139,28 @@ export default function PracticePage() {
           </h1>
 
           <div>
-            <label className="text-xs mb-1 block" style={{ color: "var(--text-muted)" }}>Section</label>
+            <label className="text-xs mb-1 block" style={{ color: "var(--text-muted)" }}>
+              Sections <span style={{ fontWeight: 400 }}>({sections.length} selected)</span>
+            </label>
             <div className="grid grid-cols-2 gap-2">
-              {SECTIONS.map(s => (
-                <button key={s} onClick={() => setSection(s)}
-                  className="py-2 px-3 rounded text-sm font-medium text-left"
-                  style={{
-                    background: section === s ? "var(--accent-blue)" : "var(--bg-card-hover)",
-                    color: section === s ? "#fff" : "var(--text-secondary)",
-                    border: `1px solid ${section === s ? "var(--accent-blue)" : "var(--border)"}`,
-                  }}>
-                  {s}
-                </button>
-              ))}
+              {SECTIONS.map(s => {
+                const active = sections.includes(s);
+                return (
+                  <button key={s} onClick={() => toggleSection(s)}
+                    className="py-2 px-3 rounded text-sm font-medium text-left flex items-center gap-2"
+                    style={{
+                      background: active ? "var(--accent-blue)" : "var(--bg-card-hover)",
+                      color: active ? "#fff" : "var(--text-secondary)",
+                      border: `1px solid ${active ? "var(--accent-blue)" : "var(--border)"}`,
+                    }}>
+                    <span className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 text-xs"
+                      style={{ background: active ? "rgba(255,255,255,0.25)" : "var(--border)" }}>
+                      {active ? "✓" : ""}
+                    </span>
+                    {s}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -160,18 +187,36 @@ export default function PracticePage() {
             </div>
           </div>
 
-          <div className="flex gap-2">
-            {([false, true] as const).map(t => (
-              <button key={String(t)} onClick={() => setTimed(t)}
-                className="flex-1 py-2 rounded text-sm font-medium"
-                style={{
-                  background: timed === t ? "var(--accent-blue)" : "transparent",
-                  color: timed === t ? "#fff" : "var(--text-secondary)",
-                  border: `1px solid ${timed === t ? "var(--accent-blue)" : "var(--border)"}`,
-                }}>
-                {t ? "⏱ Timed" : "∞ Untimed"}
-              </button>
-            ))}
+          <div>
+            <label className="text-xs mb-1 block" style={{ color: "var(--text-muted)" }}>Time</label>
+            <div className="flex gap-2 mb-2">
+              {([
+                { id: "untimed", label: "∞ Untimed" },
+                { id: "default", label: `⏱ Default (${Math.round(count * 95 / 60)}m)` },
+                { id: "custom",  label: "✎ Custom" },
+              ] as const).map(opt => (
+                <button key={opt.id} onClick={() => setTimeMode(opt.id)}
+                  className="flex-1 py-2 rounded text-xs font-medium"
+                  style={{
+                    background: timeMode === opt.id ? "var(--accent-blue)" : "transparent",
+                    color: timeMode === opt.id ? "#fff" : "var(--text-secondary)",
+                    border: `1px solid ${timeMode === opt.id ? "var(--accent-blue)" : "var(--border)"}`,
+                  }}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {timeMode === "custom" && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="number" min={1} max={180} value={customMins}
+                  onChange={e => setCustomMins(Math.max(1, Math.min(180, +e.target.value)))}
+                  className="w-20 px-3 py-1.5 rounded text-sm text-center"
+                  style={{ background: "var(--bg-card-hover)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
+                />
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>minutes total</span>
+              </div>
+            )}
           </div>
 
           <button onClick={handleGenerate}
@@ -267,7 +312,7 @@ export default function PracticePage() {
 
       <div className="px-6 py-2 flex items-center gap-4 text-xs"
         style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-card)" }}>
-        <span style={{ color: "var(--text-muted)" }}>{section}</span>
+        <span style={{ color: "var(--text-muted)" }}>{currentQ?.section ?? sections.join(", ")}</span>
         <span className="ml-auto" style={{ color: "var(--text-secondary)" }}>
           {idx + 1} / {questions.length}
         </span>
