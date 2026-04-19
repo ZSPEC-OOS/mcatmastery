@@ -26,7 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   if (!hasClerkPublishableKey) {
     return (
       <html lang="en" className={`${geist.variable} h-full`}>
-        <body className="min-h-full flex flex-col antialiased">{children}</body>
+        <body className="min-h-full flex flex-col antialiased"><PinGate>{children}</PinGate></body>
       </html>
     );
   }
