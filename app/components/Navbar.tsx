@@ -3,6 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { clearCurrentUser } from "./PinAuth";
 
 const navLinks = [
   { label: "Dashboard",  href: "/" },
@@ -63,24 +64,6 @@ export default function Navbar() {
 
           {/* Right side */}
           <div className="flex items-center gap-1">
-            {/* Desktop-only: clock + bookmark */}
-            <div className="hidden md:flex items-center gap-1">
-              <button
-                className="w-8 h-8 flex items-center justify-center rounded-lg"
-                style={{ color: "var(--text-muted)" }}
-                title="Timer"
-              >
-                <ClockIcon />
-              </button>
-              <button
-                className="w-8 h-8 flex items-center justify-center rounded-lg"
-                style={{ color: "var(--text-muted)" }}
-                title="Bookmarks"
-              >
-                <BookmarkIcon />
-              </button>
-            </div>
-
             {/* Gear — always visible */}
             <Link
               href="/admin"
@@ -90,6 +73,17 @@ export default function Navbar() {
             >
               <SettingsIcon />
             </Link>
+
+            {/* Logout — always visible */}
+            <button
+              onClick={() => { clearCurrentUser(); window.location.href = "/"; }}
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+              style={{ color: "var(--text-muted)", border: "1px solid var(--border)", background: "transparent" }}
+              title="Log out"
+            >
+              <LogoutIcon />
+              Log out
+            </button>
 
             {/* Hamburger — mobile only */}
             <button
@@ -144,6 +138,14 @@ export default function Navbar() {
             <SettingsIcon />
             Admin
           </Link>
+          <button
+            onClick={() => { clearCurrentUser(); window.location.href = "/"; }}
+            className="flex items-center gap-2.5 px-5 py-3.5 text-sm font-medium w-full text-left"
+            style={{ color: "#e05c5c", borderTop: "1px solid var(--border)" }}
+          >
+            <LogoutIcon />
+            Log out
+          </button>
         </div>
       )}
     </>
@@ -169,19 +171,12 @@ function XIcon() {
   );
 }
 
-function ClockIcon() {
+function LogoutIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <circle cx="12" cy="12" r="10" />
-      <polyline points="12 6 12 12 16 14" />
-    </svg>
-  );
-}
-
-function BookmarkIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" y1="12" x2="9" y2="12" />
     </svg>
   );
 }
