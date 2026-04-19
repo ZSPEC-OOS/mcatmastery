@@ -36,7 +36,7 @@ export default function Navbar() {
           {/* Logo — swaps with theme */}
           <Link href="/" className="flex items-center">
             <Image
-              src="/logolight.png"
+              src="/logolight.PNG"
               alt="MCAT Mastery"
               width={160}
               height={40}
@@ -45,7 +45,7 @@ export default function Navbar() {
               priority
             />
             <Image
-              src="/logodark.png"
+              src="/logodark.PNG"
               alt="MCAT Mastery"
               width={160}
               height={40}
