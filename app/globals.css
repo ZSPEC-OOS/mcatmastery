@@ -48,6 +48,12 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
+/* Theme-aware logo switching */
+.logo-dark  { display: none; }
+.logo-light { display: block; }
+[data-theme="dark"] .logo-dark  { display: block; }
+[data-theme="dark"] .logo-light { display: none; }
+
 * {
   box-sizing: border-box;
 }
