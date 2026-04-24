@@ -4,8 +4,6 @@ import { getSettings, setSetting } from "../../../../lib/db";
 const READABLE_KEYS = [
   "generation_prompt",
   "validation_prompt",
-  "firestore_project_id",
-  "firestore_enabled",
 ];
 
 export async function GET() {
@@ -18,6 +16,7 @@ export async function GET() {
         database: !!process.env.DATABASE_URL,
         clerkPublishable: !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
         clerkSecret: !!process.env.CLERK_SECRET_KEY,
+        firebaseServiceAccount: !!process.env.FIREBASE_SERVICE_ACCOUNT,
       },
     });
   } catch (e) {
