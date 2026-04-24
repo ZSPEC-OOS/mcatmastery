@@ -330,6 +330,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     if (err instanceof z.ZodError)
       return new Response(JSON.stringify({ error: err.issues }), { status: 400 });
-    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    const msg = err instanceof Error ? err.message : String(err);
+    return new Response(JSON.stringify({ error: msg }), { status: 500 });
   }
 }
