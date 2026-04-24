@@ -191,6 +191,7 @@ export default function DatabaseTab() {
   const [loading, setLoading]     = useState(true);
   const [deleting, setDeleting]   = useState<string | null>(null);
   const [expandedId, setExpanded] = useState<string | null>(null);
+  const [clearState, setClearState] = useState<"idle" | "confirm" | "clearing">("idle");
 
   useEffect(() => {
     fetch("/api/admin/stats")
@@ -198,6 +199,14 @@ export default function DatabaseTab() {
       .then((d: Stats) => { setStats(d); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
+
+  async function handleClearAll() {
+    if (clearState === "idle") { setClearState("confirm"); return; }
+    setClearState("clearing");
+    await fetch("/api/admin/questions", { method: "DELETE" });
+    setStats((prev) => prev ? { ...prev, total: 0, bySection: {}, byDifficulty: {}, recent: [] } : prev);
+    setClearState("idle");
+  }
 
   function handleDelete(id: string) {
     setDeleting(id);
@@ -253,6 +262,34 @@ export default function DatabaseTab() {
             {stats.byDifficulty[d] ?? 0} {d}
           </span>
         ))}
+        <div className="ml-auto flex items-center gap-2">
+          {clearState === "confirm" && (
+            <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+              Delete all {stats.total} questions?
+            </span>
+          )}
+          <button
+            onClick={clearState === "confirm" ? () => setClearState("idle") : undefined}
+            style={{ display: clearState === "confirm" ? "inline-block" : "none",
+              background: "var(--bg-elevated)", color: "var(--text-secondary)",
+              border: "1px solid var(--border)", borderRadius: 8, padding: "6px 12px", fontSize: 12 }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleClearAll}
+            disabled={clearState === "clearing"}
+            className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+            style={{
+              background: clearState === "confirm" ? "rgba(224,92,92,0.9)" : "rgba(224,92,92,0.1)",
+              color: "#e05c5c",
+              border: "1px solid rgba(224,92,92,0.35)",
+              opacity: clearState === "clearing" ? 0.5 : 1,
+            }}
+          >
+            {clearState === "clearing" ? "Clearing…" : clearState === "confirm" ? "Yes, delete all" : "Clear All Questions"}
+          </button>
+        </div>
       </div>
 
       {/* Recent questions table */}

@@ -187,6 +187,23 @@ export async function deleteQuestion(id: string): Promise<void> {
   await fs().collection("questions").doc(id).delete();
 }
 
+export async function deleteAllQuestions(): Promise<number> {
+  const firestore = fs();
+  const snap = await firestore.collection("questions").get();
+  let deleted = 0;
+  const ids = snap.docs.map((d) => d.id);
+  // Firestore batches are capped at 500 ops
+  for (let i = 0; i < ids.length; i += 500) {
+    const batch = firestore.batch();
+    for (const id of ids.slice(i, i + 500)) {
+      batch.delete(firestore.collection("questions").doc(id));
+    }
+    await batch.commit();
+    deleted += ids.slice(i, i + 500).length;
+  }
+  return deleted;
+}
+
 // ── Sessions ──────────────────────────────────────────────────────────────────
 
 export async function createSession(data: {
