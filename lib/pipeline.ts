@@ -1,7 +1,6 @@
-import { db } from "./db";
 import { callModel } from "./model";
 import { VALIDATION_SYSTEM_PROMPT } from "./anthropic";
-import { syncQuestionToFirestore } from "./firestore";
+import { saveQuestion } from "./firestore";
 
 export function jaccardSimilarity(a: string, b: string): number {
   const setA = new Set(a.toLowerCase().split(/\s+/));
@@ -18,13 +17,13 @@ export function sseChunk(data: unknown): string {
 export async function verifyAndSave(
   parsed: Record<string, unknown>,
   opts: {
-    model?:          string;   // optional — omit to use active model
-    baseUrl?:        string;
-    apiKey?:         string;
-    dedupThreshold:  number;
-    existingStems:   string[];
-    sessionStems:    string[];
-    valPrompt?:      string;
+    model?:           string;
+    baseUrl?:         string;
+    apiKey?:          string;
+    dedupThreshold:   number;
+    existingStems:    string[];
+    sessionStems:     string[];
+    valPrompt?:       string;
     targetDifficulty?: string;
   },
 ): Promise<{ saved: Record<string, unknown> | null; reason?: string; flags?: string[] }> {
@@ -58,22 +57,20 @@ export async function verifyAndSave(
 
   const final = validation.pass ? parsed : (validation.corrected_question ?? parsed);
 
-  const saved = await db.question.create({
-    data: {
-      section:       final.section as string,
-      topic:         final.topic as string,
-      passage:       (final.passage as string) ?? null,
-      stem:          final.stem as string,
-      optionA:       final.optionA as string,
-      optionB:       final.optionB as string,
-      optionC:       final.optionC as string,
-      optionD:       final.optionD as string,
-      correctAnswer: final.correctAnswer as string,
-      explanation:   final.explanation as string,
-      difficulty:    (final.difficulty as string) ?? opts.targetDifficulty ?? "medium",
-    },
+  const saved = await saveQuestion({
+    section:       final.section as string,
+    topic:         final.topic as string,
+    passage:       (final.passage as string) ?? null,
+    stem:          final.stem as string,
+    optionA:       final.optionA as string,
+    optionB:       final.optionB as string,
+    optionC:       final.optionC as string,
+    optionD:       final.optionD as string,
+    correctAnswer: final.correctAnswer as string,
+    explanation:   final.explanation as string,
+    difficulty:    (final.difficulty as string) ?? opts.targetDifficulty ?? "medium",
+    aiGenerated:   true,
   });
 
-  syncQuestionToFirestore(saved as unknown as Record<string, unknown>).catch(() => {});
   return { saved: saved as unknown as Record<string, unknown> };
 }

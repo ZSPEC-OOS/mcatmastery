@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { db, getSetting, ensureSchema } from "../../../../../lib/db";
+import { getSetting, ensureSchema } from "../../../../../lib/db";
+import { getQuestions } from "../../../../../lib/firestore";
 import { VALIDATION_SYSTEM_PROMPT } from "../../../../../lib/anthropic";
 import { callModel } from "../../../../../lib/model";
 import { verifyAndSave, sseChunk } from "../../../../../lib/pipeline";
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
 
     const [customVal, existing] = await Promise.all([
       getSetting("validation_prompt"),
-      db.question.findMany({ where: { section: body.section }, select: { stem: true } }),
+      getQuestions({ section: body.section }),
     ]);
     const valPrompt = customVal || VALIDATION_SYSTEM_PROMPT;
 

@@ -1,51 +1,34 @@
 import { NextResponse } from "next/server";
-import { db, ensureSchema } from "../../../../lib/db";
+import { getQuestions } from "../../../../lib/firestore";
 
 export async function GET() {
   try {
-    await ensureSchema();
+    const all = await getQuestions();
 
-    const [total, bySection, byDifficulty, recent] = await Promise.all([
-      db.question.count(),
-      db.question.groupBy({ by: ["section"], _count: { _all: true } }),
-      db.question.groupBy({ by: ["difficulty"], _count: { _all: true } }),
-      db.question.findMany({
-        orderBy: { createdAt: "desc" },
-        take: 30,
-        select: {
-          id: true,
-          section: true,
-          topic: true,
-          stem: true,
-          difficulty: true,
-          correctAnswer: true,
-          createdAt: true,
-        },
-      }),
-    ]);
-
-    const sectionMap: Record<string, number> = {};
-    for (const r of bySection) sectionMap[r.section] = r._count._all;
-
-    const difficultyMap: Record<string, number> = {};
-    for (const r of byDifficulty) difficultyMap[r.difficulty] = r._count._all;
+    const bySection: Record<string, number> = {};
+    const byDifficulty: Record<string, number> = {};
+    for (const q of all) {
+      bySection[q.section]       = (bySection[q.section]       ?? 0) + 1;
+      byDifficulty[q.difficulty] = (byDifficulty[q.difficulty] ?? 0) + 1;
+    }
 
     return NextResponse.json({
-      total,
+      total: all.length,
       bySection: {
-        "Chem/Phys":   sectionMap["Chem/Phys"]   ?? 0,
-        "CARS":        sectionMap["CARS"]         ?? 0,
-        "Bio/Biochem": sectionMap["Bio/Biochem"]  ?? 0,
-        "Psych/Soc":   sectionMap["Psych/Soc"]    ?? 0,
+        "Chem/Phys":   bySection["Chem/Phys"]   ?? 0,
+        "CARS":        bySection["CARS"]         ?? 0,
+        "Bio/Biochem": bySection["Bio/Biochem"]  ?? 0,
+        "Psych/Soc":   bySection["Psych/Soc"]   ?? 0,
       },
       byDifficulty: {
-        easy:   difficultyMap["easy"]   ?? 0,
-        medium: difficultyMap["medium"] ?? 0,
-        hard:   difficultyMap["hard"]   ?? 0,
+        easy:   byDifficulty["easy"]   ?? 0,
+        medium: byDifficulty["medium"] ?? 0,
+        hard:   byDifficulty["hard"]   ?? 0,
       },
-      recent,
+      recent: all.slice(0, 30),
     });
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Failed";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
