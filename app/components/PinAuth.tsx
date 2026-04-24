@@ -134,8 +134,8 @@ export default function PinAuth({ onAuth }: Props) {
       style={{ background: "var(--bg-primary)" }}>
 
       <div className="mb-8">
-        <Image src="/logolight.PNG" alt="MCAT Mastery" width={220} height={76} className="logo-light" style={{ objectFit: "contain" }} />
-        <Image src="/logodark.PNG"  alt="MCAT Mastery" width={220} height={76} className="logo-dark"  style={{ objectFit: "contain" }} />
+        <Image src="/logolight.PNG" alt="MCAT Mastery" width={260} height={90} className="logo-light" style={{ objectFit: "contain" }} />
+        <Image src="/logodark.PNG"  alt="MCAT Mastery" width={260} height={90} className="logo-dark"  style={{ objectFit: "contain" }} />
       </div>
 
       <div
