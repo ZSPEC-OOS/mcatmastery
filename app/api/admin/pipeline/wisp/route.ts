@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { requireUser } from "../../../../../lib/auth";
 import { db } from "../../../../../lib/db";
 import { anthropic, VALIDATION_SYSTEM_PROMPT } from "../../../../../lib/anthropic";
 import { verifyAndSave, sseChunk } from "../../../../../lib/pipeline";
@@ -41,7 +40,6 @@ type WispResult = { title?: string; url?: string; snippet?: string; content?: st
 
 export async function POST(req: NextRequest) {
   try {
-    await requireUser();
     const body = WispSchema.parse(await req.json());
 
     const [customVal, existing] = await Promise.all([

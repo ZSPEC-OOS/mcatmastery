@@ -1,5 +1,4 @@
 import { NextRequest } from "next/server";
-import { requireUser } from "../../../../../lib/auth";
 import { db } from "../../../../../lib/db";
 import { anthropic, VALIDATION_SYSTEM_PROMPT } from "../../../../../lib/anthropic";
 import { verifyAndSave, sseChunk } from "../../../../../lib/pipeline";
@@ -30,7 +29,6 @@ Output ONLY a valid JSON array of question objects — no other text, no markdow
 
 export async function POST(req: NextRequest) {
   try {
-    await requireUser();
 
     const formData = await req.formData();
     const file    = formData.get("file") as File | null;

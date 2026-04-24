@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { requireUser } from "../../../../lib/auth";
 import { db } from "../../../../lib/db";
 import { anthropic, GENERATION_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT } from "../../../../lib/anthropic";
 import { syncQuestionToFirestore, getModelByModelId, uploadQuestionImage } from "../../../../lib/firestore";
@@ -166,8 +165,6 @@ async function ensureFigureColumn() {
 
 export async function POST(req: NextRequest) {
   try {
-    if (process.env.CLERK_SECRET_KEY) await requireUser();
-
     const body = AdminGenerateSchema.parse(await req.json());
 
     const [customGen, customVal] = await Promise.all([
