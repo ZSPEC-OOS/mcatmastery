@@ -36,6 +36,8 @@ export default function GenerateTab() {
   const [pipelineOpen, setPipelineOpen] = useState(false);
   const [customModels, setCustomModels] = useState<CustomModel[]>([]);
   const [modelsLoading, setModelsLoading] = useState(true);
+  const [imageGenEnabled, setImageGen]  = useState(false);
+  const [imageModelId, setImageModelId] = useState("");
 
   useEffect(() => {
     fetch("/api/admin/models")
@@ -57,7 +59,11 @@ export default function GenerateTab() {
     const res = await fetch("/api/admin/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ section, topic: topic || undefined, count, model, difficulty, dedupThreshold }),
+      body: JSON.stringify({
+        section, topic: topic || undefined, count, model, difficulty, dedupThreshold,
+        imageGeneration: imageGenEnabled,
+        imageModelId:    imageGenEnabled ? imageModelId : undefined,
+      }),
     });
 
     if (!res.ok || !res.body) { setRunning(false); return; }
@@ -215,6 +221,50 @@ export default function GenerateTab() {
             )}
           </div>
 
+          {/* Image Generation */}
+          <div className="rounded-lg px-3 py-3 space-y-3" style={{ background: "var(--bg-card)", border: `1px solid ${imageGenEnabled ? "var(--accent-blue)" : "var(--border)"}` }}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>Image Generation</p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>Generate questions with figures</p>
+              </div>
+              <button
+                onClick={() => setImageGen((v) => !v)}
+                className="w-10 h-5 rounded-full relative transition-colors flex-shrink-0"
+                style={{ background: imageGenEnabled ? "var(--accent-blue)" : "var(--bg-input)", border: "1px solid var(--border)" }}
+              >
+                <span className="absolute top-0.5 h-4 w-4 rounded-full transition-all"
+                  style={{ background: "#fff", left: imageGenEnabled ? "calc(100% - 1.125rem)" : "0.125rem", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
+              </button>
+            </div>
+            {imageGenEnabled && (
+              <div>
+                <label className="block text-xs mb-1.5" style={{ color: "var(--text-muted)" }}>Image Model (DALL-E / image generator)</label>
+                {modelsLoading ? (
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>Loading…</p>
+                ) : customModels.length === 0 ? (
+                  <p className="text-xs" style={{ color: "#e05c5c" }}>No models — add one in Settings.</p>
+                ) : (
+                  <div className="space-y-1">
+                    {customModels.map((m) => (
+                      <button key={m.id} onClick={() => setImageModelId(m.modelId)}
+                        className="w-full px-3 py-1.5 rounded-lg text-xs text-left"
+                        style={{
+                          background: imageModelId === m.modelId ? "rgba(27,58,107,0.12)" : "var(--bg-input)",
+                          border: `1px solid ${imageModelId === m.modelId ? "var(--accent-blue)" : "var(--border)"}`,
+                          color: imageModelId === m.modelId ? "var(--accent-blue)" : "var(--text-secondary)",
+                          fontWeight: imageModelId === m.modelId ? 600 : 400,
+                        }}
+                      >
+                        {m.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Difficulty */}
           <div>
             <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Difficulty</label>
@@ -254,7 +304,7 @@ export default function GenerateTab() {
           {/* Generate button */}
           <button
             onClick={handleGenerate}
-            disabled={running || !model}
+            disabled={running || !model || (imageGenEnabled && !imageModelId)}
             className="w-full py-2.5 rounded-lg text-sm font-semibold"
             style={{
               background: (running || !model) ? "var(--bg-card)" : "var(--accent-blue)",
