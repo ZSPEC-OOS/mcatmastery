@@ -32,6 +32,7 @@ model Question {
   explanation     String
   difficulty      String   @default("medium") // "easy" | "medium" | "hard"
   aiGenerated     Boolean  @default(true)
+  figureUrl       String?  // base64 data URL for image-based questions
   createdAt       DateTime @default(now())
 
   sessionQuestions SessionQuestion[]
