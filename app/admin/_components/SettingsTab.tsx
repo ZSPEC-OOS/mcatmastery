@@ -170,6 +170,100 @@ type EnvStatus = {
   firebaseServiceAccount: boolean;
 };
 
+type PromptKey = "generation_prompt" | "validation_prompt" | "image_generation_prompt" | "image_validation_prompt";
+
+const PROMPT_LABELS: Record<PromptKey, string> = {
+  generation_prompt:       "Generation Prompt (GENERATION_SYSTEM_PROMPT)",
+  validation_prompt:       "Validation Prompt (VALIDATION_SYSTEM_PROMPT)",
+  image_generation_prompt: "Image Generation Prompt (IMAGE_GENERATION_PROMPT)",
+  image_validation_prompt: "Image Validation Prompt (IMAGE_VALIDATION_PROMPT)",
+};
+
+const PROMPT_DEFAULTS: Record<PromptKey, string> = {
+  generation_prompt:       DEFAULT_GEN_PROMPT,
+  validation_prompt:       DEFAULT_VAL_PROMPT,
+  image_generation_prompt: IMAGE_GENERATION_PROMPT,
+  image_validation_prompt: IMAGE_VALIDATION_PROMPT,
+};
+
+function PinModal({
+  label, onUnlock, onCancel,
+}: {
+  label: string;
+  onUnlock: () => void;
+  onCancel: () => void;
+}) {
+  const [pin, setPin]     = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy]   = useState(false);
+  const inputRef          = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  async function submit() {
+    if (!pin.trim()) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/settings/verify-pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+      if (res.ok) { onUnlock(); }
+      else { setError("Incorrect PIN."); setPin(""); inputRef.current?.focus(); }
+    } catch {
+      setError("Network error.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(3px)" }}
+      onClick={(e) => e.target === e.currentTarget && onCancel()}
+    >
+      <div className="w-full max-w-sm rounded-2xl p-6 space-y-4"
+        style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+        <div>
+          <p className="text-sm font-semibold mb-0.5" style={{ color: "var(--text-primary)" }}>Enter PIN to edit</p>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>{label}</p>
+        </div>
+        <input
+          ref={inputRef}
+          type="password"
+          value={pin}
+          onChange={(e) => setPin(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && submit()}
+          placeholder="PIN"
+          className="w-full px-3 py-2 rounded-lg text-sm font-mono tracking-widest"
+          style={{ background: "var(--bg-input)", border: `1px solid ${error ? "#e05c5c" : "var(--border)"}`, color: "var(--text-primary)", outline: "none" }}
+        />
+        {error && <p className="text-xs" style={{ color: "#e05c5c" }}>{error}</p>}
+        <div className="flex gap-2">
+          <button
+            onClick={submit}
+            disabled={busy || !pin.trim()}
+            className="flex-1 py-2 rounded-lg text-sm font-semibold"
+            style={{ background: "var(--accent-blue)", color: "#fff", opacity: busy || !pin.trim() ? 0.5 : 1 }}
+          >
+            {busy ? "Checking…" : "Unlock"}
+          </button>
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 rounded-lg text-sm font-medium"
+            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EnvRow({ label, ok }: { label: string; ok: boolean }) {
   return (
     <div className="flex items-center justify-between py-2.5" style={{ borderBottom: "1px solid var(--border)" }}>
@@ -190,10 +284,21 @@ function EnvRow({ label, ok }: { label: string; ok: boolean }) {
 
 export default function SettingsTab() {
   const [env, setEnv]           = useState<EnvStatus | null>(null);
-  const [genPrompt, setGenPrompt] = useState(DEFAULT_GEN_PROMPT);
-  const [valPrompt, setValPrompt] = useState(DEFAULT_VAL_PROMPT);
-  const [saving, setSaving]     = useState<string | null>(null);
-  const [saved, setSaved]       = useState<string | null>(null);
+  const [prompts, setPrompts]   = useState<Record<PromptKey, string>>({
+    generation_prompt:       DEFAULT_GEN_PROMPT,
+    validation_prompt:       DEFAULT_VAL_PROMPT,
+    image_generation_prompt: IMAGE_GENERATION_PROMPT,
+    image_validation_prompt: IMAGE_VALIDATION_PROMPT,
+  });
+  const [locked, setLocked]     = useState<Record<PromptKey, boolean>>({
+    generation_prompt: true, validation_prompt: true,
+    image_generation_prompt: true, image_validation_prompt: true,
+  });
+  const [pinTarget, setPinTarget] = useState<PromptKey | null>(null);
+  const [saving, setSaving]     = useState<PromptKey | null>(null);
+  const [saved, setSaved]       = useState<PromptKey | null>(null);
+  // Keep a snapshot to allow cancel-revert
+  const savedSnapshot           = useRef<Record<PromptKey, string>>({ ...PROMPT_DEFAULTS });
 
   const [models, setModels]           = useState<ModelConfig[]>([]);
   const [modelForm, setModelForm]     = useState(EMPTY_FORM);
@@ -213,8 +318,14 @@ export default function SettingsTab() {
       .then((r) => r.json())
       .then((d: { env: EnvStatus; settings: Record<string, string> }) => {
         setEnv(d.env);
-        if (d.settings.generation_prompt) setGenPrompt(d.settings.generation_prompt);
-        if (d.settings.validation_prompt) setValPrompt(d.settings.validation_prompt);
+        setPrompts((prev) => {
+          const next = { ...prev };
+          (Object.keys(PROMPT_DEFAULTS) as PromptKey[]).forEach((k) => {
+            if (d.settings[k]) next[k] = d.settings[k];
+          });
+          savedSnapshot.current = { ...next };
+          return next;
+        });
       })
       .catch(() => {});
 
@@ -298,16 +409,29 @@ export default function SettingsTab() {
     }
   }
 
-  async function save(group: string, payload: Record<string, string>) {
-    setSaving(group);
+  function unlockPrompt(key: PromptKey) {
+    savedSnapshot.current = { ...prompts };
+    setLocked((l) => ({ ...l, [key]: false }));
+    setPinTarget(null);
+  }
+
+  function cancelEdit(key: PromptKey) {
+    setPrompts((p) => ({ ...p, [key]: savedSnapshot.current[key] }));
+    setLocked((l) => ({ ...l, [key]: true }));
+  }
+
+  async function lockAndSave(key: PromptKey) {
+    setSaving(key);
     try {
       await fetch("/api/admin/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ [key]: prompts[key] }),
       });
-      setSaved(group);
-      setTimeout(() => setSaved(null), 2000);
+      savedSnapshot.current = { ...prompts };
+      setSaved(key);
+      setLocked((l) => ({ ...l, [key]: true }));
+      setTimeout(() => setSaved((s) => s === key ? null : s), 2000);
     } finally {
       setSaving(null);
     }
@@ -540,120 +664,153 @@ export default function SettingsTab() {
         <div className="px-5 py-3.5" style={{ background: "var(--bg-card)", borderBottom: "1px solid var(--border)" }}>
           <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Generation Prompts</h2>
           <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-            System prompts used by the generation pipeline. Text-based prompts can be customized and saved to the database. Image-based prompts are hardcoded and shown here for reference.
+            All four prompts are PIN-protected. Click Edit on any prompt, enter your PIN, make changes, then Lock &amp; Save. Default PIN is <code className="px-1 py-0.5 rounded" style={{ background: "var(--bg-elevated)" }}>1234</code> — set <code className="px-1 py-0.5 rounded" style={{ background: "var(--bg-elevated)" }}>ADMIN_PROMPT_PIN</code> in environment variables to change it.
           </p>
         </div>
-        <div className="px-5 py-4 space-y-6">
+        <div className="px-5 py-4 space-y-5">
 
-          {/* ── Text-based (non-image) ── */}
-          <div className="space-y-4">
-            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-              Text-Based Questions
-            </p>
+          {/* ── Text-Based ── */}
+          <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Text-Based Questions</p>
 
-            <div>
-              <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                Generation Prompt (GENERATION_SYSTEM_PROMPT)
-              </label>
-              <textarea
-                value={genPrompt}
-                onChange={(e) => setGenPrompt(e.target.value)}
-                rows={12}
-                className="w-full px-3 py-2 rounded-lg text-xs font-mono resize-y"
-                style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
+          {(["generation_prompt", "validation_prompt"] as PromptKey[]).map((key) => (
+            <PromptBlock
+              key={key}
+              promptKey={key}
+              label={PROMPT_LABELS[key]}
+              value={prompts[key]}
+              locked={locked[key]}
+              saving={saving === key}
+              saved={saved === key}
+              onEdit={() => setPinTarget(key)}
+              onCancel={() => cancelEdit(key)}
+              onLockSave={() => lockAndSave(key)}
+              onChange={(v) => setPrompts((p) => ({ ...p, [key]: v }))}
+            />
+          ))}
+
+          {/* ── Image-Based ── */}
+          <div className="pt-2" style={{ borderTop: "1px solid var(--border)" }}>
+            <p className="text-xs font-semibold uppercase tracking-wider pt-2 mb-5" style={{ color: "var(--text-muted)" }}>Image-Based Questions</p>
+
+            {(["image_generation_prompt", "image_validation_prompt"] as PromptKey[]).map((key) => (
+              <PromptBlock
+                key={key}
+                promptKey={key}
+                label={PROMPT_LABELS[key]}
+                value={prompts[key]}
+                locked={locked[key]}
+                saving={saving === key}
+                saved={saved === key}
+                onEdit={() => setPinTarget(key)}
+                onCancel={() => cancelEdit(key)}
+                onLockSave={() => lockAndSave(key)}
+                onChange={(v) => setPrompts((p) => ({ ...p, [key]: v }))}
               />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                Validation Prompt (VALIDATION_SYSTEM_PROMPT)
-              </label>
-              <textarea
-                value={valPrompt}
-                onChange={(e) => setValPrompt(e.target.value)}
-                rows={8}
-                className="w-full px-3 py-2 rounded-lg text-xs font-mono resize-y"
-                style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
-              />
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => save("prompts", { generation_prompt: genPrompt, validation_prompt: valPrompt })}
-                disabled={saving === "prompts"}
-                className="px-4 py-2 rounded-lg text-sm font-semibold"
-                style={{ background: saved === "prompts" ? "rgba(74,222,128,0.15)" : "var(--accent-blue)", color: saved === "prompts" ? "#4ade80" : "#fff" }}
-              >
-                {saving === "prompts" ? "Saving…" : saved === "prompts" ? "Saved ✓" : "Save Prompts"}
-              </button>
-              <button
-                onClick={() => {
-                  setGenPrompt(DEFAULT_GEN_PROMPT);
-                  setValPrompt(DEFAULT_VAL_PROMPT);
-                  save("prompts", { generation_prompt: DEFAULT_GEN_PROMPT, validation_prompt: DEFAULT_VAL_PROMPT });
-                }}
-                className="px-4 py-2 rounded-lg text-sm font-medium"
-                style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
-              >
-                Reset to Defaults
-              </button>
-            </div>
-          </div>
-
-          {/* ── Image-based (hardcoded, read-only) ── */}
-          <div className="space-y-4 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
-            <div className="flex items-start justify-between gap-3">
-              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                Image-Based Questions
-              </p>
-              <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0"
-                style={{ background: "var(--bg-elevated)", color: "var(--text-muted)", border: "1px solid var(--border)" }}>
-                Read-only · Applied automatically when Image Generation is enabled
-              </span>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                Generation Prompt (IMAGE_GENERATION_PROMPT)
-              </label>
-              <textarea
-                value={IMAGE_GENERATION_PROMPT}
-                readOnly
-                rows={14}
-                className="w-full px-3 py-2 rounded-lg text-xs font-mono resize-y"
-                style={{
-                  background: "var(--bg-elevated)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text-secondary)",
-                  outline: "none",
-                  cursor: "default",
-                }}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                Validation Prompt (IMAGE_VALIDATION_PROMPT)
-              </label>
-              <textarea
-                value={IMAGE_VALIDATION_PROMPT}
-                readOnly
-                rows={9}
-                className="w-full px-3 py-2 rounded-lg text-xs font-mono resize-y"
-                style={{
-                  background: "var(--bg-elevated)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text-secondary)",
-                  outline: "none",
-                  cursor: "default",
-                }}
-              />
-            </div>
+            ))}
           </div>
 
         </div>
       </div>
 
+      {/* PIN modal */}
+      {pinTarget && (
+        <PinModal
+          label={PROMPT_LABELS[pinTarget]}
+          onUnlock={() => unlockPrompt(pinTarget)}
+          onCancel={() => setPinTarget(null)}
+        />
+      )}
+
+    </div>
+  );
+}
+
+function PromptBlock({
+  label, value, locked, saving, saved,
+  onEdit, onCancel, onLockSave, onChange,
+}: {
+  promptKey: PromptKey;
+  label: string;
+  value: string;
+  locked: boolean;
+  saving: boolean;
+  saved: boolean;
+  onEdit: () => void;
+  onCancel: () => void;
+  onLockSave: () => void;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="mb-5">
+      <div className="flex items-center justify-between mb-1.5 gap-2 flex-wrap">
+        <label className="text-xs font-semibold uppercase tracking-wider flex items-center gap-2" style={{ color: "var(--text-muted)" }}>
+          {label}
+          {locked && (
+            <span className="flex items-center gap-1 text-xs font-normal normal-case px-2 py-0.5 rounded-full"
+              style={{ background: "rgba(99,102,241,0.1)", color: "#6366f1", border: "1px solid rgba(99,102,241,0.25)" }}>
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                <rect x="2" y="5" width="8" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+                <path d="M4 5V3.5a2 2 0 0 1 4 0V5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+              </svg>
+              Locked
+            </span>
+          )}
+        </label>
+        {locked ? (
+          <button
+            onClick={onEdit}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
+          >
+            Edit
+          </button>
+        ) : (
+          <div className="flex gap-2">
+            <button
+              onClick={onCancel}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium"
+              style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onLockSave}
+              disabled={saving}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5"
+              style={{
+                background: saved ? "rgba(74,222,128,0.15)" : "var(--accent-blue)",
+                color: saved ? "#4ade80" : "#fff",
+                opacity: saving ? 0.6 : 1,
+              }}
+            >
+              {saving ? "Saving…" : saved ? "Saved ✓" : (
+                <>
+                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                    <rect x="2" y="5" width="8" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+                    <path d="M4 5V3.5a2 2 0 0 1 4 0V5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+                  </svg>
+                  Lock &amp; Save
+                </>
+              )}
+            </button>
+          </div>
+        )}
+      </div>
+      <textarea
+        value={value}
+        readOnly={locked}
+        onChange={(e) => onChange(e.target.value)}
+        rows={10}
+        className="w-full px-3 py-2 rounded-lg text-xs font-mono resize-y"
+        style={{
+          background: locked ? "var(--bg-elevated)" : "var(--bg-input)",
+          border: `1px solid ${locked ? "var(--border)" : "var(--accent-blue)"}`,
+          color: locked ? "var(--text-secondary)" : "var(--text-primary)",
+          outline: "none",
+          cursor: locked ? "default" : "text",
+          transition: "border-color 0.15s, background 0.15s",
+        }}
+      />
     </div>
   );
 }
