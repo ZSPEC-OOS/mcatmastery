@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireUser } from "../../../../lib/auth";
 import { db } from "../../../../lib/db";
 import { anthropic, GENERATION_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT } from "../../../../lib/anthropic";
-import { syncQuestionToFirestore, getModelByModelId } from "../../../../lib/firestore";
+import { syncQuestionToFirestore, getModelByModelId, uploadQuestionImage } from "../../../../lib/firestore";
 
 // ── Prompts ──────────────────────────────────────────────────────────────────
 
@@ -272,12 +272,17 @@ export async function POST(req: NextRequest) {
             // Generate figure image if enabled
             let figureUrl: string | null = null;
             if (body.imageGeneration && imageModelConfig?.baseUrl && final.figure_prompt) {
-              figureUrl = await generateImage({
+              const b64 = await generateImage({
                 prompt:  final.figure_prompt as string,
                 modelId: imageModelConfig.modelId,
                 baseUrl: imageModelConfig.baseUrl,
                 apiKey:  imageModelConfig.apiKey,
               });
+              if (b64) {
+                // Try to upload to Firebase Storage; fall back to data URL in DB
+                figureUrl = await uploadQuestionImage(b64, `tmp-${Date.now()}-${i}`)
+                  .catch(() => b64);
+              }
             }
 
             const saveData: Record<string, unknown> = {
@@ -296,6 +301,15 @@ export async function POST(req: NextRequest) {
             if (figureUrl) saveData.figureUrl = figureUrl;
 
             const saved = await db.question.create({ data: saveData as Parameters<typeof db.question.create>[0]["data"] });
+
+            // If we stored a temp data URL, re-upload with the real question ID
+            if (figureUrl?.startsWith("data:") && body.imageGeneration) {
+              const permanentUrl = await uploadQuestionImage(figureUrl, saved.id).catch(() => null);
+              if (permanentUrl) {
+                figureUrl = permanentUrl;
+                await db.question.update({ where: { id: saved.id }, data: { figureUrl } as Record<string, unknown> }).catch(() => {});
+              }
+            }
 
             generated.push(final.stem as string);
             enqueue({
