@@ -40,6 +40,11 @@ async function enabled(): Promise<boolean> {
   return s?.value === "true";
 }
 
+export async function getModelByModelId(modelId: string): Promise<ModelConfig | null> {
+  const models = await getModels();
+  return models.find((m) => m.modelId === modelId) ?? null;
+}
+
 export async function syncQuestionToFirestore(question: Record<string, unknown>) {
   const app = getApp();
   if (!app || !(await enabled())) return;
