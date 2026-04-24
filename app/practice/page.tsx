@@ -320,7 +320,7 @@ export default function PracticePage() {
           <span className="font-mono px-2 py-1 rounded"
             style={{
               background: elapsed > totalTime * 0.8 ? "rgba(248,113,113,0.15)" : "rgba(27,58,107,0.12)",
-              color: elapsed > totalTime * 0.8 ? "#f87171" : "#5b9cf6",
+              color: elapsed > totalTime * 0.8 ? "#f87171" : "#6366f1",
               border: `1px solid ${elapsed > totalTime * 0.8 ? "rgba(248,113,113,0.3)" : "rgba(27,58,107,0.25)"}`,
             }}>
             {fmt(Math.max(0, totalTime - elapsed))}
@@ -384,7 +384,7 @@ export default function PracticePage() {
           {showExp && (
             <div className="rounded-xl p-4 mb-4"
               style={{ background: "rgba(27,58,107,0.06)", border: "1px solid rgba(27,58,107,0.2)" }}>
-              <p className="text-xs font-semibold uppercase mb-2" style={{ color: "#5b9cf6" }}>Explanation</p>
+              <p className="text-xs font-semibold uppercase mb-2" style={{ color: "#6366f1" }}>Explanation</p>
               <p className="text-sm" style={{ color: "var(--text-secondary)", lineHeight: 1.7 }}>{currentQ.explanation}</p>
             </div>
           )}

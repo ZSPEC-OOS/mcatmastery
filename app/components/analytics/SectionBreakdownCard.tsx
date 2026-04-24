@@ -1,7 +1,7 @@
 import { type Analytics, type Section } from "../../../lib/api-client";
 
 const COLORS: Record<Section, string> = {
-  "Chem/Phys": "#5b9cf6", "CARS": "#f0a500", "Bio/Biochem": "#4ade80", "Psych/Soc": "#a78bfa",
+  "Chem/Phys": "#6366f1", "CARS": "#f0a500", "Bio/Biochem": "#4ade80", "Psych/Soc": "#a78bfa",
 };
 
 interface Props { sections: Analytics["sections"]; }

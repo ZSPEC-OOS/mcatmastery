@@ -2,7 +2,7 @@ import { type Analytics, type ErrorType } from "../../../lib/api-client";
 interface Props { errorTypes: Analytics["errorTypes"]; }
 
 const COLORS: Record<ErrorType, string> = {
-  "Content Gap": "#5b9cf6", "Logic Error": "#f0a500",
+  "Content Gap": "#6366f1", "Logic Error": "#f0a500",
   "Misread Question": "#a78bfa", "Timing": "#f87171",
 };
 

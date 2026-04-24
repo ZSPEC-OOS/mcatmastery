@@ -8,7 +8,7 @@ const SECTIONS: Section[] = [
   {
     id: "chem",
     label: "Chem/Phys",
-    color: "#5b9cf6",
+    color: "#6366f1",
     topics: [
       { label: "Atomic Structure", pct: 0 },
       { label: "Periodic Table Trends", pct: 0 },

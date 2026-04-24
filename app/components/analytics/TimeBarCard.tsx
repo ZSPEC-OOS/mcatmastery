@@ -1,6 +1,6 @@
 // Bar chart: time per question by section
 const bars = [
-  { label: "Chem",    value: 112, color: "#5b9cf6" },
+  { label: "Chem",    value: 112, color: "#6366f1" },
   { label: "CARS",    value: 135, color: "#f0a500" },
   { label: "BioBack", value: 85,  color: "#4ade80" },
   { label: "Psych/Soc", value: 95, color: "#a78bfa" },
