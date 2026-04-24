@@ -1,6 +1,52 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { SECTION_COLORS, DIFF_COLORS } from "./shared";
+
+interface CustomModel { id: string; name: string; modelId: string; baseUrl: string; apiKey: string }
+
+function useCustomModels() {
+  const [models, setModels]   = useState<CustomModel[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    fetch("/api/admin/models")
+      .then((r) => r.json())
+      .then((d: { models?: CustomModel[] }) => setModels(d.models ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+  return { models, loading };
+}
+
+function ModelPicker({ models, loading, value, onChange }: {
+  models: CustomModel[];
+  loading: boolean;
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  if (loading) return <p className="text-xs py-1" style={{ color: "var(--text-muted)" }}>Loading…</p>;
+  if (models.length === 0) return (
+    <p className="text-xs px-3 py-2 rounded-lg" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-muted)" }}>
+      No models — add in Settings.
+    </p>
+  );
+  return (
+    <div className="space-y-1">
+      {models.map((m) => (
+        <button key={m.id} onClick={() => onChange(m.modelId)}
+          className="w-full px-3 py-1.5 rounded-lg text-xs text-left truncate"
+          style={{
+            background: value === m.modelId ? "rgba(27,58,107,0.12)" : "var(--bg-elevated)",
+            border: `1px solid ${value === m.modelId ? "var(--accent-blue)" : "var(--border)"}`,
+            color: value === m.modelId ? "var(--accent-blue)" : "var(--text-secondary)",
+            fontWeight: value === m.modelId ? 600 : 400,
+          }}
+        >
+          {m.name}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 type SseEvent =
   | { type: "status";   message: string }
@@ -33,12 +79,6 @@ async function readSse(
 
 type Section = "Chem/Phys" | "CARS" | "Bio/Biochem" | "Psych/Soc";
 const SECTIONS: Section[] = ["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"];
-const MODELS = [
-  { id: "claude-opus-4-7",           label: "Opus 4.7" },
-  { id: "claude-sonnet-4-6",         label: "Sonnet 4.6" },
-  { id: "claude-haiku-4-5-20251001", label: "Haiku 4.5" },
-];
-
 type Pipeline = "ai" | "pdf" | "wisp";
 
 const PIPELINES: { id: Pipeline; label: string; desc: string }[] = [
@@ -104,8 +144,10 @@ function AIPipeline() {
 function PDFPipeline() {
   const [section, setSection]   = useState<Section>("Bio/Biochem");
   const [count, setCount]       = useState(5);
-  const [model, setModel]       = useState("claude-opus-4-7");
+  const [model, setModel]       = useState("");
   const [dedup, setDedup]       = useState(0.75);
+  const { models: customModels, loading: modelsLoading } = useCustomModels();
+  useEffect(() => { if (customModels.length > 0 && !model) setModel(customModels[0].modelId); }, [customModels, model]);
   const [file, setFile]         = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [running, setRunning]   = useState(false);
@@ -225,21 +267,7 @@ function PDFPipeline() {
           </div>
           <div>
             <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Model</label>
-            <div className="space-y-1">
-              {MODELS.map((m) => (
-                <button key={m.id} onClick={() => setModel(m.id)}
-                  className="w-full px-3 py-1.5 rounded-lg text-xs text-left"
-                  style={{
-                    background: model === m.id ? "rgba(27,58,107,0.12)" : "var(--bg-elevated)",
-                    border: `1px solid ${model === m.id ? "var(--accent-blue)" : "var(--border)"}`,
-                    color: model === m.id ? "var(--accent-blue)" : "var(--text-secondary)",
-                    fontWeight: model === m.id ? 600 : 400,
-                  }}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
+            <ModelPicker models={customModels} loading={modelsLoading} value={model} onChange={setModel} />
           </div>
         </div>
 
@@ -257,7 +285,7 @@ function PDFPipeline() {
 
         <button
           onClick={handleExtract}
-          disabled={!file || running}
+          disabled={!file || running || !model}
           className="w-full py-2.5 rounded-lg text-sm font-semibold"
           style={{
             background: file && !running ? "var(--accent-blue)" : "var(--bg-elevated)",
@@ -281,8 +309,10 @@ function WISPPipeline() {
   const [section, setSection]   = useState<Section>("Bio/Biochem");
   const [topic, setTopic]       = useState("");
   const [count, setCount]       = useState(5);
-  const [model, setModel]       = useState("claude-opus-4-7");
+  const [model, setModel]       = useState("");
   const [dedup, setDedup]       = useState(0.75);
+  const { models: customModels, loading: modelsLoading } = useCustomModels();
+  useEffect(() => { if (customModels.length > 0 && !model) setModel(customModels[0].modelId); }, [customModels, model]);
   const [running, setRunning]   = useState(false);
   const [events, setEvents]     = useState<SseEvent[]>([]);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
@@ -412,21 +442,7 @@ function WISPPipeline() {
           </div>
           <div>
             <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Model</label>
-            <div className="space-y-1">
-              {MODELS.map((m) => (
-                <button key={m.id} onClick={() => setModel(m.id)}
-                  className="w-full px-3 py-1.5 rounded-lg text-xs text-left"
-                  style={{
-                    background: model === m.id ? "rgba(27,58,107,0.12)" : "var(--bg-elevated)",
-                    border: `1px solid ${model === m.id ? "var(--accent-blue)" : "var(--border)"}`,
-                    color: model === m.id ? "var(--accent-blue)" : "var(--text-secondary)",
-                    fontWeight: model === m.id ? 600 : 400,
-                  }}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
+            <ModelPicker models={customModels} loading={modelsLoading} value={model} onChange={setModel} />
           </div>
         </div>
 
@@ -444,7 +460,7 @@ function WISPPipeline() {
 
         <button
           onClick={handleSearch}
-          disabled={!canRun}
+          disabled={!canRun || !model}
           className="w-full py-2.5 rounded-lg text-sm font-semibold"
           style={{
             background: canRun ? "var(--accent-blue)" : "var(--bg-elevated)",

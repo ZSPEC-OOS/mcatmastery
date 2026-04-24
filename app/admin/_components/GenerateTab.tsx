@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SECTION_COLORS, DIFF_COLORS } from "./shared";
 
 type Section = "Chem/Phys" | "CARS" | "Bio/Biochem" | "Psych/Soc";
@@ -9,11 +9,7 @@ type GenEvent =
   | { type: "skip"; reason: string; flags?: string[]; index: number }
   | { type: "done"; generated: number };
 
-const MODELS = [
-  { id: "claude-opus-4-7",           label: "Opus 4.7",   desc: "Highest quality" },
-  { id: "claude-sonnet-4-6",         label: "Sonnet 4.6", desc: "Balanced" },
-  { id: "claude-haiku-4-5-20251001", label: "Haiku 4.5",  desc: "Fastest / cheapest" },
-];
+interface CustomModel { id: string; name: string; modelId: string; baseUrl: string; apiKey: string }
 
 const PIPELINE_STEPS = [
   { n: 1, title: "Input Config",       desc: "Section, topic, count, model, difficulty, and dedup threshold." },
@@ -31,13 +27,27 @@ export default function GenerateTab() {
   const [section, setSection]           = useState<Section>("Bio/Biochem");
   const [topic, setTopic]               = useState("");
   const [count, setCount]               = useState(5);
-  const [model, setModel]               = useState("claude-opus-4-7");
+  const [model, setModel]               = useState("");
   const [difficulty, setDifficulty]     = useState("mixed");
   const [dedupThreshold, setDedup]      = useState(0.75);
   const [running, setRunning]           = useState(false);
   const [events, setEvents]             = useState<GenEvent[]>([]);
   const [progress, setProgress]         = useState({ current: 0, total: 0 });
   const [pipelineOpen, setPipelineOpen] = useState(false);
+  const [customModels, setCustomModels] = useState<CustomModel[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/admin/models")
+      .then((r) => r.json())
+      .then((d: { models?: CustomModel[] }) => {
+        const list = d.models ?? [];
+        setCustomModels(list);
+        if (list.length > 0) setModel(list[0].modelId);
+      })
+      .catch(() => {})
+      .finally(() => setModelsLoading(false));
+  }, []);
 
   async function handleGenerate() {
     setRunning(true);
@@ -177,23 +187,32 @@ export default function GenerateTab() {
           {/* Model */}
           <div>
             <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Model</label>
-            <div className="space-y-1.5">
-              {MODELS.map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => setModel(m.id)}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs"
-                  style={{
-                    background: model === m.id ? "rgba(27,58,107,0.12)" : "var(--bg-card)",
-                    border: `1px solid ${model === m.id ? "var(--accent-blue)" : "var(--border)"}`,
-                    color: "var(--text-secondary)",
-                  }}
-                >
-                  <span className="font-semibold" style={{ color: model === m.id ? "var(--accent-blue)" : "var(--text-primary)" }}>{m.label}</span>
-                  <span style={{ color: "var(--text-muted)" }}>{m.desc}</span>
-                </button>
-              ))}
-            </div>
+            {modelsLoading ? (
+              <p className="text-xs py-2" style={{ color: "var(--text-muted)" }}>Loading models…</p>
+            ) : customModels.length === 0 ? (
+              <div className="px-3 py-3 rounded-lg text-xs text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-muted)" }}>
+                No models configured.{" "}
+                <span style={{ color: "var(--accent-blue)" }}>Add one in Settings → Custom Models.</span>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {customModels.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => setModel(m.modelId)}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs"
+                    style={{
+                      background: model === m.modelId ? "rgba(27,58,107,0.12)" : "var(--bg-card)",
+                      border: `1px solid ${model === m.modelId ? "var(--accent-blue)" : "var(--border)"}`,
+                      color: "var(--text-secondary)",
+                    }}
+                  >
+                    <span className="font-semibold" style={{ color: model === m.modelId ? "var(--accent-blue)" : "var(--text-primary)" }}>{m.name}</span>
+                    <span className="font-mono truncate ml-2" style={{ color: "var(--text-muted)", maxWidth: "8rem" }}>{m.modelId}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Difficulty */}
@@ -235,13 +254,13 @@ export default function GenerateTab() {
           {/* Generate button */}
           <button
             onClick={handleGenerate}
-            disabled={running}
+            disabled={running || !model}
             className="w-full py-2.5 rounded-lg text-sm font-semibold"
             style={{
-              background: running ? "var(--bg-card)" : "var(--accent-blue)",
-              color: running ? "var(--text-muted)" : "#fff",
-              border: running ? "1px solid var(--border)" : "none",
-              cursor: running ? "not-allowed" : "pointer",
+              background: (running || !model) ? "var(--bg-card)" : "var(--accent-blue)",
+              color: (running || !model) ? "var(--text-muted)" : "#fff",
+              border: (running || !model) ? "1px solid var(--border)" : "none",
+              cursor: (running || !model) ? "not-allowed" : "pointer",
             }}
           >
             {running ? `Generating ${progress.current} / ${progress.total}…` : `Generate ${count} Question${count !== 1 ? "s" : ""}`}

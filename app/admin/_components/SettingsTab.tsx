@@ -83,13 +83,18 @@ export default function SettingsTab() {
   const [saving, setSaving]              = useState<string | null>(null);
   const [saved, setSaved]                = useState<string | null>(null);
 
-  const [models, setModels]         = useState<ModelConfig[]>([]);
-  const [modelForm, setModelForm]   = useState(EMPTY_FORM);
+  const [models, setModels]           = useState<ModelConfig[]>([]);
+  const [modelForm, setModelForm]     = useState(EMPTY_FORM);
   const [modelSaving, setModelSaving] = useState(false);
-  const [modelError, setModelError] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [showKey, setShowKey]       = useState<Record<string, boolean>>({});
-  const apiKeyRef                   = useRef<HTMLInputElement>(null);
+  const [modelError, setModelError]   = useState<string | null>(null);
+  const [deletingId, setDeletingId]   = useState<string | null>(null);
+  const [showKey, setShowKey]         = useState<Record<string, boolean>>({});
+  const apiKeyRef                     = useRef<HTMLInputElement>(null);
+
+  const [firestoreTest, setFirestoreTest] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [firestoreTesting, setFirestoreTesting] = useState(false);
+  const [modelTests, setModelTests]   = useState<Record<string, { ok: boolean; msg: string }>>({});
+  const [testingId, setTestingId]     = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/admin/settings")
@@ -144,6 +149,42 @@ export default function SettingsTab() {
       setModels((prev) => prev.filter((m) => m.id !== id));
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function testFirestore() {
+    setFirestoreTesting(true);
+    setFirestoreTest(null);
+    try {
+      const res = await fetch("/api/admin/test-connection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "firestore" }),
+      });
+      const d = await res.json() as { ok: boolean; error?: string };
+      setFirestoreTest({ ok: d.ok, msg: d.ok ? "Connected" : (d.error ?? "Failed") });
+    } catch {
+      setFirestoreTest({ ok: false, msg: "Network error" });
+    } finally {
+      setFirestoreTesting(false);
+    }
+  }
+
+  async function testModel(m: ModelConfig) {
+    setTestingId(m.id);
+    setModelTests((t) => { const n = { ...t }; delete n[m.id]; return n; });
+    try {
+      const res = await fetch("/api/admin/test-connection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "model", modelId: m.modelId, baseUrl: m.baseUrl, apiKey: m.apiKey }),
+      });
+      const d = await res.json() as { ok: boolean; error?: string };
+      setModelTests((t) => ({ ...t, [m.id]: { ok: d.ok, msg: d.ok ? "Connected" : (d.error ?? "Failed") } }));
+    } catch {
+      setModelTests((t) => ({ ...t, [m.id]: { ok: false, msg: "Network error" } }));
+    } finally {
+      setTestingId(null);
     }
   }
 
@@ -234,14 +275,35 @@ export default function SettingsTab() {
             env var on Vercel (JSON, base64-encoded).
           </p>
 
-          <button
-            onClick={() => save("firestore", { firestore_enabled: String(firestoreEnabled), firestore_project_id: firestoreProject })}
-            disabled={saving === "firestore"}
-            className="px-4 py-2 rounded-lg text-sm font-semibold"
-            style={{ background: saved === "firestore" ? "rgba(74,222,128,0.15)" : "var(--accent-blue)", color: saved === "firestore" ? "#4ade80" : "#fff" }}
-          >
-            {saving === "firestore" ? "Saving…" : saved === "firestore" ? "Saved ✓" : "Save Firestore Config"}
-          </button>
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              onClick={() => save("firestore", { firestore_enabled: String(firestoreEnabled), firestore_project_id: firestoreProject })}
+              disabled={saving === "firestore"}
+              className="px-4 py-2 rounded-lg text-sm font-semibold"
+              style={{ background: saved === "firestore" ? "rgba(74,222,128,0.15)" : "var(--accent-blue)", color: saved === "firestore" ? "#4ade80" : "#fff" }}
+            >
+              {saving === "firestore" ? "Saving…" : saved === "firestore" ? "Saved ✓" : "Save Firestore Config"}
+            </button>
+            <button
+              onClick={testFirestore}
+              disabled={firestoreTesting}
+              className="px-4 py-2 rounded-lg text-sm font-semibold"
+              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
+            >
+              {firestoreTesting ? "Testing…" : "Test Connection"}
+            </button>
+            {firestoreTest && (
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full"
+                style={{
+                  background: firestoreTest.ok ? "rgba(74,222,128,0.12)" : "rgba(224,92,92,0.12)",
+                  color: firestoreTest.ok ? "#4ade80" : "#e05c5c",
+                  border: `1px solid ${firestoreTest.ok ? "rgba(74,222,128,0.3)" : "rgba(224,92,92,0.3)"}`,
+                }}
+              >
+                {firestoreTest.ok ? "✓ " : "✗ "}{firestoreTest.msg}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -285,14 +347,37 @@ export default function SettingsTab() {
                       </div>
                     )}
                   </div>
-                  <button
-                    onClick={() => removeModel(m.id)}
-                    disabled={deletingId === m.id}
-                    className="ml-3 px-2.5 py-1 rounded text-xs font-semibold flex-shrink-0"
-                    style={{ background: "rgba(224,92,92,0.12)", color: "#e05c5c", border: "1px solid rgba(224,92,92,0.3)" }}
-                  >
-                    {deletingId === m.id ? "…" : "Remove"}
-                  </button>
+                  <div className="ml-3 flex flex-col items-end gap-1.5 flex-shrink-0">
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => testModel(m)}
+                        disabled={testingId === m.id}
+                        className="px-2.5 py-1 rounded text-xs font-semibold"
+                        style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
+                      >
+                        {testingId === m.id ? "…" : "Test"}
+                      </button>
+                      <button
+                        onClick={() => removeModel(m.id)}
+                        disabled={deletingId === m.id}
+                        className="px-2.5 py-1 rounded text-xs font-semibold"
+                        style={{ background: "rgba(224,92,92,0.12)", color: "#e05c5c", border: "1px solid rgba(224,92,92,0.3)" }}
+                      >
+                        {deletingId === m.id ? "…" : "Remove"}
+                      </button>
+                    </div>
+                    {modelTests[m.id] && (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                        style={{
+                          background: modelTests[m.id].ok ? "rgba(74,222,128,0.12)" : "rgba(224,92,92,0.12)",
+                          color: modelTests[m.id].ok ? "#4ade80" : "#e05c5c",
+                          border: `1px solid ${modelTests[m.id].ok ? "rgba(74,222,128,0.3)" : "rgba(224,92,92,0.3)"}`,
+                        }}
+                      >
+                        {modelTests[m.id].ok ? "✓ " : "✗ "}{modelTests[m.id].msg}
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
