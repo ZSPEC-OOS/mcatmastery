@@ -13,13 +13,13 @@ You will receive a request specifying a section, subtype, and difficulty. Genera
 
 **Auto-selecting a topic:** Choose the canonical topic that best fits the requested section and subtype. Do not ask for one — pick it yourself.
 
-Chem/Phys: Atomic Structure | Periodic Table Trends | Chemical Bonding | Acids & Bases | Thermodynamics | Kinetics | Electrochemistry | Organic Reactions | Stereochemistry | Kinematics | Force & Motion | Work, Energy & Power | Fluids & Pressure | Circuits | Optics & Waves | Enzyme Kinetics
+Chem/Phys: Atomic Structure | Periodic Trends | Bonding & Intermolecular Forces | Acids & Bases | Electrochemistry | Thermodynamics & Thermochemistry | Kinetics & Equilibrium | Solutions & Colligative Properties | Nuclear Chemistry | Kinematics & Dynamics | Work, Energy & Power | Fluids & Pressure | Electricity & Magnetism | Circuits | Waves & Sound | Optics & Light | Functional Groups & Nomenclature | Stereochemistry & Chirality | Reaction Mechanisms | Lab Techniques & Separations
 
-CARS: Passage Strategy | Main Idea | Inference | Tone & Attitude | Strengthen & Weaken | Author Purpose | Vocabulary in Context
+CARS: Passage Strategy & Mapping | Main Idea & Central Argument | Detail & Inference Questions | Tone, Attitude & Author Purpose | Strengthen, Weaken & Evaluate | Vocabulary in Context
 
-Bio/Biochem: Amino Acids & Proteins | Enzyme Kinetics | Metabolism & Glycolysis | Krebs Cycle & Oxidative Phosphorylation | DNA Replication | Transcription & Translation | Genetics & Heredity | Cell Structure & Function | Cell Signaling | Immune System | Nervous System | Endocrine System | Cardiovascular System | Respiratory System | Digestive System | Musculoskeletal System
+Bio/Biochem: Amino Acids, Proteins & Enzymes | Enzyme Kinetics & Inhibition | Metabolism: Glycolysis & Fermentation | Metabolism: TCA Cycle & Oxidative Phosphorylation | Lipid Metabolism | DNA & RNA Structure | DNA Replication & Repair | Transcription & RNA Processing | Translation & Post-Translational Modification | Gene Regulation & Epigenetics | Recombinant DNA & Biotechnology | Cell Structure & Organelles | Cell Membrane & Transport | Cell Signaling & Signal Transduction | Cell Cycle & Mitosis | Meiosis & Gametogenesis | Mendelian Genetics & Heredity | Chromosomal Inheritance | Molecular Genetics & Mutations | Population Genetics | Nervous System & Neurophysiology | Endocrine System | Cardiovascular System | Respiratory System | Renal & Urinary System | Digestive System & Nutrition | Musculoskeletal System | Immune System & Inflammation | Reproductive System | Microbiology (Bacteria, Viruses, Fungi) | Evolution & Natural Selection
 
-Psych/Soc: Classical Conditioning | Operant Conditioning | Memory | Perception & Cognition | Motivation & Emotion | Developmental Psychology | Personality Theories | Psychological Disorders | Social Behavior | Groups & Norms | Identity & Self | Socialization | Social Stratification | Health & Stress
+Psych/Soc: Biological Bases of Behavior | Sensation & Perception | Learning & Conditioning | Memory & Cognition | Language & Thought | Motivation, Emotion & Stress | Developmental Psychology | Personality Theories | Psychological Disorders | Treatment & Therapeutic Approaches | Social Structure & Institutions | Culture & Norms | Socialization & Social Learning | Social Stratification & Inequality | Demographics & Social Change | Social Behavior & Influence
 
 **Subtype definitions — generate a question that matches the requested type exactly:**
 
