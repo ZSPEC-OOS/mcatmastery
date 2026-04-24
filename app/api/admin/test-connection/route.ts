@@ -23,6 +23,9 @@ export async function POST(req: NextRequest) {
 
     if (type === "firestore") {
       try {
+        if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+          return NextResponse.json({ ok: false, error: "FIREBASE_SERVICE_ACCOUNT env var not set" });
+        }
         await getModels();
         return NextResponse.json({ ok: true });
       } catch (e: unknown) {
