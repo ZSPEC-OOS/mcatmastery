@@ -2,9 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "../../../../lib/auth";
 import { getModels } from "../../../../lib/firestore";
 
+async function checkAuth() {
+  if (process.env.CLERK_SECRET_KEY) await requireUser();
+}
+
 export async function POST(req: NextRequest) {
   try {
-    await requireUser();
+    await checkAuth();
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
     const { type, modelId, baseUrl, apiKey } = await req.json() as {
       type: "firestore" | "model";
       modelId?: string;
@@ -52,6 +61,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: false, error: "Unknown type" }, { status: 400 });
   } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ ok: false, error: "Invalid request" }, { status: 400 });
   }
 }
