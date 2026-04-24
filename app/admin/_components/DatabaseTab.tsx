@@ -17,6 +17,13 @@ type Stats = {
   recent: RecentQ[];
 };
 
+type AuditFinding = {
+  questionId: string;
+  question: FullQ;
+  issues: string[];
+  correctedQuestion: Record<string, string> | null;
+};
+
 const OPTIONS = ["A", "B", "C", "D"] as const;
 
 function QuestionModal({ id, onClose, onDelete }: { id: string; onClose: () => void; onDelete: (id: string) => void }) {
@@ -193,6 +200,11 @@ export default function DatabaseTab() {
   const [expandedId, setExpanded] = useState<string | null>(null);
   const [clearState, setClearState] = useState<"idle" | "confirm" | "clearing">("idle");
 
+  const [auditState, setAuditState]         = useState<"idle" | "running" | "done">("idle");
+  const [auditProgress, setAuditProgress]   = useState({ current: 0, total: 0 });
+  const [auditFindings, setAuditFindings]   = useState<AuditFinding[]>([]);
+  const [applyingId, setApplyingId]         = useState<string | null>(null);
+
   useEffect(() => {
     fetch("/api/admin/stats")
       .then((r) => r.json())
@@ -218,6 +230,69 @@ export default function DatabaseTab() {
     });
   }
 
+  async function startAudit() {
+    setAuditState("running");
+    setAuditFindings([]);
+    setAuditProgress({ current: 0, total: 0 });
+    const res = await fetch("/api/admin/audit", { method: "POST" });
+    if (!res.body) { setAuditState("done"); return; }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const evt = JSON.parse(line.slice(6));
+          if (evt.type === "start") {
+            setAuditProgress({ current: 0, total: evt.total });
+          } else if (evt.type === "progress") {
+            setAuditProgress({ current: evt.current, total: evt.total });
+          } else if (evt.type === "finding") {
+            setAuditFindings((prev) => [...prev, {
+              questionId: evt.questionId,
+              question: evt.question,
+              issues: evt.issues,
+              correctedQuestion: evt.correctedQuestion,
+            }]);
+          } else if (evt.type === "done") {
+            setAuditState("done");
+          }
+        } catch { /* skip malformed */ }
+      }
+    }
+    setAuditState("done");
+  }
+
+  async function applyFix(finding: AuditFinding) {
+    if (!finding.correctedQuestion) return;
+    setApplyingId(finding.questionId);
+    await fetch(`/api/admin/questions/${finding.questionId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(finding.correctedQuestion),
+    });
+    setApplyingId(null);
+    removeFinding(finding.questionId);
+  }
+
+  function denyFinding(id: string) {
+    removeFinding(id);
+  }
+
+  function removeFinding(id: string) {
+    setAuditFindings((prev) => {
+      const next = prev.filter((f) => f.questionId !== id);
+      if (next.length === 0) setAuditState("idle");
+      return next;
+    });
+  }
+
   const fmtDate = (s: string) =>
     new Date(s).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
@@ -226,6 +301,165 @@ export default function DatabaseTab() {
 
   return (
     <div>
+      {/* ── Audit Database section ── */}
+      <div className="mb-6 rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+        <div className="flex items-center justify-between px-5 py-3.5"
+          style={{ background: "var(--bg-card)", borderBottom: auditState !== "idle" ? "1px solid var(--border)" : undefined }}>
+          <div>
+            <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Audit Database</h2>
+            <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+              Run a full content accuracy and hallucination check on every question using AI.
+            </p>
+          </div>
+          {auditState === "idle" && (
+            <button
+              onClick={startAudit}
+              className="px-4 py-2 rounded-lg text-sm font-semibold"
+              style={{ background: "var(--accent-blue)", color: "#fff" }}
+            >
+              Start Audit
+            </button>
+          )}
+          {auditState === "running" && (
+            <span className="text-xs font-semibold px-3 py-1.5 rounded-full"
+              style={{ background: "rgba(99,102,241,0.12)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)" }}>
+              Running…
+            </span>
+          )}
+          {auditState === "done" && auditFindings.length === 0 && (
+            <button
+              onClick={() => setAuditState("idle")}
+              className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+              style={{ background: "rgba(74,222,128,0.12)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.3)" }}
+            >
+              ✓ All clear — Reset
+            </button>
+          )}
+        </div>
+
+        {/* Progress bar */}
+        {auditState === "running" && (
+          <div className="px-5 py-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs" style={{ color: "var(--text-muted)" }}>Checking questions…</span>
+              <span className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
+                {auditProgress.current}/{auditProgress.total} processed
+              </span>
+            </div>
+            <div className="w-full rounded-full h-2" style={{ background: "var(--bg-elevated)" }}>
+              <div
+                className="h-2 rounded-full transition-all duration-300"
+                style={{
+                  width: auditProgress.total > 0
+                    ? `${Math.round((auditProgress.current / auditProgress.total) * 100)}%`
+                    : "0%",
+                  background: "var(--accent-blue)",
+                }}
+              />
+            </div>
+            {auditFindings.length > 0 && (
+              <p className="text-xs mt-2" style={{ color: "#f59e0b" }}>
+                {auditFindings.length} issue{auditFindings.length !== 1 ? "s" : ""} found so far — review below when complete.
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Findings list */}
+        {auditFindings.length > 0 && (
+          <div className="px-5 py-4 space-y-4">
+            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+              {auditFindings.length} Finding{auditFindings.length !== 1 ? "s" : ""} — review each and apply or deny
+            </p>
+            {auditFindings.map((finding) => (
+              <div key={finding.questionId} className="rounded-xl overflow-hidden"
+                style={{ border: "1px solid rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.04)" }}>
+                {/* Finding header */}
+                <div className="px-4 py-3" style={{ borderBottom: "1px solid rgba(245,158,11,0.2)" }}>
+                  <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
+                    {finding.question.section} · {finding.question.topic}
+                  </p>
+                  <p className="text-xs mt-1 leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                    {finding.question.stem.length > 140
+                      ? finding.question.stem.slice(0, 140) + "…"
+                      : finding.question.stem}
+                  </p>
+                </div>
+                {/* Issues */}
+                <div className="px-4 py-3" style={{ borderBottom: "1px solid rgba(245,158,11,0.2)" }}>
+                  <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "#f59e0b" }}>
+                    Issues Found
+                  </p>
+                  <ul className="space-y-1">
+                    {finding.issues.map((issue, i) => (
+                      <li key={i} className="text-xs flex gap-2" style={{ color: "var(--text-secondary)" }}>
+                        <span style={{ color: "#f59e0b" }}>•</span> {issue}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                {/* Corrected fields */}
+                {finding.correctedQuestion && (
+                  <div className="px-4 py-3" style={{ borderBottom: "1px solid rgba(245,158,11,0.2)" }}>
+                    <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "#4ade80" }}>
+                      Suggested Fix
+                    </p>
+                    <div className="space-y-1.5">
+                      {Object.entries(finding.correctedQuestion).map(([field, value]) => (
+                        <div key={field}>
+                          <span className="text-xs font-semibold capitalize" style={{ color: "var(--text-muted)" }}>
+                            {field.replace(/([A-Z])/g, " $1")}:{" "}
+                          </span>
+                          <span className="text-xs" style={{ color: "var(--text-primary)" }}>{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Actions */}
+                <div className="px-4 py-3 flex items-center gap-2">
+                  {finding.correctedQuestion && (
+                    <button
+                      onClick={() => applyFix(finding)}
+                      disabled={applyingId === finding.questionId}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                      style={{
+                        background: "rgba(74,222,128,0.12)",
+                        color: "#4ade80",
+                        border: "1px solid rgba(74,222,128,0.3)",
+                        opacity: applyingId === finding.questionId ? 0.5 : 1,
+                      }}
+                    >
+                      {applyingId === finding.questionId ? "Applying…" : "Apply Fix"}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => denyFinding(finding.questionId)}
+                    disabled={applyingId === finding.questionId}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                    style={{
+                      background: "rgba(224,92,92,0.1)",
+                      color: "#e05c5c",
+                      border: "1px solid rgba(224,92,92,0.25)",
+                      opacity: applyingId === finding.questionId ? 0.5 : 1,
+                    }}
+                  >
+                    Deny
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {auditState === "done" && auditFindings.length === 0 && (
+          <div className="px-5 py-6 text-center">
+            <p className="text-sm font-semibold" style={{ color: "#4ade80" }}>No issues found</p>
+            <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>All questions passed the content accuracy audit.</p>
+          </div>
+        )}
+      </div>
+
       {expandedId && (
         <QuestionModal
           id={expandedId}
