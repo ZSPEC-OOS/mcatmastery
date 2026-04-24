@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { db, getSetting } from "../../../../lib/db";
+import { db, getSetting, ensureSchema } from "../../../../lib/db";
 import { anthropic, GENERATION_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT } from "../../../../lib/anthropic";
 import { syncQuestionToFirestore, getModelByModelId, uploadQuestionImage } from "../../../../lib/firestore";
 
@@ -166,6 +166,8 @@ async function ensureFigureColumn() {
 export async function POST(req: NextRequest) {
   try {
     const body = AdminGenerateSchema.parse(await req.json());
+
+    await ensureSchema();
 
     const [customGen, customVal] = await Promise.all([
       getSetting("generation_prompt"),

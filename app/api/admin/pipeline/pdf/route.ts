@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { db, getSetting } from "../../../../../lib/db";
+import { db, getSetting, ensureSchema } from "../../../../../lib/db";
 import { anthropic, VALIDATION_SYSTEM_PROMPT } from "../../../../../lib/anthropic";
 import { verifyAndSave, sseChunk } from "../../../../../lib/pipeline";
 
@@ -43,6 +43,8 @@ export async function POST(req: NextRequest) {
 
     const bytes  = await file.arrayBuffer();
     const base64 = Buffer.from(bytes).toString("base64");
+
+    await ensureSchema();
 
     const [customVal, existing] = await Promise.all([
       getSetting("validation_prompt"),
