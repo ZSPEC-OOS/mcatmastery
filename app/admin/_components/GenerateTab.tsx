@@ -5,8 +5,8 @@ import { SECTION_COLORS, DIFF_COLORS } from "./shared";
 type Section = "Chem/Phys" | "CARS" | "Bio/Biochem" | "Psych/Soc";
 type GenEvent =
   | { type: "progress"; current: number; total: number }
-  | { type: "question"; question: { id: string; section: string; topic: string; stem: string; difficulty: string } }
-  | { type: "skip"; reason: string; flags?: string[]; index: number }
+  | { type: "question"; question: { id: string; section: string; topic: string; stem: string; difficulty: string; hasFigure?: boolean } }
+  | { type: "skip"; reason: string; flags?: string[]; message?: string; index: number }
   | { type: "done"; generated: number };
 
 interface CustomModel { id: string; name: string; modelId: string; baseUrl: string; apiKey: string }
@@ -66,7 +66,12 @@ export default function GenerateTab() {
       }),
     });
 
-    if (!res.ok || !res.body) { setRunning(false); return; }
+    if (!res.ok || !res.body) {
+      const errText = await res.text().catch(() => `HTTP ${res.status}`);
+      setEvents([{ type: "skip", reason: "request_failed", message: errText.slice(0, 300), index: 0 }]);
+      setRunning(false);
+      return;
+    }
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buf = "";
@@ -369,6 +374,9 @@ export default function GenerateTab() {
                     <p className="text-sm" style={{ color: "var(--text-primary)" }}>
                       {ev.question.stem.length > 140 ? ev.question.stem.slice(0, 140) + "…" : ev.question.stem}
                     </p>
+                    {ev.question.hasFigure && (
+                      <p className="text-xs mt-1" style={{ color: "var(--accent-blue)" }}>🖼 Figure generated</p>
+                    )}
                   </div>
                 );
               }
@@ -377,14 +385,19 @@ export default function GenerateTab() {
                 return (
                   <div
                     key={i}
-                    className="px-3 py-2 rounded-lg text-xs flex items-center gap-2"
+                    className="px-3 py-2 rounded-lg text-xs space-y-1"
                     style={{ background: "rgba(224,92,92,0.08)", border: "1px solid rgba(224,92,92,0.2)", color: "#e05c5c" }}
                   >
-                    <span>⊘ Skipped</span>
-                    <span style={{ opacity: 0.7 }}>·</span>
-                    <span style={{ color: "var(--text-muted)" }}>{ev.reason.replace(/_/g, " ")}</span>
-                    {ev.flags && ev.flags.length > 0 && (
-                      <span style={{ color: "var(--text-muted)" }}>— {ev.flags.join("; ")}</span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span>⊘ Skipped</span>
+                      <span style={{ opacity: 0.7 }}>·</span>
+                      <span style={{ color: "var(--text-muted)" }}>{ev.reason.replace(/_/g, " ")}</span>
+                      {ev.flags && ev.flags.length > 0 && (
+                        <span style={{ color: "var(--text-muted)" }}>— {ev.flags.join("; ")}</span>
+                      )}
+                    </div>
+                    {ev.message && (
+                      <p className="font-mono text-xs break-all" style={{ color: "#e05c5c", opacity: 0.85 }}>{ev.message}</p>
                     )}
                   </div>
                 );
