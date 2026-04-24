@@ -26,10 +26,20 @@ Generate high-quality, MCAT-style multiple-choice questions that:
 - Provide a thorough explanation (3–6 sentences) covering why the correct answer is right and why each distractor is wrong
 - Match real MCAT difficulty: medium (70% correct rate) by default
 
+IMPORTANT — the "topic" field MUST exactly match one of the canonical topics below for the given section:
+
+Chem/Phys: Atomic Structure | Periodic Table Trends | Chemical Bonding | Acids & Bases | Thermodynamics | Kinetics | Electrochemistry | Organic Reactions | Stereochemistry | Kinematics | Force & Motion | Work, Energy & Power | Fluids & Pressure | Circuits | Optics & Waves | Enzyme Kinetics
+
+CARS: Passage Strategy | Main Idea | Inference | Tone & Attitude | Strengthen & Weaken | Author Purpose | Vocabulary in Context
+
+Bio/Biochem: Amino Acids & Proteins | Enzyme Kinetics | Metabolism & Glycolysis | Krebs Cycle & Oxidative Phosphorylation | DNA Replication | Transcription & Translation | Genetics & Heredity | Cell Structure & Function | Cell Signaling | Immune System | Nervous System | Endocrine System | Cardiovascular System | Respiratory System | Digestive System | Musculoskeletal System
+
+Psych/Soc: Classical Conditioning | Operant Conditioning | Memory | Perception & Cognition | Motivation & Emotion | Developmental Psychology | Personality Theories | Psychological Disorders | Social Behavior | Groups & Norms | Identity & Self | Socialization | Social Stratification | Health & Stress
+
 Output ONLY valid JSON in this exact shape:
 {
   "section": "Chem/Phys" | "CARS" | "Bio/Biochem" | "Psych/Soc",
-  "topic": "<specific topic>",
+  "topic": "<one of the canonical topics above>",
   "passage": "<passage text or null>",
   "stem": "<question stem>",
   "optionA": "<choice A>",
@@ -54,7 +64,55 @@ Output ONLY valid JSON:
   "corrected_question": { <full corrected question JSON, identical shape to input, or null if pass=true> }
 }`;
 
-type EnvStatus = { anthropic: boolean; database: boolean; clerkPublishable: boolean; clerkSecret: boolean };
+const IMAGE_GENERATION_PROMPT = `You are an expert MCAT question writer who creates questions that require visual interpretation of scientific data.
+
+Generate a high-quality, MCAT-style multiple-choice question where a figure (graph, diagram, table, or experimental setup) is ESSENTIAL to answering correctly. Students must interpret the visual to answer.
+
+Requirements:
+- The stem MUST reference the figure explicitly (e.g. "Based on the graph in Figure 1...", "According to the experimental setup shown...", "What does the data indicate about...")
+- Include a 2–4 sentence passage describing the experimental context that produced the figure
+- Write four plausible answer choices (A–D) with exactly one correct answer
+- Provide a detailed explanation referencing what the figure shows and why each distractor is wrong
+- The figure_prompt must describe a scientifically accurate figure suitable for AI image generation
+
+Output ONLY valid JSON in this exact shape:
+{
+  "section": "Chem/Phys" | "CARS" | "Bio/Biochem" | "Psych/Soc",
+  "topic": "<specific topic>",
+  "passage": "<experimental context, 2–4 sentences>",
+  "stem": "<question stem explicitly referencing Figure 1>",
+  "optionA": "<choice A>",
+  "optionB": "<choice B>",
+  "optionC": "<choice C>",
+  "optionD": "<choice D>",
+  "correctAnswer": "A" | "B" | "C" | "D",
+  "explanation": "<detailed explanation referencing what the figure shows>",
+  "difficulty": "easy" | "medium" | "hard",
+  "figure_prompt": "<detailed image generation prompt: specify chart type (line graph/bar chart/scatter plot/gel/diagram/experimental setup), axis labels with units, data trends, key features, clean white background, publication-quality scientific style, no text overlays except axis labels>"
+}`;
+
+const IMAGE_VALIDATION_PROMPT = `You are an MCAT content auditor reviewing image-based questions. Review for:
+1. Factual accuracy — flag any scientific errors
+2. Answer key correctness — verify the correct answer requires interpreting the described figure
+3. Figure necessity — the figure must be ESSENTIAL; flag if question can be answered without it
+4. figure_prompt quality — verify it describes a specific, scientifically accurate figure with clear axes/labels/data
+5. Distractor quality — flag if multiple choices could be correct or distractors are implausible
+6. MCAT alignment — flag if outside MCAT scope
+
+Output ONLY valid JSON:
+{
+  "pass": true | false,
+  "flags": ["<issue 1>", "<issue 2>"],
+  "corrected_question": { <full corrected question JSON including figure_prompt, or null if pass=true> }
+}`;
+
+type EnvStatus = {
+  anthropic: boolean;
+  database: boolean;
+  clerkPublishable: boolean;
+  clerkSecret: boolean;
+  firebaseServiceAccount: boolean;
+};
 
 function EnvRow({ label, ok }: { label: string; ok: boolean }) {
   return (
@@ -75,13 +133,11 @@ function EnvRow({ label, ok }: { label: string; ok: boolean }) {
 }
 
 export default function SettingsTab() {
-  const [env, setEnv]                    = useState<EnvStatus | null>(null);
-  const [firestoreEnabled, setFbEnabled] = useState(false);
-  const [firestoreProject, setFbProject] = useState("");
-  const [genPrompt, setGenPrompt]        = useState(DEFAULT_GEN_PROMPT);
-  const [valPrompt, setValPrompt]        = useState(DEFAULT_VAL_PROMPT);
-  const [saving, setSaving]              = useState<string | null>(null);
-  const [saved, setSaved]                = useState<string | null>(null);
+  const [env, setEnv]           = useState<EnvStatus | null>(null);
+  const [genPrompt, setGenPrompt] = useState(DEFAULT_GEN_PROMPT);
+  const [valPrompt, setValPrompt] = useState(DEFAULT_VAL_PROMPT);
+  const [saving, setSaving]     = useState<string | null>(null);
+  const [saved, setSaved]       = useState<string | null>(null);
 
   const [models, setModels]           = useState<ModelConfig[]>([]);
   const [modelForm, setModelForm]     = useState(EMPTY_FORM);
@@ -91,7 +147,7 @@ export default function SettingsTab() {
   const [showKey, setShowKey]         = useState<Record<string, boolean>>({});
   const apiKeyRef                     = useRef<HTMLInputElement>(null);
 
-  const [firestoreTest, setFirestoreTest] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [firestoreTest, setFirestoreTest]     = useState<{ ok: boolean; msg: string } | null>(null);
   const [firestoreTesting, setFirestoreTesting] = useState(false);
   const [modelTests, setModelTests]   = useState<Record<string, { ok: boolean; msg: string }>>({});
   const [testingId, setTestingId]     = useState<string | null>(null);
@@ -101,8 +157,6 @@ export default function SettingsTab() {
       .then((r) => r.json())
       .then((d: { env: EnvStatus; settings: Record<string, string> }) => {
         setEnv(d.env);
-        if (d.settings.firestore_enabled) setFbEnabled(d.settings.firestore_enabled === "true");
-        if (d.settings.firestore_project_id) setFbProject(d.settings.firestore_project_id);
         if (d.settings.generation_prompt) setGenPrompt(d.settings.generation_prompt);
         if (d.settings.validation_prompt) setValPrompt(d.settings.validation_prompt);
       })
@@ -221,6 +275,7 @@ export default function SettingsTab() {
               <EnvRow label="DATABASE_URL" ok={env.database} />
               <EnvRow label="NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" ok={env.clerkPublishable} />
               <EnvRow label="CLERK_SECRET_KEY" ok={env.clerkSecret} />
+              <EnvRow label="FIREBASE_SERVICE_ACCOUNT" ok={env.firebaseServiceAccount} />
             </>
           ) : (
             <p className="text-xs py-4 text-center" style={{ color: "var(--text-muted)" }}>Loading…</p>
@@ -233,57 +288,24 @@ export default function SettingsTab() {
         <div className="px-5 py-3.5" style={{ background: "var(--bg-card)", borderBottom: "1px solid var(--border)" }}>
           <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Firestore Integration</h2>
           <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-            Optionally sync questions and answers to Firebase Firestore in addition to PostgreSQL.
+            Firestore stores the question bank, custom AI models, and practice session data. It is activated automatically when{" "}
+            <code className="px-1 py-0.5 rounded" style={{ background: "var(--bg-elevated)" }}>FIREBASE_SERVICE_ACCOUNT</code>{" "}
+            is set.
           </p>
         </div>
         <div className="px-5 py-4 space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm" style={{ color: "var(--text-secondary)" }}>Enable Firestore sync</span>
-            <button
-              onClick={() => setFbEnabled((v) => !v)}
-              className="w-10 h-5 rounded-full relative transition-colors"
-              style={{ background: firestoreEnabled ? "var(--accent-blue)" : "var(--bg-card)", border: "1px solid var(--border)" }}
-            >
-              <span
-                className="absolute top-0.5 h-4 w-4 rounded-full transition-transform"
-                style={{
-                  background: "#fff",
-                  left: firestoreEnabled ? "calc(100% - 1.125rem)" : "0.125rem",
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
-                }}
-              />
-            </button>
+          <div className="rounded-lg px-4 py-3 space-y-1.5 text-xs" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}>
+            <p style={{ color: "var(--text-secondary)" }}>
+              <strong style={{ color: "var(--text-primary)" }}>FIREBASE_SERVICE_ACCOUNT</strong> — base64-encoded service account JSON. Set on Vercel; the project ID and credentials are read directly from this value.
+            </p>
+            <p style={{ color: "var(--text-muted)" }}>
+              <strong>FIREBASE_STORAGE_BUCKET</strong> (optional) — defaults to{" "}
+              <code className="px-1 py-0.5 rounded" style={{ background: "var(--bg-card)" }}>{"{project_id}.firebasestorage.app"}</code>.
+              Only required if your bucket uses a non-default name.
+            </p>
           </div>
-
-          <div>
-            <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-              Firebase Project ID
-            </label>
-            <input
-              type="text"
-              value={firestoreProject}
-              onChange={(e) => setFbProject(e.target.value)}
-              placeholder="my-project-12345"
-              className="w-full px-3 py-2 rounded-lg text-sm"
-              style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
-            />
-          </div>
-
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            Service account key must be set as{" "}
-            <code className="px-1 py-0.5 rounded" style={{ background: "var(--bg-card)" }}>FIREBASE_SERVICE_ACCOUNT</code>{" "}
-            env var on Vercel (JSON, base64-encoded).
-          </p>
 
           <div className="flex items-center gap-3 flex-wrap">
-            <button
-              onClick={() => save("firestore", { firestore_enabled: String(firestoreEnabled), firestore_project_id: firestoreProject })}
-              disabled={saving === "firestore"}
-              className="px-4 py-2 rounded-lg text-sm font-semibold"
-              style={{ background: saved === "firestore" ? "rgba(74,222,128,0.15)" : "var(--accent-blue)", color: saved === "firestore" ? "#4ade80" : "#fff" }}
-            >
-              {saving === "firestore" ? "Saving…" : saved === "firestore" ? "Saved ✓" : "Save Firestore Config"}
-            </button>
             <button
               onClick={testFirestore}
               disabled={firestoreTesting}
@@ -457,60 +479,122 @@ export default function SettingsTab() {
         </div>
       </div>
 
-      {/* Card 4: Custom Prompts */}
+      {/* Card 4: Generation Prompts */}
       <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
         <div className="px-5 py-3.5" style={{ background: "var(--bg-card)", borderBottom: "1px solid var(--border)" }}>
-          <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Custom Generation Prompts</h2>
+          <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Generation Prompts</h2>
           <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-            Override the system prompts used by the admin generate pipeline. Saved to the database; leave blank to use hardcoded defaults.
+            System prompts used by the generation pipeline. Text-based prompts can be customized and saved to the database. Image-based prompts are hardcoded and shown here for reference.
           </p>
         </div>
-        <div className="px-5 py-4 space-y-4">
-          <div>
-            <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-              Generation Prompt (GENERATION_SYSTEM_PROMPT)
-            </label>
-            <textarea
-              value={genPrompt}
-              onChange={(e) => setGenPrompt(e.target.value)}
-              rows={10}
-              className="w-full px-3 py-2 rounded-lg text-xs font-mono resize-y"
-              style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
-            />
+        <div className="px-5 py-4 space-y-6">
+
+          {/* ── Text-based (non-image) ── */}
+          <div className="space-y-4">
+            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+              Text-Based Questions
+            </p>
+
+            <div>
+              <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                Generation Prompt (GENERATION_SYSTEM_PROMPT)
+              </label>
+              <textarea
+                value={genPrompt}
+                onChange={(e) => setGenPrompt(e.target.value)}
+                rows={12}
+                className="w-full px-3 py-2 rounded-lg text-xs font-mono resize-y"
+                style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                Validation Prompt (VALIDATION_SYSTEM_PROMPT)
+              </label>
+              <textarea
+                value={valPrompt}
+                onChange={(e) => setValPrompt(e.target.value)}
+                rows={8}
+                className="w-full px-3 py-2 rounded-lg text-xs font-mono resize-y"
+                style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => save("prompts", { generation_prompt: genPrompt, validation_prompt: valPrompt })}
+                disabled={saving === "prompts"}
+                className="px-4 py-2 rounded-lg text-sm font-semibold"
+                style={{ background: saved === "prompts" ? "rgba(74,222,128,0.15)" : "var(--accent-blue)", color: saved === "prompts" ? "#4ade80" : "#fff" }}
+              >
+                {saving === "prompts" ? "Saving…" : saved === "prompts" ? "Saved ✓" : "Save Prompts"}
+              </button>
+              <button
+                onClick={() => {
+                  setGenPrompt(DEFAULT_GEN_PROMPT);
+                  setValPrompt(DEFAULT_VAL_PROMPT);
+                  save("prompts", { generation_prompt: DEFAULT_GEN_PROMPT, validation_prompt: DEFAULT_VAL_PROMPT });
+                }}
+                className="px-4 py-2 rounded-lg text-sm font-medium"
+                style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
+              >
+                Reset to Defaults
+              </button>
+            </div>
           </div>
-          <div>
-            <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-              Validation Prompt (VALIDATION_SYSTEM_PROMPT)
-            </label>
-            <textarea
-              value={valPrompt}
-              onChange={(e) => setValPrompt(e.target.value)}
-              rows={8}
-              className="w-full px-3 py-2 rounded-lg text-xs font-mono resize-y"
-              style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
-            />
+
+          {/* ── Image-based (hardcoded, read-only) ── */}
+          <div className="space-y-4 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                Image-Based Questions
+              </p>
+              <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0"
+                style={{ background: "var(--bg-elevated)", color: "var(--text-muted)", border: "1px solid var(--border)" }}>
+                Read-only · Applied automatically when Image Generation is enabled
+              </span>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                Generation Prompt (IMAGE_GENERATION_PROMPT)
+              </label>
+              <textarea
+                value={IMAGE_GENERATION_PROMPT}
+                readOnly
+                rows={14}
+                className="w-full px-3 py-2 rounded-lg text-xs font-mono resize-y"
+                style={{
+                  background: "var(--bg-elevated)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text-secondary)",
+                  outline: "none",
+                  cursor: "default",
+                }}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                Validation Prompt (IMAGE_VALIDATION_PROMPT)
+              </label>
+              <textarea
+                value={IMAGE_VALIDATION_PROMPT}
+                readOnly
+                rows={9}
+                className="w-full px-3 py-2 rounded-lg text-xs font-mono resize-y"
+                style={{
+                  background: "var(--bg-elevated)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text-secondary)",
+                  outline: "none",
+                  cursor: "default",
+                }}
+              />
+            </div>
           </div>
-          <div className="flex gap-3">
-            <button
-              onClick={() => save("prompts", { generation_prompt: genPrompt, validation_prompt: valPrompt })}
-              disabled={saving === "prompts"}
-              className="px-4 py-2 rounded-lg text-sm font-semibold"
-              style={{ background: saved === "prompts" ? "rgba(74,222,128,0.15)" : "var(--accent-blue)", color: saved === "prompts" ? "#4ade80" : "#fff" }}
-            >
-              {saving === "prompts" ? "Saving…" : saved === "prompts" ? "Saved ✓" : "Save Prompts"}
-            </button>
-            <button
-              onClick={() => {
-                setGenPrompt(DEFAULT_GEN_PROMPT);
-                setValPrompt(DEFAULT_VAL_PROMPT);
-                save("prompts", { generation_prompt: DEFAULT_GEN_PROMPT, validation_prompt: DEFAULT_VAL_PROMPT });
-              }}
-              className="px-4 py-2 rounded-lg text-sm font-medium"
-              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
-            >
-              Reset to Defaults
-            </button>
-          </div>
+
         </div>
       </div>
 
