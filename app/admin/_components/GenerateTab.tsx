@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { SECTION_COLORS, DIFF_COLORS } from "./shared";
+import { SECTION_SUBTYPES } from "../../../lib/subtypes";
 
 type Section = "Chem/Phys" | "CARS" | "Bio/Biochem" | "Psych/Soc";
 type GenEvent =
@@ -12,7 +13,7 @@ type GenEvent =
 interface CustomModel { id: string; name: string; modelId: string; baseUrl: string; apiKey: string }
 
 const PIPELINE_STEPS = [
-  { n: 1, title: "Input Config",       desc: "Section, topic, count, model, difficulty, and dedup threshold." },
+  { n: 1, title: "Input Config",       desc: "Section, subtypes, count, model, difficulty, and dedup threshold." },
   { n: 2, title: "Load Existing",      desc: "Last 100 questions from the same section fetched for dedup." },
   { n: 3, title: "Generate (Claude)",  desc: "GENERATION_SYSTEM_PROMPT + user request → model outputs JSON." },
   { n: 4, title: "Parse JSON",         desc: "Output parsed; regex extracts JSON block from model response." },
@@ -25,7 +26,8 @@ const PIPELINE_STEPS = [
 
 export default function GenerateTab() {
   const [section, setSection]           = useState<Section>("Bio/Biochem");
-  const [topic, setTopic]               = useState("");
+  const [subTypes, setSubTypes]         = useState<string[]>(() =>
+    (SECTION_SUBTYPES["Bio/Biochem"] ?? []).map(s => s.id));
   const [count, setCount]               = useState(5);
   const [model, setModel]               = useState("");
   const [difficulty, setDifficulty]     = useState("mixed");
@@ -60,7 +62,7 @@ export default function GenerateTab() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        section, topic: topic || undefined, count, model, difficulty, dedupThreshold,
+        section, subTypes, count, model, difficulty, dedupThreshold,
         imageGeneration: imageGenEnabled,
         imageModelId:    imageGenEnabled ? imageModelId : undefined,
       }),
@@ -92,6 +94,19 @@ export default function GenerateTab() {
       }
     }
     setRunning(false);
+  }
+
+  function changeSection(s: Section) {
+    setSection(s);
+    setSubTypes((SECTION_SUBTYPES[s] ?? []).map(st => st.id));
+  }
+
+  function toggleSubType(id: string) {
+    setSubTypes(prev =>
+      prev.includes(id)
+        ? prev.length > 1 ? prev.filter(x => x !== id) : prev
+        : [...prev, id]
+    );
   }
 
   const doneEv = events.find((e) => e.type === "done") as { type: "done"; generated: number } | undefined;
@@ -152,7 +167,7 @@ export default function GenerateTab() {
               {(["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"] as Section[]).map((s) => (
                 <button
                   key={s}
-                  onClick={() => setSection(s)}
+                  onClick={() => changeSection(s)}
                   className="py-2 px-3 rounded-lg text-xs font-semibold text-left flex items-center gap-2"
                   style={{
                     background: section === s ? `${SECTION_COLORS[s]}22` : "var(--bg-card)",
@@ -167,17 +182,41 @@ export default function GenerateTab() {
             </div>
           </div>
 
-          {/* Topic */}
+          {/* Sub Types */}
           <div>
-            <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Topic (optional)</label>
-            <input
-              type="text"
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              placeholder="e.g. Enzyme Kinetics"
-              className="w-full px-3 py-2 rounded-lg text-sm"
-              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
-            />
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                Sub Types ({subTypes.length}/{(SECTION_SUBTYPES[section] ?? []).length})
+              </label>
+              <div className="flex gap-2">
+                <button onClick={() => setSubTypes((SECTION_SUBTYPES[section] ?? []).map(s => s.id))}
+                  className="text-xs" style={{ color: "var(--accent-blue)" }}>All</button>
+                <button onClick={() => setSubTypes([(SECTION_SUBTYPES[section] ?? [])[0]?.id].filter(Boolean))}
+                  className="text-xs" style={{ color: "var(--text-muted)" }}>Clear</button>
+              </div>
+            </div>
+            <div className="space-y-1.5 max-h-44 overflow-y-auto">
+              {(SECTION_SUBTYPES[section] ?? []).map(st => {
+                const checked = subTypes.includes(st.id);
+                return (
+                  <label key={st.id} className="flex items-start gap-2 cursor-pointer">
+                    <input type="checkbox" checked={checked}
+                      onChange={() => toggleSubType(st.id)}
+                      className="mt-0.5 flex-shrink-0"
+                      style={{ accentColor: SECTION_COLORS[section] }} />
+                    <span className="text-xs leading-snug"
+                      style={{ color: checked ? "var(--text-primary)" : "var(--text-secondary)" }}>
+                      {st.label}
+                      {st.imageRecommended && (
+                        <span className="ml-1" style={{ color: "var(--accent-blue)", fontStyle: "italic" }}>
+                          (image-based recommended)
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
           </div>
 
           {/* Count */}
