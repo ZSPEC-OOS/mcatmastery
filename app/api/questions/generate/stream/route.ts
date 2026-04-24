@@ -4,6 +4,7 @@ import { db, ensureSchema } from "../../../../../lib/db";
 import { callModel, getActiveModel } from "../../../../../lib/model";
 import { GENERATION_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT } from "../../../../../lib/anthropic";
 import { getSetting } from "../../../../../lib/db";
+import { syncQuestionToFirestore } from "../../../../../lib/firestore";
 
 const GenerateSchema = z.object({
   section: z.enum(["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"]),
@@ -114,6 +115,7 @@ export async function POST(req: NextRequest) {
               },
             });
 
+            syncQuestionToFirestore(saved as unknown as Record<string, unknown>).catch(() => {});
             generated.push(final.stem as string);
             enqueue({ type: "question", question: saved });
           } catch (err) {
