@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { db } from "../../../../../lib/db";
+import { db, getSetting } from "../../../../../lib/db";
 import { anthropic, VALIDATION_SYSTEM_PROMPT } from "../../../../../lib/anthropic";
 import { verifyAndSave, sseChunk } from "../../../../../lib/pipeline";
 
@@ -45,10 +45,10 @@ export async function POST(req: NextRequest) {
     const base64 = Buffer.from(bytes).toString("base64");
 
     const [customVal, existing] = await Promise.all([
-      db.appSetting.findUnique({ where: { key: "validation_prompt" } }),
+      getSetting("validation_prompt"),
       db.question.findMany({ where: { section }, select: { stem: true } }),
     ]);
-    const valPrompt = customVal?.value || VALIDATION_SYSTEM_PROMPT;
+    const valPrompt = customVal || VALIDATION_SYSTEM_PROMPT;
 
     const encoder     = new TextEncoder();
     const sessionStems: string[] = [];

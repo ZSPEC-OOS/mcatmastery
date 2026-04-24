@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "../../../../lib/db";
+import { getSettings, setSetting } from "../../../../lib/db";
 
 const READABLE_KEYS = [
   "generation_prompt",
@@ -10,15 +10,7 @@ const READABLE_KEYS = [
 
 export async function GET() {
   try {
-
-    const rows = await db.appSetting.findMany({
-      where: { key: { in: READABLE_KEYS } },
-    });
-
-    const settings: Record<string, string> = {};
-    for (const row of rows) settings[row.key] = row.value;
-
-    // Env-var status (never expose actual values)
+    const settings = await getSettings(READABLE_KEYS);
     return NextResponse.json({
       settings,
       env: {
@@ -28,27 +20,22 @@ export async function GET() {
         clerkSecret: !!process.env.CLERK_SECRET_KEY,
       },
     });
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Failed";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-
     const body = await req.json() as Record<string, string>;
-
     for (const [key, value] of Object.entries(body)) {
       if (!READABLE_KEYS.includes(key)) continue;
-      await db.appSetting.upsert({
-        where: { key },
-        update: { value },
-        create: { key, value },
-      });
+      await setSetting(key, value);
     }
-
     return NextResponse.json({ success: true });
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Failed";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
