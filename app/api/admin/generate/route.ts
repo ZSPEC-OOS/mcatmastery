@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db, getSetting, ensureSchema } from "../../../../lib/db";
-import { anthropic, GENERATION_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT } from "../../../../lib/anthropic";
+import { GENERATION_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT } from "../../../../lib/anthropic";
 import { syncQuestionToFirestore, getModelByModelId, uploadQuestionImage } from "../../../../lib/firestore";
+import { callModel } from "../../../../lib/model";
 
 // ── Prompts ──────────────────────────────────────────────────────────────────
 
@@ -77,46 +78,6 @@ function sseChunk(data: unknown): string {
   return `data: ${JSON.stringify(data)}\n\n`;
 }
 
-async function callModel(opts: {
-  modelId: string;
-  baseUrl?: string;
-  apiKey?: string;
-  system: string;
-  userContent: string;
-  maxTokens: number;
-}): Promise<string> {
-  if (opts.baseUrl) {
-    const url = `${opts.baseUrl.replace(/\/+$/, "")}/chat/completions`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(opts.apiKey ? { Authorization: `Bearer ${opts.apiKey}` } : {}),
-      },
-      body: JSON.stringify({
-        model:    opts.modelId,
-        messages: [
-          { role: "system", content: opts.system },
-          { role: "user",   content: opts.userContent },
-        ],
-        max_tokens: opts.maxTokens,
-      }),
-    });
-    if (!res.ok) {
-      const text = await res.text().catch(() => res.statusText);
-      throw new Error(`Model API error ${res.status}: ${text.slice(0, 200)}`);
-    }
-    const data = await res.json() as { choices: Array<{ message: { content: string } }> };
-    return data.choices?.[0]?.message?.content ?? "";
-  }
-  const msg = await anthropic.messages.create({
-    model:      opts.modelId,
-    max_tokens: opts.maxTokens,
-    system:     opts.system,
-    messages:   [{ role: "user", content: opts.userContent }],
-  });
-  return msg.content[0].type === "text" ? msg.content[0].text : "";
-}
 
 async function generateImage(opts: {
   prompt:  string;

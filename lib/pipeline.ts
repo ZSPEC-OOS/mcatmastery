@@ -1,5 +1,6 @@
 import { db } from "./db";
-import { anthropic, VALIDATION_SYSTEM_PROMPT } from "./anthropic";
+import { callModel } from "./model";
+import { VALIDATION_SYSTEM_PROMPT } from "./anthropic";
 import { syncQuestionToFirestore } from "./firestore";
 
 export function jaccardSimilarity(a: string, b: string): number {
@@ -17,11 +18,13 @@ export function sseChunk(data: unknown): string {
 export async function verifyAndSave(
   parsed: Record<string, unknown>,
   opts: {
-    model: string;
-    dedupThreshold: number;
-    existingStems: string[];
-    sessionStems: string[];
-    valPrompt?: string;
+    model?:          string;   // optional — omit to use active model
+    baseUrl?:        string;
+    apiKey?:         string;
+    dedupThreshold:  number;
+    existingStems:   string[];
+    sessionStems:    string[];
+    valPrompt?:      string;
     targetDifficulty?: string;
   },
 ): Promise<{ saved: Record<string, unknown> | null; reason?: string; flags?: string[] }> {
@@ -35,13 +38,14 @@ export async function verifyAndSave(
 
   let validation: { pass: boolean; flags: string[]; corrected_question: Record<string, unknown> | null };
   try {
-    const valMsg = await anthropic.messages.create({
-      model: opts.model,
-      max_tokens: 512,
-      system: valPrompt,
-      messages: [{ role: "user", content: JSON.stringify(parsed) }],
+    const valRaw = await callModel({
+      system:      valPrompt,
+      userContent: JSON.stringify(parsed),
+      maxTokens:   512,
+      modelId:     opts.model,
+      baseUrl:     opts.baseUrl,
+      apiKey:      opts.apiKey,
     });
-    const valRaw = valMsg.content[0].type === "text" ? valMsg.content[0].text : "{}";
     const jsonMatch = valRaw.match(/\{[\s\S]*\}/);
     validation = JSON.parse(jsonMatch ? jsonMatch[0] : valRaw);
   } catch {
