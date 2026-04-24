@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { db } from "../../../../lib/db";
+import { db, ensureSchema } from "../../../../lib/db";
 
 export async function GET() {
   try {
+    await ensureSchema();
 
     const [total, bySection, byDifficulty, recent] = await Promise.all([
       db.question.count(),

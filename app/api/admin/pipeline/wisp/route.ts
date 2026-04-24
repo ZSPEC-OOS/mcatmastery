@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { db, getSetting } from "../../../../../lib/db";
+import { db, getSetting, ensureSchema } from "../../../../../lib/db";
 import { anthropic, VALIDATION_SYSTEM_PROMPT } from "../../../../../lib/anthropic";
 import { verifyAndSave, sseChunk } from "../../../../../lib/pipeline";
 
@@ -41,6 +41,8 @@ type WispResult = { title?: string; url?: string; snippet?: string; content?: st
 export async function POST(req: NextRequest) {
   try {
     const body = WispSchema.parse(await req.json());
+
+    await ensureSchema();
 
     const [customVal, existing] = await Promise.all([
       getSetting("validation_prompt"),
