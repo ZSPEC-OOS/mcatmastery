@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { db, getSetting, ensureSchema } from "../../../../../lib/db";
 import { anthropic, VALIDATION_SYSTEM_PROMPT } from "../../../../../lib/anthropic";
+import { getActiveModel } from "../../../../../lib/model";
 import { verifyAndSave, sseChunk } from "../../../../../lib/pipeline";
 
 export const maxDuration = 300;
@@ -46,11 +47,17 @@ export async function POST(req: NextRequest) {
 
     await ensureSchema();
 
-    const [customVal, existing] = await Promise.all([
+    const [customVal, existing, activeModel] = await Promise.all([
       getSetting("validation_prompt"),
       db.question.findMany({ where: { section }, select: { stem: true } }),
+      getActiveModel(),
     ]);
-    const valPrompt = customVal || VALIDATION_SYSTEM_PROMPT;
+    const valPrompt  = customVal || VALIDATION_SYSTEM_PROMPT;
+    const modelOpts  = {
+      model:   activeModel?.modelId ?? model,
+      baseUrl: activeModel?.baseUrl  || undefined,
+      apiKey:  activeModel?.apiKey   || undefined,
+    };
 
     const encoder     = new TextEncoder();
     const sessionStems: string[] = [];
@@ -102,7 +109,7 @@ export async function POST(req: NextRequest) {
           enqueue({ type: "progress", current: i + 1, total });
           try {
             const result = await verifyAndSave(questions[i], {
-              model,
+              ...modelOpts,
               dedupThreshold,
               existingStems: existing.map((e) => e.stem),
               sessionStems,

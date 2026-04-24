@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db, getSetting, ensureSchema } from "../../../../../lib/db";
-import { anthropic, VALIDATION_SYSTEM_PROMPT } from "../../../../../lib/anthropic";
+import { VALIDATION_SYSTEM_PROMPT } from "../../../../../lib/anthropic";
+import { callModel } from "../../../../../lib/model";
 import { verifyAndSave, sseChunk } from "../../../../../lib/pipeline";
 
 export const maxDuration = 300;
@@ -89,24 +90,19 @@ export async function POST(req: NextRequest) {
           const content = (src.content ?? src.snippet ?? src.title ?? "").slice(0, 3000);
 
           try {
-            const refineMsg = await anthropic.messages.create({
-              model: body.model,
-              max_tokens: 1024,
-              system: WISP_REFINE_SYSTEM,
-              messages: [{
-                role: "user",
-                content: [
-                  `Source: ${src.title ?? "unknown"}`,
-                  src.url ? `URL: ${src.url}` : "",
-                  "",
-                  content,
-                  "",
-                  `Generate one ${body.section} question${body.topic ? ` about ${body.topic}` : ""}. Output only JSON.`,
-                ].filter((l) => l !== undefined).join("\n"),
-              }],
+            const raw = await callModel({
+              modelId:     body.model,
+              system:      WISP_REFINE_SYSTEM,
+              userContent: [
+                `Source: ${src.title ?? "unknown"}`,
+                src.url ? `URL: ${src.url}` : "",
+                "",
+                content,
+                "",
+                `Generate one ${body.section} question${body.topic ? ` about ${body.topic}` : ""}. Output only JSON.`,
+              ].filter((l) => l !== undefined).join("\n"),
+              maxTokens: 1024,
             });
-
-            const raw = refineMsg.content[0].type === "text" ? refineMsg.content[0].text : "";
             const jsonMatch = raw.match(/\{[\s\S]*\}/);
             if (!jsonMatch) { enqueue({ type: "skip", reason: "parse_error", index: i }); continue; }
 
