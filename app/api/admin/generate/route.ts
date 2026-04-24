@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { db } from "../../../../lib/db";
+import { db, getSetting } from "../../../../lib/db";
 import { anthropic, GENERATION_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT } from "../../../../lib/anthropic";
 import { syncQuestionToFirestore, getModelByModelId, uploadQuestionImage } from "../../../../lib/firestore";
 
@@ -168,17 +168,17 @@ export async function POST(req: NextRequest) {
     const body = AdminGenerateSchema.parse(await req.json());
 
     const [customGen, customVal] = await Promise.all([
-      db.appSetting.findUnique({ where: { key: "generation_prompt" } }),
-      db.appSetting.findUnique({ where: { key: "validation_prompt" } }),
+      getSetting("generation_prompt"),
+      getSetting("validation_prompt"),
     ]);
 
     const genPrompt = body.imageGeneration
       ? IMAGE_GENERATION_PROMPT
-      : (customGen?.value || GENERATION_SYSTEM_PROMPT);
+      : (customGen || GENERATION_SYSTEM_PROMPT);
 
     const valPrompt = body.imageGeneration
       ? IMAGE_VALIDATION_PROMPT
-      : (customVal?.value || VALIDATION_SYSTEM_PROMPT);
+      : (customVal || VALIDATION_SYSTEM_PROMPT);
 
     const modelConfig = await getModelByModelId(body.model).catch(() => null);
 
@@ -330,6 +330,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     if (err instanceof z.ZodError)
       return new Response(JSON.stringify({ error: err.issues }), { status: 400 });
-    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    const msg = err instanceof Error ? err.message : String(err);
+    return new Response(JSON.stringify({ error: msg }), { status: 500 });
   }
 }

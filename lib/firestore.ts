@@ -1,5 +1,5 @@
 import type { App } from "firebase-admin/app";
-import { db } from "./db";
+import { getSetting } from "./db";
 
 export interface ModelConfig {
   id: string;
@@ -40,8 +40,7 @@ function getApp(): App | null {
 }
 
 async function enabled(): Promise<boolean> {
-  const s = await db.appSetting.findUnique({ where: { key: "firestore_enabled" } });
-  return s?.value === "true";
+  return (await getSetting("firestore_enabled")) === "true";
 }
 
 // ── Models ────────────────────────────────────────────────────────────────────
