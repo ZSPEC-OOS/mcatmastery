@@ -3,11 +3,24 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import {
-  generateQuestions, createSession, completeSession,
-  type Section, type Answer, type Question, type SSEEvent,
+  fetchPracticeQuestions, createSession, completeSession,
+  type Section, type Difficulty, type Answer, type Question,
 } from "../../lib/api-client";
 
-const SECTIONS: Section[] = ["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"];
+const SECTIONS: Section[]      = ["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"];
+const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard"];
+
+const DIFF_LABEL: Record<Difficulty, string> = {
+  easy:   "Easy",
+  medium: "Medium",
+  hard:   "Hard",
+};
+
+const DIFF_COLOR: Record<Difficulty, string> = {
+  easy:   "#4ade80",
+  medium: "#f0a500",
+  hard:   "#f87171",
+};
 
 type Phase = "config" | "loading" | "active" | "complete" | "error";
 
@@ -16,30 +29,31 @@ const S = {
 };
 
 export default function PracticePage() {
-  const [sections, setSections]   = useState<Section[]>(["Bio/Biochem"]);
-  const [topic, setTopic]         = useState("");
-  const [count, setCount]         = useState(5);
-  const [timeMode, setTimeMode]   = useState<"untimed" | "default" | "custom">("untimed");
-  const [customMins, setCustomMins] = useState(10);
+  const [sections,     setSections]     = useState<Section[]>(["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"]);
+  const [difficulties, setDifficulties] = useState<Difficulty[]>(["easy", "medium", "hard"]);
+  const [topic,        setTopic]        = useState("");
+  const [count,        setCount]        = useState(10);
+  const [timeMode,     setTimeMode]     = useState<"untimed" | "default" | "custom">("untimed");
+  const [customMins,   setCustomMins]   = useState(10);
 
-  const [phase, setPhase]         = useState<Phase>("config");
-  const [errorMsg, setErrorMsg]   = useState("");
+  const [phase,     setPhase]     = useState<Phase>("config");
+  const [errorMsg,  setErrorMsg]  = useState("");
   const [questions, setQuestions] = useState<Question[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [idx, setIdx]             = useState(0);
-  const [progress, setProgress]   = useState({ current: 0, total: 0 });
+  const [idx,       setIdx]       = useState(0);
+  const [foundInfo, setFoundInfo] = useState<{ found: number; returned: number } | null>(null);
 
-  const [selected, setSelected]   = useState<Answer | null>(null);
+  const [selected,  setSelected]  = useState<Answer | null>(null);
   const [submitted, setSubmitted] = useState(false);
-  const [showExp, setShowExp]     = useState(false);
-  const [answers, setAnswers]     = useState<Record<string, Answer>>({});
+  const [showExp,   setShowExp]   = useState(false);
+  const [answers,   setAnswers]   = useState<Record<string, Answer>>({});
 
-  const [elapsed, setElapsed]     = useState(0);
-  const timerRef                  = useRef<ReturnType<typeof setInterval> | null>(null);
-  const qStartRef                 = useRef(Date.now());
+  const [elapsed, setElapsed] = useState(0);
+  const timerRef              = useRef<ReturnType<typeof setInterval> | null>(null);
+  const qStartRef             = useRef(Date.now());
 
   const currentQ = questions[idx] ?? null;
-  const timed = timeMode !== "untimed";
+  const timed    = timeMode !== "untimed";
   const totalTime = timeMode === "custom" ? customMins * 60 : count * 95;
 
   function toggleSection(s: Section) {
@@ -47,6 +61,14 @@ export default function PracticePage() {
       prev.includes(s)
         ? prev.length > 1 ? prev.filter(x => x !== s) : prev
         : [...prev, s]
+    );
+  }
+
+  function toggleDifficulty(d: Difficulty) {
+    setDifficulties(prev =>
+      prev.includes(d)
+        ? prev.length > 1 ? prev.filter(x => x !== d) : prev
+        : [...prev, d]
     );
   }
 
@@ -58,40 +80,37 @@ export default function PracticePage() {
 
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
-  const handleGenerate = useCallback(async () => {
+  const handleFetch = useCallback(async () => {
     setPhase("loading");
     setQuestions([]);
     setAnswers({});
     setIdx(0);
     setElapsed(0);
     setErrorMsg("");
+    setFoundInfo(null);
 
     try {
-      const collected: Question[] = [];
-      const perSection = Math.max(1, Math.ceil(count / sections.length));
-      let globalIdx = 0;
+      const result = await fetchPracticeQuestions({
+        sections,
+        difficulties,
+        topic: topic || undefined,
+        count,
+      });
 
-      for (const sec of sections) {
-        const secCount = Math.min(perSection, count - collected.length);
-        if (secCount <= 0) break;
-        for await (const event of generateQuestions({ section: sec, topic: topic || undefined, count: secCount })) {
-          const e = event as SSEEvent;
-          if (e.type === "progress") setProgress({ current: globalIdx + e.current, total: count });
-          if (e.type === "question") { collected.push(e.question); globalIdx++; }
-        }
-      }
-
-      if (collected.length === 0) {
-        setErrorMsg("No questions could be generated. Check that a model is configured in Settings and try again.");
+      if (result.questions.length === 0) {
+        setErrorMsg(
+          "No questions in the bank match your criteria. Try selecting more sections or difficulties, or generate questions in the Admin panel first."
+        );
         setPhase("error");
         return;
       }
 
-      // Create session only after we have questions
+      setFoundInfo({ found: result.found, returned: result.returned });
+
       const sess = await createSession(sections[0], timed).catch(() => null);
       setSessionId(sess?.id ?? null);
 
-      setQuestions(collected);
+      setQuestions(result.questions as Question[]);
       setPhase("active");
       qStartRef.current = Date.now();
     } catch (err) {
@@ -99,7 +118,7 @@ export default function PracticePage() {
       setErrorMsg(msg || "Something went wrong. Please try again.");
       setPhase("error");
     }
-  }, [sections, topic, count, timed]);
+  }, [sections, difficulties, topic, count, timed]);
 
   const handleSubmit = useCallback(async () => {
     if (!selected || !currentQ) return;
@@ -148,6 +167,7 @@ export default function PracticePage() {
             Configure Practice Session
           </h1>
 
+          {/* Sections */}
           <div>
             <label className="text-xs mb-1 block" style={{ color: "var(--text-muted)" }}>
               Sections <span style={{ fontWeight: 400 }}>({sections.length} selected)</span>
@@ -174,6 +194,34 @@ export default function PracticePage() {
             </div>
           </div>
 
+          {/* Difficulty */}
+          <div>
+            <label className="text-xs mb-1 block" style={{ color: "var(--text-muted)" }}>
+              Difficulty <span style={{ fontWeight: 400 }}>({difficulties.length} selected)</span>
+            </label>
+            <div className="flex gap-2">
+              {DIFFICULTIES.map(d => {
+                const active = difficulties.includes(d);
+                return (
+                  <button key={d} onClick={() => toggleDifficulty(d)}
+                    className="flex-1 py-2 rounded text-sm font-medium flex items-center justify-center gap-1.5"
+                    style={{
+                      background: active ? `${DIFF_COLOR[d]}20` : "var(--bg-card-hover)",
+                      color: active ? DIFF_COLOR[d] : "var(--text-secondary)",
+                      border: `1px solid ${active ? DIFF_COLOR[d] : "var(--border)"}`,
+                    }}>
+                    <span className="w-4 h-4 rounded flex items-center justify-center text-xs flex-shrink-0"
+                      style={{ background: active ? `${DIFF_COLOR[d]}30` : "var(--border)", color: active ? DIFF_COLOR[d] : "transparent" }}>
+                      {active ? "✓" : ""}
+                    </span>
+                    {DIFF_LABEL[d]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Topic */}
           <div>
             <label className="text-xs mb-1 block" style={{ color: "var(--text-muted)" }}>
               Topic <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(optional)</span>
@@ -185,18 +233,20 @@ export default function PracticePage() {
             />
           </div>
 
+          {/* Count */}
           <div>
             <label className="text-xs mb-1 block" style={{ color: "var(--text-muted)" }}>
               Questions: <strong style={{ color: "var(--text-primary)" }}>{count}</strong>
             </label>
-            <input type="range" min={1} max={10} value={count}
+            <input type="range" min={1} max={50} value={count}
               onChange={e => setCount(+e.target.value)}
               className="w-full" style={{ accentColor: "var(--accent-blue)" }} />
             <div className="flex justify-between text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-              <span>1</span><span>10</span>
+              <span>1</span><span>10</span><span>25</span><span>50</span>
             </div>
           </div>
 
+          {/* Time */}
           <div>
             <label className="text-xs mb-1 block" style={{ color: "var(--text-muted)" }}>Time</label>
             <div className="flex gap-2 mb-2">
@@ -229,7 +279,7 @@ export default function PracticePage() {
             )}
           </div>
 
-          <button onClick={handleGenerate}
+          <button onClick={handleFetch}
             className="w-full py-2.5 rounded text-sm font-semibold"
             style={{ background: "var(--accent-blue)", color: "#fff", border: "none" }}>
             Start Practice
@@ -269,16 +319,11 @@ export default function PracticePage() {
           style={{ borderColor: "var(--accent-blue)", borderTopColor: "transparent" }} />
         <div className="text-center">
           <p className="text-sm font-medium mb-1" style={{ color: "var(--text-primary)" }}>
-            Generating question {progress.current} of {progress.total}…
+            Fetching questions from bank…
           </p>
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Generating &amp; validating with AI…</p>
-        </div>
-        <div className="w-64 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-          <div className="h-full rounded-full transition-all"
-            style={{
-              width: progress.total > 0 ? `${(progress.current / progress.total) * 100}%` : "0%",
-              background: "var(--accent-blue)",
-            }} />
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            {sections.join(", ")} · {difficulties.join(", ")}
+          </p>
         </div>
       </main>
       <Footer />
@@ -300,7 +345,7 @@ export default function PracticePage() {
           </p>
           <div className="flex flex-wrap gap-2 justify-center mb-6">
             {questions.map((q, i) => {
-              const ans = answers[q.id];
+              const ans     = answers[q.id];
               const correct = ans === q.correctAnswer;
               return (
                 <div key={q.id}
@@ -333,7 +378,7 @@ export default function PracticePage() {
     </div>
   );
 
-  // ── ACTIVE ──────────────────────────────────────────────────────────────────
+  // ── NO QUESTIONS ─────────────────────────────────────────────────────────────
   if (!currentQ) return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
@@ -351,6 +396,7 @@ export default function PracticePage() {
     </div>
   );
 
+  // ── ACTIVE ──────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
@@ -358,6 +404,12 @@ export default function PracticePage() {
       <div className="px-6 py-2 flex items-center gap-4 text-xs"
         style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-card)" }}>
         <span style={{ color: "var(--text-muted)" }}>{currentQ?.section ?? sections.join(", ")}</span>
+        {foundInfo && foundInfo.found > foundInfo.returned && (
+          <span className="px-2 py-0.5 rounded text-xs"
+            style={{ background: "rgba(99,102,241,0.1)", color: "#6366f1", border: "1px solid rgba(99,102,241,0.2)" }}>
+            {foundInfo.returned} of {foundInfo.found} available
+          </span>
+        )}
         <span className="ml-auto" style={{ color: "var(--text-secondary)" }}>
           {idx + 1} / {questions.length}
         </span>
@@ -386,7 +438,11 @@ export default function PracticePage() {
         <div className="flex-1 overflow-y-auto px-6 py-6 flex flex-col max-w-2xl mx-auto w-full">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-xs px-2 py-0.5 rounded"
-              style={{ background: "var(--bg-card-hover)", color: "var(--text-muted)", border: "1px solid var(--border)" }}>
+              style={{
+                background: `${DIFF_COLOR[currentQ.difficulty as Difficulty] ?? "#6366f1"}15`,
+                color: DIFF_COLOR[currentQ.difficulty as Difficulty] ?? "#6366f1",
+                border: `1px solid ${DIFF_COLOR[currentQ.difficulty as Difficulty] ?? "#6366f1"}40`,
+              }}>
               {currentQ.difficulty}
             </span>
             <span className="text-xs" style={{ color: "var(--text-muted)" }}>{currentQ.topic}</span>

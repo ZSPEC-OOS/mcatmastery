@@ -130,13 +130,43 @@ export async function saveQuestion(
 
 export async function getQuestions(opts: {
   section?: string;
+  sections?: string[];
+  difficulties?: string[];
+  topic?: string;
   limit?: number;
 } = {}): Promise<QuestionDoc[]> {
   let q: FirebaseFirestore.Query = fs().collection("questions");
-  if (opts.section) q = q.where("section", "==", opts.section);
+
+  // Build effective sections list from singular or plural param
+  const effectiveSections = opts.sections?.length
+    ? opts.sections
+    : opts.section
+    ? [opts.section]
+    : [];
+
+  if (effectiveSections.length === 1) {
+    q = q.where("section", "==", effectiveSections[0]);
+  } else if (effectiveSections.length > 1) {
+    q = q.where("section", "in", effectiveSections);
+  }
+
   const snap = await q.get();
   let docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as QuestionDoc));
-  // sort newest first in memory (avoids composite index requirement)
+
+  // In-memory filters (avoids composite index requirements)
+  if (opts.difficulties?.length) {
+    docs = docs.filter((d) => opts.difficulties!.includes(d.difficulty));
+  }
+  if (opts.topic) {
+    const needle = opts.topic.toLowerCase();
+    docs = docs.filter(
+      (d) =>
+        d.topic.toLowerCase().includes(needle) ||
+        d.stem.toLowerCase().includes(needle)
+    );
+  }
+
+  // Sort newest first
   docs.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
   if (opts.limit) docs = docs.slice(0, opts.limit);
   return docs;

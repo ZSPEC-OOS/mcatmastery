@@ -1,5 +1,6 @@
-export type Section = "Chem/Phys" | "CARS" | "Bio/Biochem" | "Psych/Soc";
-export type Answer  = "A" | "B" | "C" | "D";
+export type Section    = "Chem/Phys" | "CARS" | "Bio/Biochem" | "Psych/Soc";
+export type Answer     = "A" | "B" | "C" | "D";
+export type Difficulty = "easy" | "medium" | "hard";
 export type ErrorType = "Content Gap" | "Logic Error" | "Misread Question" | "Timing";
 export type ReviewStatus = "pending" | "reviewed";
 
@@ -77,6 +78,23 @@ export async function patchSessionQuestion(
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// ─── Practice Questions (from bank) ─────────────────────────────────────────
+
+export async function fetchPracticeQuestions(params: {
+  sections: Section[];
+  difficulties: Difficulty[];
+  topic?: string;
+  count: number;
+}): Promise<{ questions: Question[]; found: number; returned: number }> {
+  const res = await fetch("/api/questions/practice", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
