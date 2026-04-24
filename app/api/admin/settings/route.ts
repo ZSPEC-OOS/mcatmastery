@@ -6,6 +6,7 @@ const READABLE_KEYS = [
   "validation_prompt",
   "image_generation_prompt",
   "image_validation_prompt",
+  "audit_prompt",
 ];
 
 export async function GET() {

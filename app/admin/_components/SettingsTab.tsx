@@ -162,6 +162,37 @@ Output ONLY valid JSON:
   "corrected_question": { <full corrected question JSON including figure_prompt, or null if pass=true> }
 }`;
 
+const DEFAULT_AUDIT_PROMPT = `You are an expert MCAT content auditor. You will receive an MCAT practice question in JSON format. Perform a complete content accuracy and validity audit to detect hallucinations or incorrect material.
+
+Check the following:
+1. Factual accuracy — verify all scientific claims, facts, processes, and numbers are correct for MCAT-level content
+2. Answer key correctness — verify the marked correct answer is genuinely correct
+3. Distractor quality — ensure wrong answers are plausible but clearly incorrect; flag if any wrong answer could also be correct
+4. Explanation accuracy — verify the explanation correctly justifies the answer and contains no errors
+5. Internal consistency — ensure the passage, stem, options, and explanation are logically consistent
+6. MCAT alignment — verify content falls within MCAT scope and appropriate difficulty
+
+If you find NO issues, respond with ONLY this JSON:
+{ "pass": true, "issues": [], "corrected_question": null }
+
+If you find any issues, respond with ONLY this JSON (include only changed fields in corrected_question):
+{
+  "pass": false,
+  "issues": ["<specific concise description of issue 1>", "<specific concise description of issue 2>"],
+  "corrected_question": {
+    "stem": "<corrected stem, only if changed>",
+    "passage": "<corrected passage, only if changed>",
+    "optionA": "<corrected A, only if changed>",
+    "optionB": "<corrected B, only if changed>",
+    "optionC": "<corrected C, only if changed>",
+    "optionD": "<corrected D, only if changed>",
+    "correctAnswer": "<corrected answer letter, only if changed>",
+    "explanation": "<corrected explanation, only if changed>"
+  }
+}
+
+Output ONLY valid JSON. No markdown, no preamble.`;
+
 type EnvStatus = {
   anthropic: boolean;
   database: boolean;
@@ -170,13 +201,14 @@ type EnvStatus = {
   firebaseServiceAccount: boolean;
 };
 
-type PromptKey = "generation_prompt" | "validation_prompt" | "image_generation_prompt" | "image_validation_prompt";
+type PromptKey = "generation_prompt" | "validation_prompt" | "image_generation_prompt" | "image_validation_prompt" | "audit_prompt";
 
 const PROMPT_LABELS: Record<PromptKey, string> = {
   generation_prompt:       "Generation Prompt (GENERATION_SYSTEM_PROMPT)",
   validation_prompt:       "Validation Prompt (VALIDATION_SYSTEM_PROMPT)",
   image_generation_prompt: "Image Generation Prompt (IMAGE_GENERATION_PROMPT)",
   image_validation_prompt: "Image Validation Prompt (IMAGE_VALIDATION_PROMPT)",
+  audit_prompt:            "Audit Prompt (AUDIT_SYSTEM_PROMPT)",
 };
 
 const PROMPT_DEFAULTS: Record<PromptKey, string> = {
@@ -184,6 +216,7 @@ const PROMPT_DEFAULTS: Record<PromptKey, string> = {
   validation_prompt:       DEFAULT_VAL_PROMPT,
   image_generation_prompt: IMAGE_GENERATION_PROMPT,
   image_validation_prompt: IMAGE_VALIDATION_PROMPT,
+  audit_prompt:            DEFAULT_AUDIT_PROMPT,
 };
 
 function PinModal({
@@ -289,10 +322,12 @@ export default function SettingsTab() {
     validation_prompt:       DEFAULT_VAL_PROMPT,
     image_generation_prompt: IMAGE_GENERATION_PROMPT,
     image_validation_prompt: IMAGE_VALIDATION_PROMPT,
+    audit_prompt:            DEFAULT_AUDIT_PROMPT,
   });
   const [locked, setLocked]     = useState<Record<PromptKey, boolean>>({
     generation_prompt: true, validation_prompt: true,
     image_generation_prompt: true, image_validation_prompt: true,
+    audit_prompt: true,
   });
   const [pinTarget, setPinTarget] = useState<PromptKey | null>(null);
   const [saving, setSaving]     = useState<PromptKey | null>(null);
@@ -664,7 +699,7 @@ export default function SettingsTab() {
         <div className="px-5 py-3.5" style={{ background: "var(--bg-card)", borderBottom: "1px solid var(--border)" }}>
           <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Generation Prompts</h2>
           <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-            All four prompts are PIN-protected. Click Edit on any prompt, enter your PIN, make changes, then Lock &amp; Save. Default PIN is <code className="px-1 py-0.5 rounded" style={{ background: "var(--bg-elevated)" }}>1234</code> — set <code className="px-1 py-0.5 rounded" style={{ background: "var(--bg-elevated)" }}>ADMIN_PROMPT_PIN</code> in environment variables to change it.
+            All prompts are PIN-protected. Click Edit on any prompt, enter your PIN, make changes, then Lock &amp; Save. Default PIN is <code className="px-1 py-0.5 rounded" style={{ background: "var(--bg-elevated)" }}>1234</code> — set <code className="px-1 py-0.5 rounded" style={{ background: "var(--bg-elevated)" }}>ADMIN_PROMPT_PIN</code> in environment variables to change it.
           </p>
         </div>
         <div className="px-5 py-4 space-y-5">
@@ -707,6 +742,24 @@ export default function SettingsTab() {
                 onChange={(v) => setPrompts((p) => ({ ...p, [key]: v }))}
               />
             ))}
+          </div>
+
+          {/* ── Database Audit ── */}
+          <div className="pt-2" style={{ borderTop: "1px solid var(--border)" }}>
+            <p className="text-xs font-semibold uppercase tracking-wider pt-2 mb-5" style={{ color: "var(--text-muted)" }}>Database Audit</p>
+
+            <PromptBlock
+              promptKey="audit_prompt"
+              label={PROMPT_LABELS.audit_prompt}
+              value={prompts.audit_prompt}
+              locked={locked.audit_prompt}
+              saving={saving === "audit_prompt"}
+              saved={saved === "audit_prompt"}
+              onEdit={() => setPinTarget("audit_prompt")}
+              onCancel={() => cancelEdit("audit_prompt")}
+              onLockSave={() => lockAndSave("audit_prompt")}
+              onChange={(v) => setPrompts((p) => ({ ...p, audit_prompt: v }))}
+            />
           </div>
 
         </div>

@@ -187,6 +187,13 @@ export async function deleteQuestion(id: string): Promise<void> {
   await fs().collection("questions").doc(id).delete();
 }
 
+export async function updateQuestion(
+  id: string,
+  patch: Partial<Omit<QuestionDoc, "id" | "createdAt">>
+): Promise<void> {
+  await fs().collection("questions").doc(id).update(patch as FirebaseFirestore.UpdateData<QuestionDoc>);
+}
+
 export async function deleteAllQuestions(): Promise<number> {
   const firestore = fs();
   const snap = await firestore.collection("questions").get();
