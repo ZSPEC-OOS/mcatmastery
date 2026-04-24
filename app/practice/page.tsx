@@ -9,7 +9,7 @@ import {
 
 const SECTIONS: Section[] = ["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"];
 
-type Phase = "config" | "loading" | "active" | "complete";
+type Phase = "config" | "loading" | "active" | "complete" | "error";
 
 const S = {
   card: { background: "var(--bg-card)", border: "1px solid var(--border)" } as React.CSSProperties,
@@ -23,6 +23,7 @@ export default function PracticePage() {
   const [customMins, setCustomMins] = useState(10);
 
   const [phase, setPhase]         = useState<Phase>("config");
+  const [errorMsg, setErrorMsg]   = useState("");
   const [questions, setQuestions] = useState<Question[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [idx, setIdx]             = useState(0);
@@ -63,11 +64,9 @@ export default function PracticePage() {
     setAnswers({});
     setIdx(0);
     setElapsed(0);
+    setErrorMsg("");
 
     try {
-      const sess = await createSession(sections[0], timed);
-      setSessionId(sess.id);
-
       const collected: Question[] = [];
       const perSection = Math.max(1, Math.ceil(count / sections.length));
       let globalIdx = 0;
@@ -82,12 +81,23 @@ export default function PracticePage() {
         }
       }
 
+      if (collected.length === 0) {
+        setErrorMsg("No questions could be generated. Check that a model is configured in Settings and try again.");
+        setPhase("error");
+        return;
+      }
+
+      // Create session only after we have questions
+      const sess = await createSession(sections[0], timed).catch(() => null);
+      setSessionId(sess?.id ?? null);
+
       setQuestions(collected);
       setPhase("active");
       qStartRef.current = Date.now();
     } catch (err) {
-      console.error(err);
-      setPhase("config");
+      const msg = err instanceof Error ? err.message : String(err);
+      setErrorMsg(msg || "Something went wrong. Please try again.");
+      setPhase("error");
     }
   }, [sections, topic, count, timed]);
 
@@ -230,6 +240,26 @@ export default function PracticePage() {
     </div>
   );
 
+  // ── ERROR ───────────────────────────────────────────────────────────────────
+  if (phase === "error") return (
+    <div className="flex flex-col min-h-screen">
+      <Navbar />
+      <main className="flex-1 flex items-center justify-center px-4">
+        <div className="w-full max-w-md rounded-xl p-8 text-center space-y-4" style={S.card}>
+          <div className="text-4xl">⚠️</div>
+          <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>Couldn't Start Session</h2>
+          <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>{errorMsg}</p>
+          <button onClick={() => setPhase("config")}
+            className="w-full py-2.5 rounded text-sm font-semibold mt-2"
+            style={{ background: "var(--accent-blue)", color: "#fff", border: "none" }}>
+            ← Back to Configure
+          </button>
+        </div>
+      </main>
+      <Footer />
+    </div>
+  );
+
   // ── LOADING ─────────────────────────────────────────────────────────────────
   if (phase === "loading") return (
     <div className="flex flex-col min-h-screen">
@@ -241,7 +271,7 @@ export default function PracticePage() {
           <p className="text-sm font-medium mb-1" style={{ color: "var(--text-primary)" }}>
             Generating question {progress.current} of {progress.total}…
           </p>
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Validating with Claude API</p>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Generating &amp; validating with AI…</p>
         </div>
         <div className="w-64 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
           <div className="h-full rounded-full transition-all"
@@ -304,7 +334,22 @@ export default function PracticePage() {
   );
 
   // ── ACTIVE ──────────────────────────────────────────────────────────────────
-  if (!currentQ) return null;
+  if (!currentQ) return (
+    <div className="flex flex-col min-h-screen">
+      <Navbar />
+      <main className="flex-1 flex items-center justify-center px-4">
+        <div className="w-full max-w-md rounded-xl p-8 text-center space-y-4" style={S.card}>
+          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>No questions loaded.</p>
+          <button onClick={() => setPhase("config")}
+            className="w-full py-2.5 rounded text-sm font-semibold"
+            style={{ background: "var(--accent-blue)", color: "#fff", border: "none" }}>
+            ← Configure Session
+          </button>
+        </div>
+      </main>
+      <Footer />
+    </div>
+  );
 
   return (
     <div className="flex flex-col min-h-screen">
