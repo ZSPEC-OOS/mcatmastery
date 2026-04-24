@@ -147,11 +147,11 @@ export default function PerformanceSidebar() {
                     stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
                 ))}
                 <polygon points={`${padX},${h - padY} ${pts} ${w - padX},${h - padY}`} fill="url(#accGrad2)" />
-                <polyline points={pts} fill="none" stroke="#5b9cf6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <polyline points={pts} fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 {sparkData.map((v, i) => {
                   const x = padX + (i / (sparkData.length - 1)) * (w - padX * 2);
                   const y = padY + ((maxV - v) / range) * (h - padY * 2);
-                  return <circle key={i} cx={x} cy={y} r="3" fill="#5b9cf6" stroke="var(--bg-card)" strokeWidth="1.5" />;
+                  return <circle key={i} cx={x} cy={y} r="3" fill="#6366f1" stroke="var(--bg-card)" strokeWidth="1.5" />;
                 })}
               </svg>
               <div className="flex justify-between mt-1">

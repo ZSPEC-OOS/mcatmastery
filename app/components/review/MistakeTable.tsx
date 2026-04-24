@@ -11,7 +11,7 @@ interface Props {
 }
 
 const SECTION_COLORS: Record<string, string> = {
-  "Chem/Phys": "#5b9cf6", "CARS": "#f0a500", "Bio/Biochem": "#4ade80", "Psych/Soc": "#a78bfa",
+  "Chem/Phys": "#6366f1", "CARS": "#f0a500", "Bio/Biochem": "#4ade80", "Psych/Soc": "#a78bfa",
 };
 const ERROR_STYLES: Record<string, React.CSSProperties> = {
   "Content Gap":      { background: "rgba(27,58,107,0.2)",  color: "var(--accent-blue)",  border: "1px solid rgba(27,58,107,0.35)"  },

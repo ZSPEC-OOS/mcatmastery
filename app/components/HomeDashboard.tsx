@@ -13,7 +13,7 @@ const SECTIONS = [
   {
     key: "Chem/Phys",
     label: "Chem / Phys",
-    color: "#5b9cf6",
+    color: "#6366f1",
     desc: "Gen chem · Physics · Biochem · Orgo",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -81,7 +81,7 @@ const QUICK_LINKS = [
     label: "Analytics",
     href: "/analytics",
     desc: "Track accuracy trends over time",
-    color: "#5b9cf6",
+    color: "#6366f1",
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
         <line x1="18" y1="20" x2="18" y2="10" />

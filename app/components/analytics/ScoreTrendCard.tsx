@@ -32,7 +32,7 @@ export default function ScoreTrendCard({ flScores }: Props) {
       <p className="text-xs mb-3" style={{ color: "var(--text-secondary)" }}>Full-length practice test scores</p>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#5b9cf6" }} />
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#6366f1" }} />
           <span className="text-xs" style={{ color: "var(--text-secondary)" }}>FL Scores</span>
         </div>
         <span className="text-xs" style={{ color: "var(--text-muted)" }}>Target: 515</span>
@@ -49,10 +49,10 @@ export default function ScoreTrendCard({ flScores }: Props) {
             stroke="rgba(240,165,0,0.5)" strokeWidth="1.2" strokeDasharray="5 4" />
         )}
         <polygon points={area} fill="url(#sg2)" />
-        <polyline points={pts} fill="none" stroke="#5b9cf6" strokeWidth="2"
+        <polyline points={pts} fill="none" stroke="#6366f1" strokeWidth="2"
           strokeLinecap="round" strokeLinejoin="round" />
         {scores.map((s, i) => (
-          <circle key={i} cx={sx(i)} cy={sy(s)} r="3.5" fill="#5b9cf6"
+          <circle key={i} cx={sx(i)} cy={sy(s)} r="3.5" fill="#6366f1"
             stroke="var(--bg-card)" strokeWidth="1.5" />
         ))}
         {labels.map((l, i) => (
