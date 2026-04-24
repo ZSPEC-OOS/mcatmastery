@@ -57,6 +57,7 @@ export interface QuestionDoc {
   id: string;
   section: string;
   topic: string;
+  subType?: string;
   passage?: string | null;
   stem: string;
   optionA: string;
@@ -121,7 +122,7 @@ export async function deleteModel(id: string): Promise<void> {
 // ── Questions ─────────────────────────────────────────────────────────────────
 
 export async function saveQuestion(
-  data: Omit<QuestionDoc, "id" | "createdAt">
+  data: Omit<QuestionDoc, "id" | "createdAt"> & { subType?: string }
 ): Promise<QuestionDoc> {
   const createdAt = new Date().toISOString();
   const ref = await fs().collection("questions").add({ ...data, createdAt });
@@ -132,6 +133,7 @@ export async function getQuestions(opts: {
   section?: string;
   sections?: string[];
   difficulties?: string[];
+  subTypes?: string[];
   topic?: string;
   limit?: number;
 } = {}): Promise<QuestionDoc[]> {
@@ -156,6 +158,9 @@ export async function getQuestions(opts: {
   // In-memory filters (avoids composite index requirements)
   if (opts.difficulties?.length) {
     docs = docs.filter((d) => opts.difficulties!.includes(d.difficulty));
+  }
+  if (opts.subTypes?.length) {
+    docs = docs.filter((d) => d.subType !== undefined && opts.subTypes!.includes(d.subType));
   }
   if (opts.topic) {
     const needle = opts.topic.toLowerCase();

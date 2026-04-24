@@ -3,10 +3,10 @@ import { z } from "zod";
 import { getQuestions } from "../../../../lib/firestore";
 
 const Schema = z.object({
-  sections:    z.array(z.enum(["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"])).min(1),
+  sections:     z.array(z.enum(["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"])).min(1),
   difficulties: z.array(z.enum(["easy", "medium", "hard"])).default(["easy", "medium", "hard"]),
-  topic:       z.string().optional(),
-  count:       z.number().min(1).max(50).default(10),
+  subTypes:     z.array(z.string()).optional(),
+  count:        z.number().min(1).max(50).default(10),
 });
 
 function shuffle<T>(arr: T[]): T[] {
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     const allMatching = await getQuestions({
       sections:     body.sections,
       difficulties: body.difficulties,
-      topic:        body.topic,
+      subTypes:     body.subTypes?.length ? body.subTypes : undefined,
     });
 
     const selected = shuffle(allMatching).slice(0, body.count);

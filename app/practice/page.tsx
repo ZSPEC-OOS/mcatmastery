@@ -6,20 +6,19 @@ import {
   fetchPracticeQuestions, createSession, completeSession,
   type Section, type Difficulty, type Answer, type Question,
 } from "../../lib/api-client";
+import { SECTION_SUBTYPES, getSubTypesForSections } from "../../lib/subtypes";
 
-const SECTIONS: Section[]      = ["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"];
+const SECTIONS: Section[]        = ["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"];
 const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard"];
 
-const DIFF_LABEL: Record<Difficulty, string> = {
-  easy:   "Easy",
-  medium: "Medium",
-  hard:   "Hard",
-};
+const DIFF_LABEL: Record<Difficulty, string> = { easy: "Easy", medium: "Medium", hard: "Hard" };
+const DIFF_COLOR: Record<Difficulty, string> = { easy: "#4ade80", medium: "#f0a500", hard: "#f87171" };
 
-const DIFF_COLOR: Record<Difficulty, string> = {
-  easy:   "#4ade80",
-  medium: "#f0a500",
-  hard:   "#f87171",
+const SEC_COLOR: Record<Section, string> = {
+  "Chem/Phys":  "#6366f1",
+  CARS:          "#f0a500",
+  "Bio/Biochem": "#4ade80",
+  "Psych/Soc":   "#a78bfa",
 };
 
 type Phase = "config" | "loading" | "active" | "complete" | "error";
@@ -29,9 +28,13 @@ const S = {
 };
 
 export default function PracticePage() {
+  const allSubTypeIds = (secs: Section[]) =>
+    getSubTypesForSections(secs).map(s => s.id);
+
   const [sections,     setSections]     = useState<Section[]>(["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"]);
   const [difficulties, setDifficulties] = useState<Difficulty[]>(["easy", "medium", "hard"]);
-  const [topic,        setTopic]        = useState("");
+  const [subTypes,     setSubTypes]     = useState<string[]>(() =>
+    allSubTypeIds(["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"]));
   const [count,        setCount]        = useState(10);
   const [timeMode,     setTimeMode]     = useState<"untimed" | "default" | "custom">("untimed");
   const [customMins,   setCustomMins]   = useState(10);
@@ -57,11 +60,30 @@ export default function PracticePage() {
   const totalTime = timeMode === "custom" ? customMins * 60 : count * 95;
 
   function toggleSection(s: Section) {
-    setSections(prev =>
-      prev.includes(s)
+    setSections(prev => {
+      const next = prev.includes(s)
         ? prev.length > 1 ? prev.filter(x => x !== s) : prev
-        : [...prev, s]
-    );
+        : [...prev, s];
+      // auto-select subtypes for newly added section; auto-remove for removed section
+      if (!prev.includes(s)) {
+        const newIds = (SECTION_SUBTYPES[s] ?? []).map(st => st.id);
+        setSubTypes(cur => [...new Set([...cur, ...newIds])]);
+      } else if (next.length < prev.length) {
+        const removed = (SECTION_SUBTYPES[s] ?? []).map(st => st.id);
+        setSubTypes(cur => cur.filter(id => !removed.includes(id)));
+      }
+      return next;
+    });
+  }
+
+  function toggleSubType(id: string, visibleIds: string[]) {
+    setSubTypes(prev => {
+      if (prev.includes(id)) {
+        return prev.length > 1 ? prev.filter(x => x !== id) : prev;
+      }
+      return [...prev, id];
+    });
+    void visibleIds; // kept for potential future "select all" logic
   }
 
   function toggleDifficulty(d: Difficulty) {
@@ -93,7 +115,7 @@ export default function PracticePage() {
       const result = await fetchPracticeQuestions({
         sections,
         difficulties,
-        topic: topic || undefined,
+        subTypes: subTypes.length ? subTypes : undefined,
         count,
       });
 
@@ -118,7 +140,7 @@ export default function PracticePage() {
       setErrorMsg(msg || "Something went wrong. Please try again.");
       setPhase("error");
     }
-  }, [sections, difficulties, topic, count, timed]);
+  }, [sections, difficulties, subTypes, count, timed]);
 
   const handleSubmit = useCallback(async () => {
     if (!selected || !currentQ) return;
@@ -162,7 +184,7 @@ export default function PracticePage() {
     <div className="flex flex-col min-h-screen">
       <Navbar />
       <main className="flex-1 flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-md rounded-xl p-6 space-y-5" style={S.card}>
+        <div className="w-full max-w-lg rounded-xl p-6 space-y-5" style={S.card}>
           <h1 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>
             Configure Practice Session
           </h1>
@@ -221,17 +243,62 @@ export default function PracticePage() {
             </div>
           </div>
 
-          {/* Topic */}
-          <div>
-            <label className="text-xs mb-1 block" style={{ color: "var(--text-muted)" }}>
-              Topic <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(optional)</span>
-            </label>
-            <input
-              type="text" value={topic} onChange={e => setTopic(e.target.value)}
-              placeholder="e.g. Enzyme Kinetics" className="w-full rounded px-3 py-2 text-sm"
-              style={{ background: "var(--bg-card-hover)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
-            />
-          </div>
+          {/* Sub Types */}
+          {(() => {
+            const visibleSections = sections.filter(s => SECTION_SUBTYPES[s]?.length);
+            const visibleIds = getSubTypesForSections(sections).map(st => st.id);
+            const allSelected = visibleIds.every(id => subTypes.includes(id));
+            return (
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs" style={{ color: "var(--text-muted)" }}>
+                    Sub Types <span style={{ fontWeight: 400 }}>({subTypes.filter(id => visibleIds.includes(id)).length} of {visibleIds.length})</span>
+                  </label>
+                  <button
+                    onClick={() => allSelected
+                      ? setSubTypes(prev => prev.filter(id => !visibleIds.includes(id)).concat(visibleIds.slice(0,1)))
+                      : setSubTypes(prev => [...new Set([...prev, ...visibleIds])])}
+                    className="text-xs"
+                    style={{ color: "var(--accent-blue)" }}
+                  >
+                    {allSelected ? "Clear all" : "Select all"}
+                  </button>
+                </div>
+                <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                  {visibleSections.map(sec => (
+                    <div key={sec}>
+                      {visibleSections.length > 1 && (
+                        <p className="text-xs font-semibold mb-1 mt-1" style={{ color: SEC_COLOR[sec as Section] }}>{sec}</p>
+                      )}
+                      {(SECTION_SUBTYPES[sec] ?? []).map(st => {
+                        const checked = subTypes.includes(st.id);
+                        return (
+                          <label key={st.id}
+                            className="flex items-start gap-2 py-1 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleSubType(st.id, visibleIds)}
+                              className="mt-0.5 flex-shrink-0"
+                              style={{ accentColor: SEC_COLOR[sec as Section] }}
+                            />
+                            <span className="text-xs leading-snug" style={{ color: checked ? "var(--text-primary)" : "var(--text-secondary)" }}>
+                              {st.label}
+                              {st.imageRecommended && (
+                                <span className="ml-1 text-xs" style={{ color: "var(--accent-blue)", fontStyle: "italic" }}>
+                                  (image-based recommended)
+                                </span>
+                              )}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Count */}
           <div>
@@ -322,7 +389,8 @@ export default function PracticePage() {
             Fetching questions from bank…
           </p>
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            {sections.join(", ")} · {difficulties.join(", ")}
+            {sections.join(", ")} · {difficulties.join(", ")} ·{" "}
+            {subTypes.length} subtype{subTypes.length !== 1 ? "s" : ""}
           </p>
         </div>
       </main>

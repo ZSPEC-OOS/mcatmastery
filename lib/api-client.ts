@@ -8,6 +8,7 @@ export interface Question {
   id: string;
   section: Section;
   topic: string;
+  subType?: string;
   passage: string | null;
   stem: string;
   optionA: string; optionB: string; optionC: string; optionD: string;
@@ -88,7 +89,7 @@ export async function patchSessionQuestion(
 export async function fetchPracticeQuestions(params: {
   sections: Section[];
   difficulties: Difficulty[];
-  topic?: string;
+  subTypes?: string[];
   count: number;
 }): Promise<{ questions: Question[]; found: number; returned: number }> {
   const res = await fetch("/api/questions/practice", {
@@ -109,7 +110,7 @@ export type SSEEvent =
   | { type: "done"; generated: number };
 
 export async function* generateQuestions(params: {
-  section: Section; topic?: string; count?: number;
+  section: Section; subType?: string; count?: number;
 }): AsyncGenerator<SSEEvent> {
   const res = await fetch("/api/questions/generate/stream", {
     method: "POST",
