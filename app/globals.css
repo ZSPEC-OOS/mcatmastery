@@ -40,12 +40,20 @@
   --color-accent-red:      var(--accent-red);
   --color-text-primary:    var(--text-primary);
   --color-text-secondary:  var(--text-secondary);
+  --font-body:             var(--font-roboto), system-ui, sans-serif;
+  --font-display:          var(--font-playfair), Georgia, serif;
 }
 
 body {
   background: var(--bg-primary);
   color: var(--text-primary);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-family: var(--font-roboto), system-ui, sans-serif;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-playfair), Georgia, serif;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 /* Theme-aware logo switching */

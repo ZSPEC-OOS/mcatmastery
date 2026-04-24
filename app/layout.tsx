@@ -1,10 +1,21 @@
 import type { Metadata, Viewport } from "next";
-import { Geist } from "next/font/google";
+import { Playfair_Display, Roboto } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import PinGate from "./components/PinGate";
 import "./globals.css";
 
-const geist = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
+const playfair = Playfair_Display({
+  subsets: ["latin"],
+  variable: "--font-playfair",
+  display: "swap",
+});
+
+const roboto = Roboto({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "700"],
+  variable: "--font-roboto",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "MCAT Mastery — Adaptive MCAT Prep",
@@ -25,7 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
   if (!hasClerkPublishableKey) {
     return (
-      <html lang="en" className={`${geist.variable} h-full`}>
+      <html lang="en" className={`${playfair.variable} ${roboto.variable} h-full`}>
         <body className="min-h-full flex flex-col antialiased">
           <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})()` }} />
           <PinGate>{children}</PinGate>
@@ -36,7 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <ClerkProvider>
-      <html lang="en" className={`${geist.variable} h-full`}>
+      <html lang="en" className={`${playfair.variable} ${roboto.variable} h-full`}>
         <body className="min-h-full flex flex-col antialiased">
           <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})()` }} />
           <PinGate>{children}</PinGate>
