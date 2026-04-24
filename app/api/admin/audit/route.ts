@@ -99,8 +99,8 @@ export async function POST(_req: NextRequest) {
               correctedQuestion: result.corrected_question ?? null,
             });
           }
-        } catch {
-          // Skip questions where AI call or parse fails silently
+        } catch (err) {
+          enqueue({ type: "error", questionId: q.id, message: err instanceof Error ? err.message : "unknown" });
         }
       }
 

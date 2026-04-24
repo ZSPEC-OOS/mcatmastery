@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { getSetting, ensureSchema } from "../../../../lib/db";
 import { GENERATION_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT } from "../../../../lib/anthropic";
-import { saveQuestion, getQuestions, getModelByModelId, uploadQuestionImage } from "../../../../lib/firestore";
+import { saveQuestion, getQuestions, getModelByModelId, uploadQuestionImage, updateQuestion } from "../../../../lib/firestore";
 import { callModel } from "../../../../lib/model";
 import { getSubTypeById } from "../../../../lib/subtypes";
 
@@ -255,21 +255,6 @@ export async function POST(req: NextRequest) {
 
             const final = validation.pass ? parsed : (validation.corrected_question ?? parsed);
 
-            // Generate figure image if enabled
-            let figureUrl: string | null = null;
-            if (body.imageGeneration && imageModelConfig?.baseUrl && final.figure_prompt) {
-              const b64 = await generateImage({
-                prompt:  final.figure_prompt as string,
-                modelId: imageModelConfig.modelId,
-                baseUrl: imageModelConfig.baseUrl,
-                apiKey:  imageModelConfig.apiKey,
-              });
-              if (b64) {
-                figureUrl = await uploadQuestionImage(b64, `tmp-${Date.now()}-${i}`)
-                  .catch(() => b64);
-              }
-            }
-
             let saved = await saveQuestion({
               section:       final.section as string,
               topic:         final.topic as string,
@@ -286,21 +271,26 @@ export async function POST(req: NextRequest) {
               aiGenerated:   true,
             });
 
-            // Re-upload image with real question ID and update the doc
-            if (figureUrl?.startsWith("data:") && body.imageGeneration) {
-              const permanentUrl = await uploadQuestionImage(figureUrl, saved.id).catch(() => null);
-              if (permanentUrl) {
-                figureUrl = permanentUrl;
-                const { getFirestore } = require("firebase-admin/firestore") as typeof import("firebase-admin/firestore");
-                const { getApp } = require("firebase-admin/app") as typeof import("firebase-admin/app");
-                await getFirestore(getApp()).collection("questions").doc(saved.id).update({ figureUrl }).catch(() => {});
-                saved = { ...saved, figureUrl };
+            // Generate figure image and upload using real question ID
+            let figureUrl: string | null = null;
+            if (body.imageGeneration && imageModelConfig?.baseUrl && final.figure_prompt) {
+              const imgResult = await generateImage({
+                prompt:  final.figure_prompt as string,
+                modelId: imageModelConfig.modelId,
+                baseUrl: imageModelConfig.baseUrl,
+                apiKey:  imageModelConfig.apiKey,
+              });
+              if (imgResult) {
+                if (imgResult.startsWith("data:")) {
+                  figureUrl = await uploadQuestionImage(imgResult, saved.id).catch(() => null);
+                } else {
+                  figureUrl = imgResult;
+                }
+                if (figureUrl) {
+                  await updateQuestion(saved.id, { figureUrl }).catch(() => {});
+                  saved = { ...saved, figureUrl };
+                }
               }
-            } else if (figureUrl) {
-              const { getFirestore } = require("firebase-admin/firestore") as typeof import("firebase-admin/firestore");
-              const { getApp } = require("firebase-admin/app") as typeof import("firebase-admin/app");
-              await getFirestore(getApp()).collection("questions").doc(saved.id).update({ figureUrl }).catch(() => {});
-              saved = { ...saved, figureUrl };
             }
 
             generated.push(final.stem as string);
