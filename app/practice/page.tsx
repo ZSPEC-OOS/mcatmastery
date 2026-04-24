@@ -76,14 +76,13 @@ export default function PracticePage() {
     });
   }
 
-  function toggleSubType(id: string, visibleIds: string[]) {
+  function toggleSubType(id: string) {
     setSubTypes(prev => {
       if (prev.includes(id)) {
         return prev.length > 1 ? prev.filter(x => x !== id) : prev;
       }
       return [...prev, id];
     });
-    void visibleIds; // kept for potential future "select all" logic
   }
 
   function toggleDifficulty(d: Difficulty) {
@@ -278,7 +277,7 @@ export default function PracticePage() {
                             <input
                               type="checkbox"
                               checked={checked}
-                              onChange={() => toggleSubType(st.id, visibleIds)}
+                              onChange={() => toggleSubType(st.id)}
                               className="mt-0.5 flex-shrink-0"
                               style={{ accentColor: SEC_COLOR[sec as Section] }}
                             />
