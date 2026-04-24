@@ -1,48 +1,35 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "../../../lib/auth";
-import { db } from "../../../lib/db";
+import { getSessionAnswers } from "../../../lib/firestore";
 
 export async function GET() {
   try {
-    const user = await requireUser();
-
-    const [sessionQuestions, flScores, studyTasks] = await Promise.all([
-      db.sessionQuestion.findMany({
-        where: { session: { userId: user.id }, answeredAt: { not: null } },
-        include: { question: { select: { section: true, topic: true } } },
-        orderBy: { answeredAt: "desc" },
-        take: 500,
-      }),
-      db.fullLengthScore.findMany({
-        where: { userId: user.id },
-        orderBy: { takenAt: "desc" },
-        take: 1,
-      }),
-      db.studyTask.findMany({
-        where: { userId: user.id },
-        orderBy: { createdAt: "desc" },
-        take: 10,
-      }),
-    ]);
-
-    const lastFL = flScores[0]?.total ?? null;
+    const user    = await requireUser();
+    const answers = await getSessionAnswers(user.id);
 
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const recent = sessionQuestions.filter(
-      sq => sq.answeredAt && new Date(sq.answeredAt) >= sevenDaysAgo
+    const recent = answers.filter(
+      (a) => a.answeredAt && new Date(a.answeredAt) >= sevenDaysAgo
     );
     const recentAcc = recent.length > 0
-      ? Math.round((recent.filter(sq => sq.isCorrect).length / recent.length) * 100)
+      ? Math.round((recent.filter((a) => a.isCorrect).length / recent.length) * 100)
       : null;
 
     const topicMap: Record<string, { correct: number; total: number }> = {};
-    for (const sq of sessionQuestions) {
-      const key = `${sq.question.section}::${sq.question.topic}`;
+    const sectionMap: Record<string, { correct: number; total: number }> = {};
+    for (const a of answers) {
+      const sec = a.questionSection ?? "Unknown";
+      const key = `${sec}::${a.questionTopic ?? ""}`;
       if (!topicMap[key]) topicMap[key] = { correct: 0, total: 0 };
       topicMap[key].total++;
-      if (sq.isCorrect) topicMap[key].correct++;
+      if (a.isCorrect) topicMap[key].correct++;
+
+      if (!sectionMap[sec]) sectionMap[sec] = { correct: 0, total: 0 };
+      sectionMap[sec].total++;
+      if (a.isCorrect) sectionMap[sec].correct++;
     }
+
     const weakTopics = Object.entries(topicMap)
       .filter(([, v]) => v.total >= 3 && v.correct / v.total < 0.6)
       .map(([key, v]) => ({
@@ -53,19 +40,16 @@ export async function GET() {
       .sort((a, b) => a.accuracy - b.accuracy)
       .slice(0, 4);
 
-    const sectionMap: Record<string, { correct: number; total: number }> = {};
-    for (const sq of sessionQuestions) {
-      const sec = sq.question.section;
-      if (!sectionMap[sec]) sectionMap[sec] = { correct: 0, total: 0 };
-      sectionMap[sec].total++;
-      if (sq.isCorrect) sectionMap[sec].correct++;
-    }
-
     return NextResponse.json({
-      lastFL, recentAcc, weakTopics, sectionMap, studyTasks,
-      totalAnswered: sessionQuestions.length,
+      lastFL:        null,
+      recentAcc,
+      weakTopics,
+      sectionMap,
+      studyTasks:    [],
+      totalAnswered: answers.length,
     });
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Failed";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { db, ensureSchema } from "../../../../../lib/db";
+import { ensureSchema, getSetting } from "../../../../../lib/db";
 import { callModel, getActiveModel } from "../../../../../lib/model";
 import { GENERATION_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT } from "../../../../../lib/anthropic";
-import { getSetting } from "../../../../../lib/db";
+import { saveQuestion, getQuestions } from "../../../../../lib/firestore";
 
 const GenerateSchema = z.object({
   section: z.enum(["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"]),
@@ -33,12 +33,7 @@ export async function POST(req: NextRequest) {
       getSetting("generation_prompt").then((v) => v ?? GENERATION_SYSTEM_PROMPT),
       getSetting("validation_prompt").then((v) => v ?? VALIDATION_SYSTEM_PROMPT),
       getActiveModel(),
-      db.question.findMany({
-        where:   { section: body.section },
-        select:  { stem: true },
-        take:    50,
-        orderBy: { createdAt: "desc" },
-      }),
+      getQuestions({ section: body.section, limit: 50 }),
     ]);
 
     const modelOpts = {
@@ -47,7 +42,7 @@ export async function POST(req: NextRequest) {
       apiKey:   activeModel?.apiKey   || undefined,
     };
 
-    const encoder  = new TextEncoder();
+    const encoder   = new TextEncoder();
     const generated: string[] = [];
 
     const stream = new ReadableStream({
@@ -75,7 +70,7 @@ export async function POST(req: NextRequest) {
               continue;
             }
 
-            const allStems = [...existing.map((q: { stem: string }) => q.stem), ...generated];
+            const allStems = [...existing.map((q) => q.stem), ...generated];
             if (allStems.some((stem) => jaccardSimilarity(stem, parsed.stem as string) > 0.75)) {
               enqueue({ type: "skip", reason: "duplicate", index: i });
               continue;
@@ -98,20 +93,19 @@ export async function POST(req: NextRequest) {
 
             const final = validation.pass ? parsed : (validation.corrected_question ?? parsed);
 
-            const saved = await db.question.create({
-              data: {
-                section:       final.section as string,
-                topic:         final.topic as string,
-                passage:       (final.passage as string) ?? null,
-                stem:          final.stem as string,
-                optionA:       final.optionA as string,
-                optionB:       final.optionB as string,
-                optionC:       final.optionC as string,
-                optionD:       final.optionD as string,
-                correctAnswer: final.correctAnswer as string,
-                explanation:   final.explanation as string,
-                difficulty:    (final.difficulty as string) ?? "medium",
-              },
+            const saved = await saveQuestion({
+              section:       final.section as string,
+              topic:         final.topic as string,
+              passage:       (final.passage as string) ?? null,
+              stem:          final.stem as string,
+              optionA:       final.optionA as string,
+              optionB:       final.optionB as string,
+              optionC:       final.optionC as string,
+              optionD:       final.optionD as string,
+              correctAnswer: final.correctAnswer as string,
+              explanation:   final.explanation as string,
+              difficulty:    (final.difficulty as string) ?? "medium",
+              aiGenerated:   true,
             });
 
             generated.push(final.stem as string);

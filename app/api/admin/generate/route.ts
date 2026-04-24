@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { db, getSetting, ensureSchema } from "../../../../lib/db";
+import { getSetting, ensureSchema } from "../../../../lib/db";
 import { GENERATION_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT } from "../../../../lib/anthropic";
-import { syncQuestionToFirestore, getModelByModelId, uploadQuestionImage } from "../../../../lib/firestore";
+import { saveQuestion, getQuestions, getModelByModelId, uploadQuestionImage } from "../../../../lib/firestore";
 import { callModel } from "../../../../lib/model";
 
 // ── Prompts ──────────────────────────────────────────────────────────────────
@@ -112,15 +112,7 @@ async function generateImage(opts: {
   }
 }
 
-// Auto-add figureUrl column if it doesn't exist yet
-let figureColChecked = false;
-async function ensureFigureColumn() {
-  if (figureColChecked) return;
-  await db.$executeRawUnsafe(
-    `ALTER TABLE "Question" ADD COLUMN IF NOT EXISTS "figureUrl" TEXT`
-  ).catch(() => {});
-  figureColChecked = true;
-}
+
 
 // ── Route ─────────────────────────────────────────────────────────────────────
 
@@ -149,12 +141,7 @@ export async function POST(req: NextRequest) {
       ? await getModelByModelId(body.imageModelId).catch(() => null)
       : null;
 
-    if (body.imageGeneration) await ensureFigureColumn();
-
-    const existing = await db.question.findMany({
-      where:  { section: body.section },
-      select: { stem: true },
-    });
+    const existing = await getQuestions({ section: body.section, limit: 100 });
 
     const encoder   = new TextEncoder();
     const generated: string[] = [];
@@ -245,7 +232,8 @@ export async function POST(req: NextRequest) {
               }
             }
 
-            const saveData: Record<string, unknown> = {
+            // Save to Firestore (temporary ID for image upload, then update)
+            let saved = await saveQuestion({
               section:       final.section as string,
               topic:         final.topic as string,
               passage:       (final.passage as string) ?? null,
@@ -257,18 +245,24 @@ export async function POST(req: NextRequest) {
               correctAnswer: final.correctAnswer as string,
               explanation:   final.explanation as string,
               difficulty:    (final.difficulty as string) ?? targetDifficulty,
-            };
-            if (figureUrl) saveData.figureUrl = figureUrl;
+              aiGenerated:   true,
+            });
 
-            const saved = await db.question.create({ data: saveData as Parameters<typeof db.question.create>[0]["data"] });
-
-            // If we stored a temp data URL, re-upload with the real question ID
+            // Re-upload image with real question ID and update the doc
             if (figureUrl?.startsWith("data:") && body.imageGeneration) {
               const permanentUrl = await uploadQuestionImage(figureUrl, saved.id).catch(() => null);
               if (permanentUrl) {
                 figureUrl = permanentUrl;
-                await db.question.update({ where: { id: saved.id }, data: { figureUrl } as Record<string, unknown> }).catch(() => {});
+                const { getFirestore } = require("firebase-admin/firestore") as typeof import("firebase-admin/firestore");
+                const { getApp } = require("firebase-admin/app") as typeof import("firebase-admin/app");
+                await getFirestore(getApp()).collection("questions").doc(saved.id).update({ figureUrl }).catch(() => {});
+                saved = { ...saved, figureUrl };
               }
+            } else if (figureUrl) {
+              const { getFirestore } = require("firebase-admin/firestore") as typeof import("firebase-admin/firestore");
+              const { getApp } = require("firebase-admin/app") as typeof import("firebase-admin/app");
+              await getFirestore(getApp()).collection("questions").doc(saved.id).update({ figureUrl }).catch(() => {});
+              saved = { ...saved, figureUrl };
             }
 
             generated.push(final.stem as string);
@@ -276,7 +270,6 @@ export async function POST(req: NextRequest) {
               type:     "question",
               question: { ...saved, hasFigure: !!figureUrl },
             });
-            syncQuestionToFirestore({ ...saved as unknown as Record<string, unknown>, figureUrl: figureUrl ?? undefined }).catch(() => {});
           } catch (err) {
             enqueue({ type: "skip", reason: "error", message: err instanceof Error ? err.message : "unknown", index: i });
           }

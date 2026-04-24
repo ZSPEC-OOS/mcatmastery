@@ -1,24 +1,21 @@
 import type { App } from "firebase-admin/app";
-import { getSetting } from "./db";
-
-export interface ModelConfig {
-  id: string;
-  name: string;
-  modelId: string;
-  baseUrl: string;
-  apiKey: string;
-  createdAt: string;
-}
 
 let _app: App | null | undefined = undefined;
 let _initError = "";
 let _projectId  = "";
 
-function getApp(): App | null {
-  if (_app !== undefined) return _app;
+function getApp(): App {
+  if (_app !== undefined) {
+    if (!_app) throw new Error(`Firebase not configured — ${_initError || "set FIREBASE_SERVICE_ACCOUNT"}`);
+    return _app;
+  }
 
   const svcAcct = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (!svcAcct) { _app = null; _initError = "not set"; return null; }
+  if (!svcAcct) {
+    _initError = "FIREBASE_SERVICE_ACCOUNT env var not set";
+    _app = null;
+    throw new Error(`Firebase not configured — ${_initError}`);
+  }
 
   try {
     const { getApps, initializeApp, cert } = require("firebase-admin/app") as typeof import("firebase-admin/app");
@@ -32,24 +29,77 @@ function getApp(): App | null {
         `${_projectId}.firebasestorage.app`;
       _app = initializeApp({ credential: cert(parsed), storageBucket });
     }
+    return _app!;
   } catch (e) {
     _initError = e instanceof Error ? e.message : String(e);
     _app = null;
+    throw new Error(`Firebase not configured — ${_initError}`);
   }
-  return _app;
 }
 
-async function enabled(): Promise<boolean> {
-  return (await getSetting("firestore_enabled")) === "true";
+function fs() {
+  const { getFirestore } = require("firebase-admin/firestore") as typeof import("firebase-admin/firestore");
+  return getFirestore(getApp());
+}
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export interface ModelConfig {
+  id: string;
+  name: string;
+  modelId: string;
+  baseUrl: string;
+  apiKey: string;
+  createdAt: string;
+}
+
+export interface QuestionDoc {
+  id: string;
+  section: string;
+  topic: string;
+  passage?: string | null;
+  stem: string;
+  optionA: string;
+  optionB: string;
+  optionC: string;
+  optionD: string;
+  correctAnswer: string;
+  explanation: string;
+  difficulty: string;
+  aiGenerated: boolean;
+  figureUrl?: string | null;
+  createdAt: string;
+}
+
+export interface SessionDoc {
+  id: string;
+  userId: string;
+  section: string;
+  timed: boolean;
+  startedAt: string;
+  endedAt?: string | null;
+}
+
+export interface SessionAnswerDoc {
+  questionId: string;
+  sessionId: string;
+  userId: string;
+  userAnswer: string;
+  isCorrect: boolean;
+  errorType?: string | null;
+  flagged: boolean;
+  confidence?: string | null;
+  reviewStatus: string;
+  answeredAt: string;
+  timeSpentSeconds?: number;
+  questionSection?: string;
+  questionTopic?: string;
 }
 
 // ── Models ────────────────────────────────────────────────────────────────────
 
 export async function getModels(): Promise<ModelConfig[]> {
-  const app = getApp();
-  if (!app) return [];
-  const { getFirestore } = require("firebase-admin/firestore") as typeof import("firebase-admin/firestore");
-  const snap = await getFirestore(app).collection("models").orderBy("createdAt", "asc").get();
+  const snap = await fs().collection("models").orderBy("createdAt", "asc").get();
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as ModelConfig));
 }
 
@@ -59,32 +109,112 @@ export async function getModelByModelId(modelId: string): Promise<ModelConfig | 
 }
 
 export async function saveModel(model: Omit<ModelConfig, "id" | "createdAt">): Promise<ModelConfig> {
-  const app = getApp();
-  if (!app) throw new Error(`Firebase not configured — ${_initError || "set FIREBASE_SERVICE_ACCOUNT"}`);
-  const { getFirestore } = require("firebase-admin/firestore") as typeof import("firebase-admin/firestore");
   const createdAt = new Date().toISOString();
-  const ref = await getFirestore(app).collection("models").add({ ...model, createdAt });
+  const ref = await fs().collection("models").add({ ...model, createdAt });
   return { id: ref.id, ...model, createdAt };
 }
 
 export async function deleteModel(id: string): Promise<void> {
-  const app = getApp();
-  if (!app) throw new Error(`Firebase not configured — ${_initError || "set FIREBASE_SERVICE_ACCOUNT"}`);
-  const { getFirestore } = require("firebase-admin/firestore") as typeof import("firebase-admin/firestore");
-  await getFirestore(app).collection("models").doc(id).delete();
+  await fs().collection("models").doc(id).delete();
+}
+
+// ── Questions ─────────────────────────────────────────────────────────────────
+
+export async function saveQuestion(
+  data: Omit<QuestionDoc, "id" | "createdAt">
+): Promise<QuestionDoc> {
+  const createdAt = new Date().toISOString();
+  const ref = await fs().collection("questions").add({ ...data, createdAt });
+  return { id: ref.id, ...data, createdAt };
+}
+
+export async function getQuestions(opts: {
+  section?: string;
+  limit?: number;
+} = {}): Promise<QuestionDoc[]> {
+  let q: FirebaseFirestore.Query = fs().collection("questions");
+  if (opts.section) q = q.where("section", "==", opts.section);
+  const snap = await q.get();
+  let docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as QuestionDoc));
+  // sort newest first in memory (avoids composite index requirement)
+  docs.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+  if (opts.limit) docs = docs.slice(0, opts.limit);
+  return docs;
+}
+
+export async function getQuestionById(id: string): Promise<QuestionDoc | null> {
+  const doc = await fs().collection("questions").doc(id).get();
+  if (!doc.exists) return null;
+  return { id: doc.id, ...doc.data() } as QuestionDoc;
+}
+
+export async function deleteQuestion(id: string): Promise<void> {
+  await fs().collection("questions").doc(id).delete();
+}
+
+// ── Sessions ──────────────────────────────────────────────────────────────────
+
+export async function createSession(data: {
+  userId: string;
+  section: string;
+  timed: boolean;
+}): Promise<SessionDoc> {
+  const startedAt = new Date().toISOString();
+  const ref = await fs().collection("sessions").add({ ...data, startedAt, endedAt: null });
+  return { id: ref.id, ...data, startedAt, endedAt: null };
+}
+
+export async function completeSession(id: string): Promise<void> {
+  await fs().collection("sessions").doc(id).update({ endedAt: new Date().toISOString() });
+}
+
+export async function saveSessionAnswer(data: SessionAnswerDoc): Promise<void> {
+  await fs()
+    .collection("sessions").doc(data.sessionId)
+    .collection("answers").doc(data.questionId)
+    .set(data);
+}
+
+export async function getSessionAnswers(userId: string): Promise<SessionAnswerDoc[]> {
+  const sessSnap = await fs()
+    .collection("sessions")
+    .where("userId", "==", userId)
+    .get();
+
+  const all: SessionAnswerDoc[] = [];
+  await Promise.all(
+    sessSnap.docs.map(async (sess) => {
+      const answersSnap = await sess.ref.collection("answers").get();
+      for (const a of answersSnap.docs) {
+        all.push(a.data() as SessionAnswerDoc);
+      }
+    })
+  );
+  all.sort((a, b) => (b.answeredAt ?? "").localeCompare(a.answeredAt ?? ""));
+  return all;
+}
+
+export async function patchSessionAnswer(
+  sessionId: string,
+  questionId: string,
+  patch: Partial<SessionAnswerDoc>
+): Promise<SessionAnswerDoc> {
+  const ref = fs()
+    .collection("sessions").doc(sessionId)
+    .collection("answers").doc(questionId);
+  await ref.update(patch);
+  const doc = await ref.get();
+  return doc.data() as SessionAnswerDoc;
 }
 
 // ── Image Storage ─────────────────────────────────────────────────────────────
 
 export async function uploadQuestionImage(b64DataUrl: string, questionId: string): Promise<string> {
-  const app = getApp();
-  if (!app) throw new Error(`Firebase not configured — ${_initError || "set FIREBASE_SERVICE_ACCOUNT"}`);
-
   const { getStorage } = require("firebase-admin/storage") as typeof import("firebase-admin/storage");
   const base64 = b64DataUrl.replace(/^data:image\/\w+;base64,/, "");
   const buffer = Buffer.from(base64, "base64");
 
-  const bucket = getStorage(app).bucket();
+  const bucket = getStorage(getApp()).bucket();
   const file   = bucket.file(`questions/images/${questionId}.png`);
 
   await file.save(buffer, {
@@ -94,34 +224,4 @@ export async function uploadQuestionImage(b64DataUrl: string, questionId: string
 
   await file.makePublic();
   return `https://storage.googleapis.com/${bucket.name}/${file.name}`;
-}
-
-// ── Sync ──────────────────────────────────────────────────────────────────────
-
-export async function syncQuestionToFirestore(question: Record<string, unknown>) {
-  const app = getApp();
-  if (!app || !(await enabled())) return;
-  const { getFirestore } = require("firebase-admin/firestore") as typeof import("firebase-admin/firestore");
-  await getFirestore(app).collection("questions").doc(question.id as string).set({
-    ...question,
-    createdAt: question.createdAt instanceof Date ? question.createdAt.toISOString() : question.createdAt,
-  });
-}
-
-export async function syncSessionAnswerToFirestore(data: {
-  sessionId:        string;
-  questionId:       string;
-  userId:           string;
-  userAnswer:       string;
-  isCorrect:        boolean;
-  answeredAt:       Date;
-  timeSpentSeconds?: number;
-}) {
-  const app = getApp();
-  if (!app || !(await enabled())) return;
-  const { getFirestore } = require("firebase-admin/firestore") as typeof import("firebase-admin/firestore");
-  await getFirestore(app)
-    .collection("sessions").doc(data.sessionId)
-    .collection("answers").doc(data.questionId)
-    .set({ ...data, answeredAt: data.answeredAt.toISOString() });
 }

@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
-import { db, getSetting, ensureSchema } from "../../../../../lib/db";
+import { getSetting, ensureSchema } from "../../../../../lib/db";
 import { anthropic, VALIDATION_SYSTEM_PROMPT } from "../../../../../lib/anthropic";
 import { getActiveModel } from "../../../../../lib/model";
+import { getQuestions } from "../../../../../lib/firestore";
 import { verifyAndSave, sseChunk } from "../../../../../lib/pipeline";
 
 export const maxDuration = 300;
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
 
     const [customVal, existing, activeModel] = await Promise.all([
       getSetting("validation_prompt"),
-      db.question.findMany({ where: { section }, select: { stem: true } }),
+      getQuestions({ section }),
       getActiveModel(),
     ]);
     const valPrompt  = customVal || VALIDATION_SYSTEM_PROMPT;
