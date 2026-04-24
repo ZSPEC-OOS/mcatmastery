@@ -106,7 +106,7 @@ export async function fetchPracticeQuestions(params: {
 export type SSEEvent =
   | { type: "progress"; current: number; total: number }
   | { type: "question"; question: Question }
-  | { type: "skip"; reason: string; index: number }
+  | { type: "skip"; reason: string; index: number; message?: string; flags?: string[] }
   | { type: "done"; generated: number };
 
 export async function* generateQuestions(params: {

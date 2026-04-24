@@ -191,7 +191,10 @@ export default function GenerateTab() {
               <div className="flex gap-2">
                 <button onClick={() => setSubTypes((SECTION_SUBTYPES[section] ?? []).map(s => s.id))}
                   className="text-xs" style={{ color: "var(--accent-blue)" }}>All</button>
-                <button onClick={() => setSubTypes([(SECTION_SUBTYPES[section] ?? [])[0]?.id].filter(Boolean))}
+                <button onClick={() => {
+                  const first = (SECTION_SUBTYPES[section] ?? [])[0];
+                  if (first) setSubTypes([first.id]);
+                }}
                   className="text-xs" style={{ color: "var(--text-muted)" }}>Clear</button>
               </div>
             </div>
