@@ -1,5 +1,16 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+
+interface ModelConfig {
+  id: string;
+  name: string;
+  modelId: string;
+  baseUrl: string;
+  apiKey: string;
+  createdAt: string;
+}
+
+const EMPTY_FORM = { name: "", modelId: "", baseUrl: "", apiKey: "" };
 
 const DEFAULT_GEN_PROMPT = `You are an expert MCAT question writer trained on AAMC content specifications.
 
@@ -72,6 +83,14 @@ export default function SettingsTab() {
   const [saving, setSaving]              = useState<string | null>(null);
   const [saved, setSaved]                = useState<string | null>(null);
 
+  const [models, setModels]         = useState<ModelConfig[]>([]);
+  const [modelForm, setModelForm]   = useState(EMPTY_FORM);
+  const [modelSaving, setModelSaving] = useState(false);
+  const [modelError, setModelError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showKey, setShowKey]       = useState<Record<string, boolean>>({});
+  const apiKeyRef                   = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     fetch("/api/admin/settings")
       .then((r) => r.json())
@@ -83,7 +102,50 @@ export default function SettingsTab() {
         if (d.settings.validation_prompt) setValPrompt(d.settings.validation_prompt);
       })
       .catch(() => {});
+
+    fetch("/api/admin/models")
+      .then((r) => r.json())
+      .then((d: { models?: ModelConfig[] }) => { if (d.models) setModels(d.models); })
+      .catch(() => {});
   }, []);
+
+  async function addModel() {
+    if (!modelForm.name.trim() || !modelForm.modelId.trim()) {
+      setModelError("Name and Model ID are required.");
+      return;
+    }
+    setModelSaving(true);
+    setModelError(null);
+    try {
+      const res = await fetch("/api/admin/models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(modelForm),
+      });
+      const data = await res.json() as { model?: ModelConfig; error?: string };
+      if (!res.ok) { setModelError(data.error ?? "Failed to save"); return; }
+      setModels((prev) => [...prev, data.model!]);
+      setModelForm(EMPTY_FORM);
+    } catch {
+      setModelError("Network error");
+    } finally {
+      setModelSaving(false);
+    }
+  }
+
+  async function removeModel(id: string) {
+    setDeletingId(id);
+    try {
+      await fetch("/api/admin/models", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      setModels((prev) => prev.filter((m) => m.id !== id));
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   async function save(group: string, payload: Record<string, string>) {
     setSaving(group);
@@ -183,7 +245,134 @@ export default function SettingsTab() {
         </div>
       </div>
 
-      {/* Card 3: Custom Prompts */}
+      {/* Card 3: Custom Models */}
+      <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+        <div className="px-5 py-3.5" style={{ background: "var(--bg-card)", borderBottom: "1px solid var(--border)" }}>
+          <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Custom Models</h2>
+          <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+            Configure additional AI models with their own API keys and base URLs. Stored in Firebase Firestore.
+          </p>
+        </div>
+        <div className="px-5 py-4 space-y-4">
+
+          {/* Existing models list */}
+          {models.length > 0 && (
+            <div className="space-y-2">
+              {models.map((m) => (
+                <div
+                  key={m.id}
+                  className="flex items-center justify-between px-3 py-2.5 rounded-lg"
+                  style={{ background: "var(--bg-input)", border: "1px solid var(--border)" }}
+                >
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>{m.name}</p>
+                    <p className="text-xs font-mono truncate" style={{ color: "var(--text-muted)" }}>{m.modelId}</p>
+                    {m.baseUrl && (
+                      <p className="text-xs font-mono truncate" style={{ color: "var(--text-muted)" }}>{m.baseUrl}</p>
+                    )}
+                    {m.apiKey && (
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>
+                          {showKey[m.id] ? m.apiKey : `${"•".repeat(Math.min(16, m.apiKey.length - 4))}${m.apiKey.slice(-4)}`}
+                        </p>
+                        <button
+                          onClick={() => setShowKey((s) => ({ ...s, [m.id]: !s[m.id] }))}
+                          className="text-xs"
+                          style={{ color: "var(--accent-blue)" }}
+                        >
+                          {showKey[m.id] ? "hide" : "show"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => removeModel(m.id)}
+                    disabled={deletingId === m.id}
+                    className="ml-3 px-2.5 py-1 rounded text-xs font-semibold flex-shrink-0"
+                    style={{ background: "rgba(224,92,92,0.12)", color: "#e05c5c", border: "1px solid rgba(224,92,92,0.3)" }}
+                  >
+                    {deletingId === m.id ? "…" : "Remove"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {models.length === 0 && (
+            <p className="text-xs text-center py-2" style={{ color: "var(--text-muted)" }}>No custom models configured yet.</p>
+          )}
+
+          {/* Add model form */}
+          <div className="space-y-3 pt-2" style={{ borderTop: "1px solid var(--border)" }}>
+            <p className="text-xs font-semibold uppercase tracking-wider pt-2" style={{ color: "var(--text-muted)" }}>Add Model</p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Name <span style={{ color: "#e05c5c" }}>*</span></label>
+                <input
+                  type="text"
+                  value={modelForm.name}
+                  onChange={(e) => setModelForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="GPT-4o"
+                  className="w-full px-3 py-2 rounded-lg text-sm"
+                  style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Model ID <span style={{ color: "#e05c5c" }}>*</span></label>
+                <input
+                  type="text"
+                  value={modelForm.modelId}
+                  onChange={(e) => setModelForm((f) => ({ ...f, modelId: e.target.value }))}
+                  placeholder="gpt-4o"
+                  className="w-full px-3 py-2 rounded-lg text-sm"
+                  style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Base URL</label>
+              <input
+                type="text"
+                value={modelForm.baseUrl}
+                onChange={(e) => setModelForm((f) => ({ ...f, baseUrl: e.target.value }))}
+                placeholder="https://api.openai.com/v1"
+                className="w-full px-3 py-2 rounded-lg text-sm"
+                style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>API Key</label>
+              <input
+                ref={apiKeyRef}
+                type="password"
+                value={modelForm.apiKey}
+                onChange={(e) => setModelForm((f) => ({ ...f, apiKey: e.target.value }))}
+                placeholder="sk-..."
+                className="w-full px-3 py-2 rounded-lg text-sm font-mono"
+                style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
+              />
+            </div>
+
+            {modelError && (
+              <p className="text-xs" style={{ color: "#e05c5c" }}>{modelError}</p>
+            )}
+
+            <button
+              onClick={addModel}
+              disabled={modelSaving}
+              className="px-4 py-2 rounded-lg text-sm font-semibold"
+              style={{ background: "var(--accent-blue)", color: "#fff" }}
+            >
+              {modelSaving ? "Saving…" : "Add Model"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Card 4: Custom Prompts */}
       <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
         <div className="px-5 py-3.5" style={{ background: "var(--bg-card)", borderBottom: "1px solid var(--border)" }}>
           <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Custom Generation Prompts</h2>
