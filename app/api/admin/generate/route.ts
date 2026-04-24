@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireUser } from "../../../../lib/auth";
 import { db } from "../../../../lib/db";
 import { anthropic, GENERATION_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT } from "../../../../lib/anthropic";
-import { syncQuestionToFirestore } from "../../../../lib/firestore";
+import { syncQuestionToFirestore, getModelByModelId } from "../../../../lib/firestore";
 
 const AdminGenerateSchema = z.object({
   section:        z.enum(["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"]),
@@ -28,9 +28,53 @@ function sseChunk(data: unknown): string {
   return `data: ${JSON.stringify(data)}\n\n`;
 }
 
+async function callModel(opts: {
+  modelId: string;
+  baseUrl?: string;
+  apiKey?: string;
+  system: string;
+  userContent: string;
+  maxTokens: number;
+}): Promise<string> {
+  if (opts.baseUrl) {
+    const url = `${opts.baseUrl.replace(/\/+$/, "")}/chat/completions`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(opts.apiKey ? { Authorization: `Bearer ${opts.apiKey}` } : {}),
+      },
+      body: JSON.stringify({
+        model: opts.modelId,
+        messages: [
+          { role: "system", content: opts.system },
+          { role: "user", content: opts.userContent },
+        ],
+        max_tokens: opts.maxTokens,
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => res.statusText);
+      throw new Error(`Model API error ${res.status}: ${text.slice(0, 200)}`);
+    }
+    const data = await res.json() as { choices: Array<{ message: { content: string } }> };
+    return data.choices?.[0]?.message?.content ?? "";
+  }
+
+  // Anthropic SDK path
+  const msg = await anthropic.messages.create({
+    model:      opts.modelId,
+    max_tokens: opts.maxTokens,
+    system:     opts.system,
+    messages:   [{ role: "user", content: opts.userContent }],
+  });
+  return msg.content[0].type === "text" ? msg.content[0].text : "";
+}
+
 export async function POST(req: NextRequest) {
   try {
-    await requireUser();
+    if (process.env.CLERK_SECRET_KEY) await requireUser();
+
     const body = AdminGenerateSchema.parse(await req.json());
 
     // Load custom prompts from DB if set
@@ -41,13 +85,15 @@ export async function POST(req: NextRequest) {
     const genPrompt = customGen?.value || GENERATION_SYSTEM_PROMPT;
     const valPrompt = customVal?.value || VALIDATION_SYSTEM_PROMPT;
 
-    // Load ALL stems for this section — no limit, full dedup coverage
+    // Look up custom model config (base URL + API key) from Firebase
+    const modelConfig = await getModelByModelId(body.model).catch(() => null);
+
     const existing = await db.question.findMany({
-      where: { section: body.section },
+      where:  { section: body.section },
       select: { stem: true },
     });
 
-    const encoder = new TextEncoder();
+    const encoder  = new TextEncoder();
     const generated: string[] = [];
 
     const stream = new ReadableStream({
@@ -72,14 +118,15 @@ export async function POST(req: NextRequest) {
               .filter(Boolean)
               .join(" ");
 
-            const genMsg = await anthropic.messages.create({
-              model: body.model,
-              max_tokens: 1024,
-              system: genPrompt,
-              messages: [{ role: "user", content: userMsg }],
+            const raw = await callModel({
+              modelId:    body.model,
+              baseUrl:    modelConfig?.baseUrl,
+              apiKey:     modelConfig?.apiKey,
+              system:     genPrompt,
+              userContent: userMsg,
+              maxTokens:  1024,
             });
 
-            const raw = genMsg.content[0].type === "text" ? genMsg.content[0].text : "";
             let parsed: Record<string, unknown>;
             try {
               const jsonMatch = raw.match(/\{[\s\S]*\}/);
@@ -102,15 +149,15 @@ export async function POST(req: NextRequest) {
               continue;
             }
 
-            const valMsg = await anthropic.messages.create({
-              model: body.model,
-              max_tokens: 512,
-              system: valPrompt,
-              messages: [{ role: "user", content: JSON.stringify(parsed) }],
+            const valRaw = await callModel({
+              modelId:    body.model,
+              baseUrl:    modelConfig?.baseUrl,
+              apiKey:     modelConfig?.apiKey,
+              system:     valPrompt,
+              userContent: JSON.stringify(parsed),
+              maxTokens:  512,
             });
 
-            const valRaw =
-              valMsg.content[0].type === "text" ? valMsg.content[0].text : "{}";
             let validation: {
               pass: boolean;
               flags: string[];
@@ -126,7 +173,7 @@ export async function POST(req: NextRequest) {
 
             if (!validation.pass && !validation.corrected_question) {
               enqueue({
-                type: "skip",
+                type:  "skip",
                 reason: "validation_failed",
                 flags: validation.flags,
                 index: i,
@@ -156,14 +203,13 @@ export async function POST(req: NextRequest) {
 
             generated.push(final.stem as string);
             enqueue({ type: "question", question: saved });
-            // Fire-and-forget Firestore sync (non-blocking)
             syncQuestionToFirestore(saved as unknown as Record<string, unknown>).catch(() => {});
           } catch (err) {
             enqueue({
-              type: "skip",
-              reason: "error",
+              type:    "skip",
+              reason:  "error",
               message: err instanceof Error ? err.message : "unknown",
-              index: i,
+              index:   i,
             });
           }
         }

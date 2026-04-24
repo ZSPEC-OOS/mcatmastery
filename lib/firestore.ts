@@ -12,11 +12,13 @@ export interface ModelConfig {
 
 let _app: App | null | undefined = undefined; // undefined = not yet initialised
 
+let _initError = "";
+
 function getApp(): App | null {
   if (_app !== undefined) return _app;
 
   const svcAcct = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (!svcAcct) { _app = null; return null; }
+  if (!svcAcct) { _app = null; _initError = "not set"; return null; }
 
   try {
     const { getApps, initializeApp, cert } = require("firebase-admin/app") as typeof import("firebase-admin/app");
@@ -26,7 +28,8 @@ function getApp(): App | null {
       const parsed = JSON.parse(Buffer.from(svcAcct, "base64").toString("utf8"));
       _app = initializeApp({ credential: cert(parsed) });
     }
-  } catch {
+  } catch (e) {
+    _initError = e instanceof Error ? e.message : String(e);
     _app = null;
   }
   return _app;
@@ -35,6 +38,11 @@ function getApp(): App | null {
 async function enabled(): Promise<boolean> {
   const s = await db.appSetting.findUnique({ where: { key: "firestore_enabled" } });
   return s?.value === "true";
+}
+
+export async function getModelByModelId(modelId: string): Promise<ModelConfig | null> {
+  const models = await getModels();
+  return models.find((m) => m.modelId === modelId) ?? null;
 }
 
 export async function syncQuestionToFirestore(question: Record<string, unknown>) {
@@ -57,7 +65,7 @@ export async function getModels(): Promise<ModelConfig[]> {
 
 export async function saveModel(model: Omit<ModelConfig, "id" | "createdAt">): Promise<ModelConfig> {
   const app = getApp();
-  if (!app) throw new Error("Firebase not configured — set FIREBASE_SERVICE_ACCOUNT");
+  if (!app) throw new Error(`Firebase not configured — ${_initError || "set FIREBASE_SERVICE_ACCOUNT"}`);
   const { getFirestore } = require("firebase-admin/firestore") as typeof import("firebase-admin/firestore");
   const createdAt = new Date().toISOString();
   const ref = await getFirestore(app).collection("models").add({ ...model, createdAt });

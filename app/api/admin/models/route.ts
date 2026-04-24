@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ model });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Failed";
-    return NextResponse.json({ error: msg.startsWith("Firebase") || msg === "Unauthorized" ? msg : "Failed to save model" }, { status: 500 });
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
