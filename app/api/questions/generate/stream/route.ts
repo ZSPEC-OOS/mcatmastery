@@ -4,10 +4,11 @@ import { ensureSchema, getSetting } from "../../../../../lib/db";
 import { callModel, getActiveModel } from "../../../../../lib/model";
 import { GENERATION_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT } from "../../../../../lib/anthropic";
 import { saveQuestion, getQuestions } from "../../../../../lib/firestore";
+import { getSubTypeById } from "../../../../../lib/subtypes";
 
 const GenerateSchema = z.object({
   section: z.enum(["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"]),
-  topic:   z.string().optional(),
+  subType: z.string().optional(),
   count:   z.number().min(1).max(50).default(5),
 });
 
@@ -42,6 +43,8 @@ export async function POST(req: NextRequest) {
       apiKey:   activeModel?.apiKey   || undefined,
     };
 
+    const subTypeDef = body.subType ? getSubTypeById(body.subType) : undefined;
+
     const encoder   = new TextEncoder();
     const generated: string[] = [];
 
@@ -54,10 +57,14 @@ export async function POST(req: NextRequest) {
           enqueue({ type: "progress", current: i + 1, total: body.count });
 
           try {
+            const subTypeClause = subTypeDef
+              ? ` Subtype: "${subTypeDef.label}" — ${subTypeDef.description}`
+              : "";
+
             const raw = await callModel({
               ...modelOpts,
               system:      genPrompt,
-              userContent: `Generate one ${body.section} question${body.topic ? ` about ${body.topic}` : ""}.`,
+              userContent: `Generate one ${body.section} question.${subTypeClause}`,
               maxTokens:   1200,
             });
 
@@ -79,7 +86,10 @@ export async function POST(req: NextRequest) {
             const valRaw = await callModel({
               ...modelOpts,
               system:      valPrompt,
-              userContent: JSON.stringify(parsed),
+              userContent: JSON.stringify({
+                question: parsed,
+                requestedSubType: subTypeDef?.label ?? "general",
+              }),
               maxTokens:   512,
             });
 
@@ -96,6 +106,7 @@ export async function POST(req: NextRequest) {
             const saved = await saveQuestion({
               section:       final.section as string,
               topic:         final.topic as string,
+              subType:       body.subType,
               passage:       (final.passage as string) ?? null,
               stem:          final.stem as string,
               optionA:       final.optionA as string,

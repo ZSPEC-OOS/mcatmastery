@@ -4,24 +4,43 @@ import { getSetting, ensureSchema } from "../../../../lib/db";
 import { GENERATION_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT } from "../../../../lib/anthropic";
 import { saveQuestion, getQuestions, getModelByModelId, uploadQuestionImage } from "../../../../lib/firestore";
 import { callModel } from "../../../../lib/model";
+import { getSubTypeById } from "../../../../lib/subtypes";
 
-// ── Prompts ──────────────────────────────────────────────────────────────────
+// ── Image prompts ─────────────────────────────────────────────────────────────
 
-const IMAGE_GENERATION_PROMPT = `You are an expert MCAT question writer who creates questions that require visual interpretation of scientific data.
+const IMAGE_GENERATION_PROMPT = `You are an expert MCAT question writer who creates figure-based questions requiring visual interpretation of scientific data.
 
-Generate a high-quality, MCAT-style multiple-choice question where a figure (graph, diagram, table, or experimental setup) is ESSENTIAL to answering correctly. Students must interpret the visual to answer.
+You will receive a request specifying a section, subtype, and difficulty. Generate a high-quality MCAT-style question where a figure (graph, diagram, table, or experimental setup) is ESSENTIAL to answering correctly. Students must interpret the visual to answer.
 
-Requirements:
-- The stem MUST reference the figure explicitly (e.g. "Based on the graph in Figure 1...", "According to the experimental setup shown...", "What does the data indicate about...")
+**Auto-selecting a topic:** Choose the canonical topic that best fits the requested section and subtype. Do not ask for one — pick it yourself.
+
+**Subtype definitions — generate a question that matches the requested type exactly:**
+
+Chem/Phys subtypes:
+- Passage-Based Experimental Analysis: Lab experiment scenario with a figure showing apparatus or setup. Test identification of variables, hypothesis, and prediction of how changing a condition alters results.
+- Data Interpretation (Graphs, Tables, Figures): Analyse a line graph, table, or scientific figure. Ask about trends, extrapolation, or cross-dataset comparison linked to a scientific principle.
+- Biological Applications of Physical Science: Apply a physical principle to a biological system with a supporting diagram (e.g., fluid dynamics graph for blood vessels, neuron circuit diagram).
+
+Bio/Biochem subtypes:
+- Passage-Based Research Analysis: Interpret a biology or biochemistry experiment using a figure (gel, blot, growth curve). Combine passage information with prior biological knowledge.
+- Mechanism and Pathway Questions: Test how a process works using a pathway diagram or reaction scheme. Predict effects of inhibition, mutation, or a missing step.
+- Data Interpretation (Experimental Results): Analyse a protein activity graph, gene expression heatmap, or gel/blot result. Identify patterns and connect findings to biological function.
+- Structure–Function Relationships: Connect molecular or cellular structure to biological role using a diagram or molecular model.
+
+Psych/Soc subtypes:
+- Research Design and Data Interpretation: Analyse a human behaviour or social trends study using a graph or table of results. Identify variables, evaluate conclusions, or interpret statistics.
+
+**Figure requirements:**
+- The stem MUST reference the figure explicitly (e.g. "Based on the graph in Figure 1...", "According to the experimental setup shown...", "What does the data in Figure 1 indicate about...")
 - Include a 2–4 sentence passage describing the experimental context that produced the figure
 - Write four plausible answer choices (A–D) with exactly one correct answer
 - Provide a detailed explanation referencing what the figure shows and why each distractor is wrong
-- The figure_prompt must describe a scientifically accurate figure suitable for AI image generation
+- The figure_prompt must describe a scientifically accurate, publication-quality figure: specify chart type (line graph/bar chart/scatter plot/gel/diagram/experimental setup), axis labels with units, data trends, key features, clean white background, no text overlays except axis labels
 
 Output ONLY valid JSON in this exact shape:
 {
   "section": "Chem/Phys" | "CARS" | "Bio/Biochem" | "Psych/Soc",
-  "topic": "<specific topic>",
+  "topic": "<canonical topic auto-selected for this section and subtype>",
   "passage": "<experimental context, 2–4 sentences>",
   "stem": "<question stem explicitly referencing Figure 1>",
   "optionA": "<choice A>",
@@ -31,16 +50,17 @@ Output ONLY valid JSON in this exact shape:
   "correctAnswer": "A" | "B" | "C" | "D",
   "explanation": "<detailed explanation referencing what the figure shows>",
   "difficulty": "easy" | "medium" | "hard",
-  "figure_prompt": "<detailed image generation prompt: specify chart type (line graph/bar chart/scatter plot/gel/diagram/experimental setup), axis labels with units, data trends, key features, clean white background, publication-quality scientific style, no text overlays except axis labels>"
+  "figure_prompt": "<detailed image generation prompt: chart type, axis labels with units, data trends, key features, clean white background, publication-quality scientific style, no text overlays except axis labels>"
 }`;
 
-const IMAGE_VALIDATION_PROMPT = `You are an MCAT content auditor reviewing image-based questions. Review for:
+const IMAGE_VALIDATION_PROMPT = `You are an MCAT content auditor reviewing image-based questions. You will receive a JSON object with two fields: "question" (the generated question) and "requestedSubType" (the subtype label it was supposed to match). Review for:
 1. Factual accuracy — flag any scientific errors
 2. Answer key correctness — verify the correct answer requires interpreting the described figure
-3. Figure necessity — the figure must be ESSENTIAL; flag if question can be answered without it
+3. Figure necessity — the figure must be ESSENTIAL; flag if the question can be answered without it
 4. figure_prompt quality — verify it describes a specific, scientifically accurate figure with clear axes/labels/data
 5. Distractor quality — flag if multiple choices could be correct or distractors are implausible
 6. MCAT alignment — flag if outside MCAT scope
+7. Subtype alignment — verify the question genuinely matches the requested subtype's format and cognitive demand
 
 Output ONLY valid JSON:
 {
@@ -53,7 +73,7 @@ Output ONLY valid JSON:
 
 const AdminGenerateSchema = z.object({
   section:         z.enum(["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"]),
-  topic:           z.string().optional(),
+  subTypes:        z.array(z.string()).optional(),
   count:           z.number().min(1).max(50).default(5),
   model:           z.string().default("claude-opus-4-7"),
   difficulty:      z.enum(["easy", "medium", "hard", "mixed"]).default("mixed"),
@@ -77,7 +97,6 @@ function jaccardSimilarity(a: string, b: string): number {
 function sseChunk(data: unknown): string {
   return `data: ${JSON.stringify(data)}\n\n`;
 }
-
 
 async function generateImage(opts: {
   prompt:  string;
@@ -111,8 +130,6 @@ async function generateImage(opts: {
     return null;
   }
 }
-
-
 
 // ── Route ─────────────────────────────────────────────────────────────────────
 
@@ -160,10 +177,21 @@ export async function POST(req: NextRequest) {
                 ? DIFFICULTIES[Math.floor(Math.random() * 3)]
                 : body.difficulty;
 
+            // Pick a subtype for this question (rotate through selected subtypes)
+            const subTypeIds = body.subTypes?.length ? body.subTypes : [];
+            const subTypeId  = subTypeIds.length
+              ? subTypeIds[i % subTypeIds.length]
+              : undefined;
+            const subTypeDef = subTypeId ? getSubTypeById(subTypeId) : undefined;
+
+            const subTypeClause = subTypeDef
+              ? ` Subtype: "${subTypeDef.label}" — ${subTypeDef.description}`
+              : "";
+
             const userMsg = [
-              `Generate one ${body.section} question`,
-              body.topic ? `about ${body.topic}` : "",
-              `at ${targetDifficulty} difficulty.`,
+              `Generate one ${body.section} question.`,
+              subTypeClause,
+              `Difficulty: ${targetDifficulty}.`,
               body.imageGeneration ? "The question MUST require a figure to answer." : "",
             ].filter(Boolean).join(" ");
 
@@ -196,7 +224,10 @@ export async function POST(req: NextRequest) {
               baseUrl:     modelConfig?.baseUrl,
               apiKey:      modelConfig?.apiKey,
               system:      valPrompt,
-              userContent: JSON.stringify(parsed),
+              userContent: JSON.stringify({
+                question: parsed,
+                requestedSubType: subTypeDef?.label ?? "general",
+              }),
               maxTokens:   600,
             });
 
@@ -226,16 +257,15 @@ export async function POST(req: NextRequest) {
                 apiKey:  imageModelConfig.apiKey,
               });
               if (b64) {
-                // Try to upload to Firebase Storage; fall back to data URL in DB
                 figureUrl = await uploadQuestionImage(b64, `tmp-${Date.now()}-${i}`)
                   .catch(() => b64);
               }
             }
 
-            // Save to Firestore (temporary ID for image upload, then update)
             let saved = await saveQuestion({
               section:       final.section as string,
               topic:         final.topic as string,
+              subType:       subTypeId,
               passage:       (final.passage as string) ?? null,
               stem:          final.stem as string,
               optionA:       final.optionA as string,
