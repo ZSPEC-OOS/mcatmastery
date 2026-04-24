@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "../../../../lib/auth";
 import { db } from "../../../../lib/db";
 
 export async function GET() {
   try {
-    await requireUser();
 
     const [total, bySection, byDifficulty, recent] = await Promise.all([
       db.question.count(),

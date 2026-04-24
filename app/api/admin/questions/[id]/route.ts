@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "../../../../../lib/auth";
 import { db } from "../../../../../lib/db";
 
 export async function DELETE(
@@ -7,7 +6,6 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireUser();
     const { id } = await params;
 
     // Remove all session question references first (FK constraint)

@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "../../../../lib/auth";
 import { getModels, saveModel, deleteModel } from "../../../../lib/firestore";
 
 async function checkAuth() {
-  if (process.env.CLERK_SECRET_KEY) await requireUser();
 }
 
 export async function GET() {

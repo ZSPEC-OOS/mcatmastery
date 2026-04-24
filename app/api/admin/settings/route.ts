@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "../../../../lib/auth";
 import { db } from "../../../../lib/db";
 
 const READABLE_KEYS = [
@@ -11,7 +10,6 @@ const READABLE_KEYS = [
 
 export async function GET() {
   try {
-    await requireUser();
 
     const rows = await db.appSetting.findMany({
       where: { key: { in: READABLE_KEYS } },
@@ -37,7 +35,6 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    await requireUser();
 
     const body = await req.json() as Record<string, string>;
 
