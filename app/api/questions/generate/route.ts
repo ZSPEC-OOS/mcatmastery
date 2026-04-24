@@ -75,6 +75,8 @@ export async function POST(req: NextRequest) {
           validation = JSON.parse(jsonMatch ? jsonMatch[0] : valRaw);
         } catch { continue; }
 
+        if (!validation.pass && !validation.corrected_question) continue;
+
         const final = validation.pass ? parsed : (validation.corrected_question ?? parsed);
 
         await db.question.create({

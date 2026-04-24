@@ -203,6 +203,7 @@ export default function DatabaseTab() {
   const [auditState, setAuditState]         = useState<"idle" | "running" | "done">("idle");
   const [auditProgress, setAuditProgress]   = useState({ current: 0, total: 0 });
   const [auditFindings, setAuditFindings]   = useState<AuditFinding[]>([]);
+  const [auditErrors, setAuditErrors]       = useState(0);
   const [applyingId, setApplyingId]         = useState<string | null>(null);
 
   useEffect(() => {
@@ -233,6 +234,7 @@ export default function DatabaseTab() {
   async function startAudit() {
     setAuditState("running");
     setAuditFindings([]);
+    setAuditErrors(0);
     setAuditProgress({ current: 0, total: 0 });
     const res = await fetch("/api/admin/audit", { method: "POST" });
     if (!res.body) { setAuditState("done"); return; }
@@ -260,6 +262,8 @@ export default function DatabaseTab() {
               issues: evt.issues,
               correctedQuestion: evt.correctedQuestion,
             }]);
+          } else if (evt.type === "error") {
+            setAuditErrors((n) => n + 1);
           } else if (evt.type === "done") {
             setAuditState("done");
           }
@@ -360,6 +364,11 @@ export default function DatabaseTab() {
             {auditFindings.length > 0 && (
               <p className="text-xs mt-2" style={{ color: "#f59e0b" }}>
                 {auditFindings.length} issue{auditFindings.length !== 1 ? "s" : ""} found so far — review below when complete.
+              </p>
+            )}
+            {auditErrors > 0 && (
+              <p className="text-xs mt-1" style={{ color: "#e05c5c" }}>
+                {auditErrors} question{auditErrors !== 1 ? "s" : ""} could not be audited due to errors.
               </p>
             )}
           </div>

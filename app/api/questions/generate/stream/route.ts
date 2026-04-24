@@ -93,11 +93,17 @@ export async function POST(req: NextRequest) {
               maxTokens:   512,
             });
 
-            let validation: { pass: boolean; corrected_question: Record<string, unknown> | null };
+            let validation: { pass: boolean; flags?: string[]; corrected_question: Record<string, unknown> | null };
             try {
               const jsonMatch = valRaw.match(/\{[\s\S]*\}/);
               validation = JSON.parse(jsonMatch ? jsonMatch[0] : valRaw);
             } catch {
+              enqueue({ type: "skip", reason: "validation_parse_error", index: i });
+              continue;
+            }
+
+            if (!validation.pass && !validation.corrected_question) {
+              enqueue({ type: "skip", reason: "validation_failed", index: i });
               continue;
             }
 
