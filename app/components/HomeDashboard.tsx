@@ -149,82 +149,93 @@ export default function HomeDashboard() {
 
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-8 space-y-8">
 
-        {/* ── Section cards ── */}
+        {/* ── Combined Practice tile ── */}
         <div>
           <h2 className="text-sm font-semibold mb-4 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-            Practice by Section
+            Practice
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            {SECTIONS.map(sec => {
-              const v   = stats.sectionMap[sec.key] ?? { correct: 0, total: 0 };
-              const acc = v.total > 0 ? Math.round((v.correct / v.total) * 100) : null;
-              const weak = stats.weakTopics.find(t => t.section === sec.key);
-              return (
-                <div
-                  key={sec.key}
-                  className="rounded-xl p-5 flex flex-col gap-3"
-                  style={{
-                    background: "var(--bg-card)",
-                    border: "1px solid var(--border)",
-                    borderTop: `3px solid ${sec.color}`,
-                  }}
-                >
-                  {/* Header */}
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span style={{ color: sec.color }}>{sec.icon}</span>
-                        <span className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>{sec.label}</span>
-                      </div>
-                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>{sec.desc}</p>
-                    </div>
-                  </div>
+          <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
 
-                  {/* Accuracy */}
-                  <div>
-                    <div className="flex items-baseline gap-1.5 mb-1.5">
-                      <span className="text-3xl font-bold" style={{ color: acc !== null ? sec.color : "var(--text-muted)" }}>
-                        {acc !== null ? `${acc}%` : "—"}
-                      </span>
-                      {v.total > 0 && (
-                        <span className="text-xs" style={{ color: "var(--text-muted)" }}>{v.total} answered</span>
-                      )}
+            {/* Top bar: overall + CTA */}
+            <div className="px-5 pt-5 pb-4 flex flex-wrap items-center justify-between gap-4"
+              style={{ borderBottom: "1px solid var(--border)" }}>
+              <div className="flex items-center gap-5">
+                <div>
+                  <p className="text-xs mb-0.5" style={{ color: "var(--text-muted)" }}>Overall accuracy</p>
+                  <p className="text-3xl font-bold" style={{ color: overallAcc !== null ? "#6366f1" : "var(--text-muted)" }}>
+                    {overallAcc !== null ? `${overallAcc}%` : "—"}
+                  </p>
+                </div>
+                <div style={{ width: "1px", height: "36px", background: "var(--border)" }} />
+                <div>
+                  <p className="text-xs mb-0.5" style={{ color: "var(--text-muted)" }}>Total answered</p>
+                  <p className="text-3xl font-bold" style={{ color: totalAnswered > 0 ? "var(--text-primary)" : "var(--text-muted)" }}>
+                    {totalAnswered > 0 ? totalAnswered : "—"}
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/practice"
+                className="px-5 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2"
+                style={{ background: "var(--accent-blue)", color: "#fff", textDecoration: "none", whiteSpace: "nowrap" }}
+              >
+                Configure &amp; Start
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </Link>
+            </div>
+
+            {/* Section rows */}
+            <div className="divide-y" style={{ borderColor: "var(--border)" }}>
+              {SECTIONS.map(sec => {
+                const v    = stats.sectionMap[sec.key] ?? { correct: 0, total: 0 };
+                const acc  = v.total > 0 ? Math.round((v.correct / v.total) * 100) : null;
+                const weak = stats.weakTopics.find(t => t.section === sec.key);
+                return (
+                  <div key={sec.key} className="px-5 py-3 flex items-center gap-4">
+                    {/* Icon + label */}
+                    <div className="flex items-center gap-2 w-36 flex-shrink-0">
+                      <span style={{ color: sec.color, flexShrink: 0 }}>{sec.icon}</span>
+                      <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{sec.label}</span>
                     </div>
-                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-elevated)" }}>
+
+                    {/* Progress bar */}
+                    <div className="flex-1 h-2 rounded-full overflow-hidden min-w-0" style={{ background: "var(--bg-elevated)" }}>
                       <div
                         className="h-full rounded-full transition-all duration-700"
                         style={{ width: acc !== null ? `${acc}%` : "0%", background: sec.color }}
                       />
                     </div>
+
+                    {/* Accuracy % */}
+                    <div className="w-12 text-right flex-shrink-0">
+                      <span className="text-sm font-bold" style={{ color: acc !== null ? sec.color : "var(--text-muted)" }}>
+                        {acc !== null ? `${acc}%` : "—"}
+                      </span>
+                    </div>
+
+                    {/* Count */}
+                    <div className="w-20 text-right flex-shrink-0 hidden sm:block">
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                        {v.total > 0 ? `${v.total} answered` : loaded ? "No data" : ""}
+                      </span>
+                    </div>
+
+                    {/* Weak topic */}
+                    <div className="w-44 flex-shrink-0 hidden lg:block">
+                      {weak ? (
+                        <span className="text-xs px-2 py-0.5 rounded-md"
+                          style={{ background: `${sec.color}15`, color: sec.color }}>
+                          Weak: {weak.topic}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
+                );
+              })}
+            </div>
 
-                  {/* Weak topic badge */}
-                  {weak ? (
-                    <p className="text-xs px-2 py-1 rounded-md" style={{ background: `${sec.color}15`, color: sec.color }}>
-                      Weak: {weak.topic} ({weak.accuracy}%)
-                    </p>
-                  ) : (
-                    <p className="text-xs" style={{ color: "var(--text-muted)", minHeight: "1.5rem" }}>
-                      {loaded && v.total === 0 ? "No questions answered yet" : ""}
-                    </p>
-                  )}
-
-                  {/* Practice button */}
-                  <Link
-                    href={`/practice?section=${encodeURIComponent(sec.key)}`}
-                    className="mt-auto text-center py-2 rounded-lg text-sm font-semibold"
-                    style={{
-                      background: `${sec.color}18`,
-                      color: sec.color,
-                      border: `1px solid ${sec.color}40`,
-                      textDecoration: "none",
-                    }}
-                  >
-                    Practice →
-                  </Link>
-                </div>
-              );
-            })}
           </div>
         </div>
 

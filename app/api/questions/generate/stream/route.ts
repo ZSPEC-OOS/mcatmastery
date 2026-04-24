@@ -8,7 +8,7 @@ import { saveQuestion, getQuestions } from "../../../../../lib/firestore";
 const GenerateSchema = z.object({
   section: z.enum(["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"]),
   topic:   z.string().optional(),
-  count:   z.number().min(1).max(10).default(5),
+  count:   z.number().min(1).max(50).default(5),
 });
 
 function jaccardSimilarity(a: string, b: string): number {
