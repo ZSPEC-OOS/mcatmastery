@@ -1,6 +1,15 @@
 import type { App } from "firebase-admin/app";
 import { db } from "./db";
 
+export interface ModelConfig {
+  id: string;
+  name: string;
+  modelId: string;
+  baseUrl: string;
+  apiKey: string;
+  createdAt: string;
+}
+
 let _app: App | null | undefined = undefined; // undefined = not yet initialised
 
 function getApp(): App | null {
@@ -36,6 +45,30 @@ export async function syncQuestionToFirestore(question: Record<string, unknown>)
     ...question,
     createdAt: question.createdAt instanceof Date ? question.createdAt.toISOString() : question.createdAt,
   });
+}
+
+export async function getModels(): Promise<ModelConfig[]> {
+  const app = getApp();
+  if (!app) return [];
+  const { getFirestore } = require("firebase-admin/firestore") as typeof import("firebase-admin/firestore");
+  const snap = await getFirestore(app).collection("models").orderBy("createdAt", "asc").get();
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as ModelConfig));
+}
+
+export async function saveModel(model: Omit<ModelConfig, "id" | "createdAt">): Promise<ModelConfig> {
+  const app = getApp();
+  if (!app) throw new Error("Firebase not configured — set FIREBASE_SERVICE_ACCOUNT");
+  const { getFirestore } = require("firebase-admin/firestore") as typeof import("firebase-admin/firestore");
+  const createdAt = new Date().toISOString();
+  const ref = await getFirestore(app).collection("models").add({ ...model, createdAt });
+  return { id: ref.id, ...model, createdAt };
+}
+
+export async function deleteModel(id: string): Promise<void> {
+  const app = getApp();
+  if (!app) throw new Error("Firebase not configured — set FIREBASE_SERVICE_ACCOUNT");
+  const { getFirestore } = require("firebase-admin/firestore") as typeof import("firebase-admin/firestore");
+  await getFirestore(app).collection("models").doc(id).delete();
 }
 
 export async function syncSessionAnswerToFirestore(data: {
