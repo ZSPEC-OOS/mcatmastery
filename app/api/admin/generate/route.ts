@@ -145,17 +145,19 @@ export async function POST(req: NextRequest) {
 
     await ensureSchema();
 
-    const [customGen, customVal] = await Promise.all([
+    const [customGen, customVal, customImgGen, customImgVal] = await Promise.all([
       getSetting("generation_prompt"),
       getSetting("validation_prompt"),
+      getSetting("image_generation_prompt"),
+      getSetting("image_validation_prompt"),
     ]);
 
     const genPrompt = body.imageGeneration
-      ? IMAGE_GENERATION_PROMPT
+      ? (customImgGen || IMAGE_GENERATION_PROMPT)
       : (customGen || GENERATION_SYSTEM_PROMPT);
 
     const valPrompt = body.imageGeneration
-      ? IMAGE_VALIDATION_PROMPT
+      ? (customImgVal || IMAGE_VALIDATION_PROMPT)
       : (customVal || VALIDATION_SYSTEM_PROMPT);
 
     const modelConfig = await getModelByModelId(body.model).catch(() => null);

@@ -4,6 +4,8 @@ import { getSettings, setSetting } from "../../../../lib/db";
 const READABLE_KEYS = [
   "generation_prompt",
   "validation_prompt",
+  "image_generation_prompt",
+  "image_validation_prompt",
 ];
 
 export async function GET() {
