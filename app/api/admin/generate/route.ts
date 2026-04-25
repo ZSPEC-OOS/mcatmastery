@@ -5,6 +5,7 @@ import { GENERATION_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT } from "../../../../
 import { saveQuestion, getQuestions, getModelByModelId, uploadQuestionImage, updateQuestion } from "../../../../lib/firestore";
 import { callModel } from "../../../../lib/model";
 import { getSubTypeById } from "../../../../lib/subtypes";
+import { extractModelJson } from "../../../../lib/parse";
 
 // ── Image prompts ─────────────────────────────────────────────────────────────
 
@@ -214,8 +215,7 @@ export async function POST(req: NextRequest) {
 
             let parsed: Record<string, unknown>;
             try {
-              const jsonMatch = raw.match(/\{[\s\S]*\}/);
-              parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+              parsed = extractModelJson(raw);
             } catch {
               enqueue({ type: "skip", reason: "parse_error", index: i });
               continue;
@@ -241,8 +241,7 @@ export async function POST(req: NextRequest) {
 
             let validation: { pass: boolean; flags: string[]; corrected_question: Record<string, unknown> | null };
             try {
-              const jsonMatch = valRaw.match(/\{[\s\S]*\}/);
-              validation = JSON.parse(jsonMatch ? jsonMatch[0] : valRaw);
+              validation = extractModelJson(valRaw) as typeof validation;
             } catch {
               enqueue({ type: "skip", reason: "validation_parse_error", index: i });
               continue;

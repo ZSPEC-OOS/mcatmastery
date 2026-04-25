@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { getQuestions } from "../../../../lib/firestore";
 import { getSetting, ensureSchema } from "../../../../lib/db";
 import { callModel } from "../../../../lib/model";
+import { extractModelJson } from "../../../../lib/parse";
 
 const DEFAULT_AUDIT_PROMPT = `You are an expert MCAT content auditor. You will receive an MCAT practice question in JSON format. Perform a complete content accuracy and validity audit to detect hallucinations or incorrect material.
 
@@ -82,9 +83,7 @@ export async function POST(_req: NextRequest) {
             maxTokens: 1500,
           });
 
-          // Strip potential markdown code fences
-          const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
-          const result = JSON.parse(cleaned) as {
+          const result = extractModelJson(raw) as {
             pass: boolean;
             issues: string[];
             corrected_question: Record<string, string> | null;
