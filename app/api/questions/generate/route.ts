@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db, ensureSchema, getSetting } from "../../../../lib/db";
 import { callModel, getActiveModel } from "../../../../lib/model";
 import { GENERATION_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT } from "../../../../lib/anthropic";
+import { extractModelJson } from "../../../../lib/parse";
 
 const GenerateSchema = z.object({
   section: z.enum(["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"]),
@@ -55,8 +56,7 @@ export async function POST(req: NextRequest) {
 
         let parsed: Record<string, unknown>;
         try {
-          const jsonMatch = raw.match(/\{[\s\S]*\}/);
-          parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+          parsed = extractModelJson(raw);
         } catch { continue; }
 
         const allStems = [...existing.map((q: { stem: string }) => q.stem), ...generated.map((q) => q.stem)];
@@ -71,8 +71,7 @@ export async function POST(req: NextRequest) {
 
         let validation: { pass: boolean; corrected_question: Record<string, unknown> | null };
         try {
-          const jsonMatch = valRaw.match(/\{[\s\S]*\}/);
-          validation = JSON.parse(jsonMatch ? jsonMatch[0] : valRaw);
+          validation = extractModelJson(valRaw) as typeof validation;
         } catch { continue; }
 
         if (!validation.pass && !validation.corrected_question) continue;
