@@ -16,6 +16,7 @@ export interface Question {
   explanation: string;
   difficulty: string;
   aiGenerated: boolean;
+  figureUrl?: string | null;
   createdAt: string;
 }
 

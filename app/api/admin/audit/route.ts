@@ -13,6 +13,7 @@ Check the following:
 4. Explanation accuracy — verify the explanation correctly justifies the answer and contains no errors
 5. Internal consistency — ensure the passage, stem, options, and explanation are logically consistent
 6. MCAT alignment — verify content falls within MCAT scope and appropriate difficulty
+7. Figure consistency — the question includes a "hasFigure" field. If hasFigure is true, the stem should explicitly reference a figure (e.g. "Based on Figure 1…"). If hasFigure is false but the stem references a figure, flag it as a missing figure. If hasFigure is true but the stem never references the figure, flag it as an unused figure.
 
 If you find NO issues, respond with ONLY this JSON:
 { "pass": true, "issues": [], "corrected_question": null }
@@ -75,6 +76,7 @@ export async function POST(_req: NextRequest) {
             correctAnswer: q.correctAnswer,
             explanation: q.explanation,
             difficulty: q.difficulty,
+            hasFigure: !!q.figureUrl,
           });
 
           const raw = await callModel({
