@@ -2,14 +2,37 @@
 import { useEffect, useState } from "react";
 import { patchSessionQuestion, saveNote, type SessionQuestion, type ErrorType } from "../../../lib/api-client";
 
+function FigureLightbox({ url, onClose }: { url: string; onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(4px)" }}
+      onClick={onClose}>
+      <img src={url} alt="Figure enlarged"
+        className="max-w-full max-h-full rounded-xl object-contain"
+        style={{ boxShadow: "0 25px 60px rgba(0,0,0,0.6)" }} />
+      <button onClick={onClose}
+        className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center text-xl leading-none"
+        style={{ background: "rgba(255,255,255,0.15)", color: "#fff", border: "1px solid rgba(255,255,255,0.25)" }}>
+        ×
+      </button>
+    </div>
+  );
+}
+
 interface Props { id: string; onClose: () => void; }
 
 const ERROR_TYPES: ErrorType[] = ["Content Gap", "Logic Error", "Misread Question", "Timing"];
 
 export default function QuestionDetailPanel({ id, onClose }: Props) {
-  const [sq, setSq]         = useState<SessionQuestion | null>(null);
-  const [notes, setNotes]   = useState("");
-  const [saving, setSaving] = useState(false);
+  const [sq, setSq]             = useState<SessionQuestion | null>(null);
+  const [notes, setNotes]       = useState("");
+  const [saving, setSaving]     = useState(false);
+  const [lightbox, setLightbox] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/questions?limit=50`)
@@ -40,6 +63,8 @@ export default function QuestionDetailPanel({ id, onClose }: Props) {
   const q = sq?.question;
 
   return (
+    <>
+    {lightbox && <FigureLightbox url={lightbox} onClose={() => setLightbox(null)} />}
     <div className="rounded-xl overflow-hidden mb-8" style={{ border: "1px solid var(--border)", background: "var(--bg-card)" }}>
       <div className="px-4 py-3 flex items-center gap-3" style={{ borderBottom: "1px solid var(--border)" }}>
         <span className="font-mono text-sm" style={{ color: "var(--text-primary)" }}>#{id.slice(-5)}</span>
@@ -63,6 +88,18 @@ export default function QuestionDetailPanel({ id, onClose }: Props) {
         <div className="flex flex-col lg:flex-row">
           {/* Left panel */}
           <div className="p-5 flex-1">
+            {q.figureUrl && (
+              <div className="mb-4">
+                <img
+                  src={q.figureUrl}
+                  alt="Figure"
+                  onClick={() => setLightbox(q.figureUrl!)}
+                  className="w-full rounded-xl object-contain cursor-zoom-in"
+                  style={{ maxHeight: 220, border: "1px solid var(--border)", background: "var(--bg-elevated)" }}
+                />
+                <p className="text-xs mt-1 text-center" style={{ color: "var(--text-muted)" }}>Click to enlarge</p>
+              </div>
+            )}
             <p className="text-sm mb-4 leading-relaxed font-medium" style={{ color: "var(--text-primary)" }}>
               {q.stem}
             </p>
@@ -141,5 +178,6 @@ export default function QuestionDetailPanel({ id, onClose }: Props) {
         </div>
       )}
     </div>
+    </>
   );
 }

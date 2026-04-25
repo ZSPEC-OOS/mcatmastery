@@ -46,10 +46,11 @@ export default function PracticePage() {
   const [idx,       setIdx]       = useState(0);
   const [foundInfo, setFoundInfo] = useState<{ found: number; returned: number } | null>(null);
 
-  const [selected,  setSelected]  = useState<Answer | null>(null);
-  const [submitted, setSubmitted] = useState(false);
-  const [showExp,   setShowExp]   = useState(false);
-  const [answers,   setAnswers]   = useState<Record<string, Answer>>({});
+  const [selected,   setSelected]   = useState<Answer | null>(null);
+  const [submitted,  setSubmitted]  = useState(false);
+  const [showExp,    setShowExp]    = useState(false);
+  const [answers,    setAnswers]    = useState<Record<string, Answer>>({});
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   const [elapsed, setElapsed] = useState(0);
   const timerRef              = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -515,6 +516,21 @@ export default function PracticePage() {
             <span className="text-xs" style={{ color: "var(--text-muted)" }}>{currentQ.topic}</span>
           </div>
 
+          {currentQ.figureUrl && (
+            <div className="mb-4">
+              <img
+                src={currentQ.figureUrl}
+                alt="Figure"
+                onClick={() => setLightboxUrl(currentQ.figureUrl!)}
+                className="w-full rounded-xl object-contain cursor-zoom-in"
+                style={{ maxHeight: 260, border: "1px solid var(--border)", background: "var(--bg-elevated)" }}
+              />
+              <p className="text-xs mt-1 text-center" style={{ color: "var(--text-muted)" }}>
+                Click to enlarge
+              </p>
+            </div>
+          )}
+
           <p className="text-sm leading-relaxed mb-5 font-medium" style={{ color: "var(--text-primary)" }}>
             {idx + 1}. {currentQ.stem}
           </p>
@@ -560,7 +576,7 @@ export default function PracticePage() {
           <div className="flex-1" />
 
           <div className="sticky bottom-0 py-3 flex items-center justify-between gap-3"
-            style={{ borderTop: "1px solid var(--border)", background: "rgba(244,247,251,0.97)" }}>
+            style={{ borderTop: "1px solid var(--border)", background: "var(--bg-card)" }}>
             <button
               onClick={() => { setIdx(i => Math.max(0, i - 1)); setSelected(null); setSubmitted(false); setShowExp(false); }}
               disabled={idx === 0}
@@ -586,6 +602,30 @@ export default function PracticePage() {
           </div>
         </div>
       </div>
+
+      {/* Lightbox */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(4px)" }}
+          onClick={() => setLightboxUrl(null)}
+        >
+          <img
+            src={lightboxUrl}
+            alt="Figure enlarged"
+            className="max-w-full max-h-full rounded-xl object-contain"
+            style={{ boxShadow: "0 25px 60px rgba(0,0,0,0.6)" }}
+          />
+          <button
+            onClick={() => setLightboxUrl(null)}
+            className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center text-xl leading-none"
+            style={{ background: "rgba(255,255,255,0.15)", color: "#fff", border: "1px solid rgba(255,255,255,0.25)" }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       <Footer />
     </div>
   );
