@@ -4,29 +4,51 @@
  * progressive fallbacks before throwing.
  */
 export function extractModelJson(raw: string): Record<string, unknown> {
+  const cleaned = normalizeModelOutput(raw);
+
   // 1. Strip markdown code fences (```json ... ``` or ``` ... ```)
-  const stripped = raw
+  const stripped = cleaned
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```\s*$/i, "")
     .trim();
 
   // 2. Try parsing the stripped content directly
-  try { return JSON.parse(stripped) as Record<string, unknown>; } catch { /* fall through */ }
+  const direct = safeParseJson(stripped);
+  if (direct) return direct;
 
   // 3. Parse the first balanced JSON object from the text.
   const firstBalanced = extractFirstBalancedObject(stripped);
   if (firstBalanced) {
-    try { return JSON.parse(firstBalanced) as Record<string, unknown>; } catch { /* fall through */ }
+    const parsedBalanced = safeParseJson(firstBalanced);
+    if (parsedBalanced) return parsedBalanced;
   }
 
   // 4. Fallback: Extract a broad {...} block (legacy behavior)
   const match = stripped.match(/\{[\s\S]*\}/);
   if (match) {
-    try { return JSON.parse(match[0]) as Record<string, unknown>; } catch { /* fall through */ }
+    const parsedMatch = safeParseJson(match[0]);
+    if (parsedMatch) return parsedMatch;
   }
 
   // 5. Nothing worked — propagate a clear error
   throw new SyntaxError("No JSON object found in model response");
+}
+
+function normalizeModelOutput(raw: string): string {
+  return raw
+    .replace(/^\s*json\s*[:\n]/i, "")
+    .replace(/\u201c|\u201d/g, '"')
+    .replace(/\u2018|\u2019/g, "'")
+    .replace(/\r\n/g, "\n")
+    .trim();
+}
+
+function safeParseJson(input: string): Record<string, unknown> | null {
+  try {
+    return JSON.parse(input) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
 }
 
 function extractFirstBalancedObject(input: string): string | null {
