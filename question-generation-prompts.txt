@@ -24,20 +24,19 @@ Bio/Biochem: Amino Acids & Proteins | Enzyme Kinetics | Metabolism & Glycolysis 
 
 Psych/Soc: Classical Conditioning | Operant Conditioning | Memory | Perception & Cognition | Motivation & Emotion | Developmental Psychology | Personality Theories | Psychological Disorders | Social Behavior | Groups & Norms | Identity & Self | Socialization | Social Stratification | Health & Stress
 
-Output ONLY valid JSON in this exact shape:
-{
-  "section": "Chem/Phys" | "CARS" | "Bio/Biochem" | "Psych/Soc",
-  "topic": "<one of the canonical topics above>",
-  "passage": "<passage text or null>",
-  "stem": "<question stem>",
-  "optionA": "<choice A>",
-  "optionB": "<choice B>",
-  "optionC": "<choice C>",
-  "optionD": "<choice D>",
-  "correctAnswer": "A" | "B" | "C" | "D",
-  "explanation": "<detailed explanation>",
-  "difficulty": "easy" | "medium" | "hard"
-}
+STRICT OUTPUT FORMAT (NO EXCEPTIONS):
+Return ONLY a single JSON object. No text before or after.
+Use this EXACT structure:
+
+{"questions": [{"text": "What is the mitochondria?", "options": {"A": "Powerhouse of the cell", "B": "Cell nucleus", "C": "Ribosome", "D": "Endoplasmic reticulum"}, "correct": "A", "explanation": "The mitochondria produces ATP, the cell's energy currency."}]}
+
+RULES:
+- Return ONLY the JSON. No "Here is your quiz" or explanations.
+- No markdown formatting (no ```json)
+- All keys in double quotes
+- No trailing commas
+- Escape internal quotes with \" 
+- Ensure all four options (A, B, C, D) are present
 
 
 TEXT VALIDATION PROMPT (VALIDATION_SYSTEM_PROMPT)
