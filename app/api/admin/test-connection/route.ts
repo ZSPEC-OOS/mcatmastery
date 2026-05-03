@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getModels } from "../../../../lib/firestore";
+import { testCustomModelConnection } from "@/lib/model-router";
 
 async function checkAuth() {
 }
@@ -35,29 +36,14 @@ export async function POST(req: NextRequest) {
       if (!baseUrl?.trim() || !modelId?.trim()) {
         return NextResponse.json({ ok: false, error: "baseUrl and modelId are required" });
       }
-      try {
-        const url = `${baseUrl.replace(/\/+$/, "")}/chat/completions`;
-        const res = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
-          },
-          body: JSON.stringify({
-            model: modelId,
-            messages: [{ role: "user", content: "hi" }],
-            max_tokens: 1,
-          }),
-          signal: AbortSignal.timeout(10000),
-        });
-        if (!res.ok) {
-          const text = await res.text().catch(() => res.statusText);
-          return NextResponse.json({ ok: false, error: `HTTP ${res.status}: ${text.slice(0, 150)}` });
-        }
-        return NextResponse.json({ ok: true });
-      } catch (e: unknown) {
-        return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : "Connection failed" });
+
+      const result = await testCustomModelConnection(baseUrl, apiKey?.trim() ?? "", modelId);
+
+      if (result.success) {
+        return NextResponse.json({ ok: true, message: result.message });
       }
+
+      return NextResponse.json({ ok: false, error: result.message }, { status: 400 });
     }
 
     return NextResponse.json({ ok: false, error: "Unknown type" }, { status: 400 });
