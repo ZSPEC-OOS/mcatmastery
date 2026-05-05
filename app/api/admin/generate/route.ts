@@ -216,8 +216,13 @@ export async function POST(req: NextRequest) {
             let parsed: Record<string, unknown>;
             try {
               parsed = extractModelJson(raw);
-            } catch {
-              enqueue({ type: "skip", reason: "parse_error", index: i });
+            } catch (parseErr) {
+              enqueue({
+                type: "skip",
+                reason: "parse_error",
+                message: `${parseErr instanceof Error ? parseErr.message : String(parseErr)} | raw: ${raw.slice(0, 300)}`,
+                index: i,
+              });
               continue;
             }
 
@@ -242,8 +247,13 @@ export async function POST(req: NextRequest) {
             let validation: { pass: boolean; flags: string[]; corrected_question: Record<string, unknown> | null };
             try {
               validation = extractModelJson(valRaw) as typeof validation;
-            } catch {
-              enqueue({ type: "skip", reason: "validation_parse_error", index: i });
+            } catch (parseErr) {
+              enqueue({
+                type: "skip",
+                reason: "validation_parse_error",
+                message: `${parseErr instanceof Error ? parseErr.message : String(parseErr)} | raw: ${valRaw.slice(0, 200)}`,
+                index: i,
+              });
               continue;
             }
 

@@ -70,8 +70,13 @@ export async function callModel(opts: {
       const text = await res.text().catch(() => res.statusText);
       throw new Error(`Model API error ${res.status}: ${text.slice(0, 200)}`);
     }
-    const data = await res.json() as { choices: Array<{ message: { content: string } }> };
-    return data.choices?.[0]?.message?.content ?? "";
+    const data = await res.json() as { choices?: Array<{ message?: { content?: string | null } }>; error?: unknown };
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) {
+      const hint = data.error ? ` API error: ${JSON.stringify(data.error).slice(0, 200)}` : ` Response: ${JSON.stringify(data).slice(0, 200)}`;
+      throw new Error(`Model returned empty content.${hint}`);
+    }
+    return content;
   }
 
   // Anthropic SDK fallback
@@ -81,5 +86,9 @@ export async function callModel(opts: {
     system:     opts.system,
     messages:   [{ role: "user", content: opts.userContent }],
   });
-  return msg.content[0].type === "text" ? msg.content[0].text : "";
+  const block = msg.content[0];
+  if (!block || block.type !== "text" || !block.text) {
+    throw new Error(`Anthropic model returned no text content (block type: ${block?.type ?? "none"})`);
+  }
+  return block.text;
 }

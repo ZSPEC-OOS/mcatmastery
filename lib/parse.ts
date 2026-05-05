@@ -72,6 +72,14 @@ export function universalJSONExtraction(rawOutput: string): Record<string, unkno
   try {
     return normalizeToObject(JSON.parse(repaired));
   } catch (firstError) {
+    // Fallback A: try with unquoted-key repair (dangerous inside strings — only as fallback)
+    try {
+      return normalizeToObject(JSON.parse(quoteUnquotedKeys(repaired)));
+    } catch {
+      // no-op; continue
+    }
+
+    // Fallback B: re-extract innermost balanced object and retry
     try {
       const extracted = repaired.match(/\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}/);
       if (extracted?.[0]) return normalizeToObject(JSON.parse(repairJsonLikeString(extracted[0])));
@@ -79,6 +87,7 @@ export function universalJSONExtraction(rawOutput: string): Record<string, unkno
       // no-op; continue
     }
 
+    // Fallback C: sanitize bad escape sequences
     try {
       const sanitized = repaired
         .replace(/\\n/g, "\\\\n")
@@ -193,12 +202,18 @@ function repairJsonLikeString(input: string): string {
     .replace(/\/{2}.*$/gm, "")
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/,\s*([}\]])/g, "$1")
-    .replace(/([\{,]\s*)([A-Za-z_][A-Za-z0-9_\-]*)(\s*:)/g, '$1"$2"$3')
     .replace(/: undefined\b/g, ": null")
     .replace(/: NaN\b/g, ": null")
     .replace(/\r?\n/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+// Only applied as a last-resort fallback when the main parse fails and the JSON
+// has genuinely unquoted keys. This regex is dangerous inside string values, so
+// it must not run on every attempt — only after the standard parse has failed.
+function quoteUnquotedKeys(input: string): string {
+  return input.replace(/([\{,]\s*)([A-Za-z_][A-Za-z0-9_\-]*)(\s*:)/g, '$1"$2"$3');
 }
 
 function normalizeToObject(parsed: unknown): Record<string, unknown> {
