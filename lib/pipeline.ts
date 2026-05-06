@@ -1,6 +1,7 @@
 import { callModel } from "./model";
 import { VALIDATION_SYSTEM_PROMPT } from "./anthropic";
 import { saveQuestion } from "./firestore";
+import { extractModelJson } from "./parse";
 
 export function jaccardSimilarity(a: string, b: string): number {
   const setA = new Set(a.toLowerCase().split(/\s+/));
@@ -45,8 +46,7 @@ export async function verifyAndSave(
       baseUrl:     opts.baseUrl,
       apiKey:      opts.apiKey,
     });
-    const jsonMatch = valRaw.match(/\{[\s\S]*\}/);
-    validation = JSON.parse(jsonMatch ? jsonMatch[0] : valRaw);
+    validation = extractModelJson(valRaw) as typeof validation;
   } catch {
     return { saved: null, reason: "validation_parse_error" };
   }

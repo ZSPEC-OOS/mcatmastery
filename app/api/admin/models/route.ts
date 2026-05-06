@@ -1,22 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getModels, saveModel, deleteModel } from "../../../../lib/firestore";
 
-async function checkAuth() {
-}
-
 export async function GET() {
   try {
-    await checkAuth();
     const models = await getModels();
     return NextResponse.json({ models });
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Failed to fetch models";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    await checkAuth();
     const { name, modelId, baseUrl, apiKey } = await req.json() as Record<string, string>;
     if (!name?.trim() || !modelId?.trim()) {
       return NextResponse.json({ error: "name and modelId are required" }, { status: 400 });
@@ -31,7 +27,6 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    await checkAuth();
     const { id } = await req.json() as { id: string };
     if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
     await deleteModel(id);

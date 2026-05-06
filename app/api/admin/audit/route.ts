@@ -52,8 +52,9 @@ export async function POST(_req: NextRequest) {
 
   const stream = new ReadableStream({
     async start(controller) {
-      const enqueue = (data: unknown) =>
-        controller.enqueue(encoder.encode(sseChunk(data)));
+      const enqueue = (data: unknown) => {
+        try { controller.enqueue(encoder.encode(sseChunk(data))); } catch { /* client disconnected */ }
+      };
 
       enqueue({ type: "start", total: questions.length });
 

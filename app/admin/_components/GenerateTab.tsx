@@ -13,14 +13,14 @@ type GenEvent =
 interface CustomModel { id: string; name: string; modelId: string; baseUrl: string; apiKey: string }
 
 const PIPELINE_STEPS = [
-  { n: 1, title: "Input Config",       desc: "Section, subtypes, count, model, difficulty, and dedup threshold." },
+  { n: 1, title: "Input Config",       desc: "Section, subtypes, count, model, and duplicate filter threshold." },
   { n: 2, title: "Load Existing",      desc: "Last 100 questions from the same section fetched for dedup." },
   { n: 3, title: "Generate (Claude)",  desc: "GENERATION_SYSTEM_PROMPT + user request → model outputs JSON." },
   { n: 4, title: "Parse JSON",         desc: "Output parsed; regex extracts JSON block from model response." },
   { n: 5, title: "Jaccard Dedup",      desc: "Word-overlap similarity vs existing stems. Skip if > threshold." },
   { n: 6, title: "Quality Validation", desc: "Second Claude call checks accuracy, answer key, MCAT alignment." },
   { n: 7, title: "Apply Corrections",  desc: "Pass → keep original. Fail + corrected → use fix. Fail only → discard." },
-  { n: 8, title: "Save to PostgreSQL", desc: "Persisted with all metadata: section, topic, options, difficulty." },
+  { n: 8, title: "Save to Database",   desc: "Persisted with all metadata: section, topic, subtype, and options." },
   { n: 9, title: "Stream via SSE",     desc: "Server-Sent Events push progress/question/skip/done to client." },
 ];
 
@@ -30,7 +30,6 @@ export default function GenerateTab() {
     (SECTION_SUBTYPES["Bio/Biochem"] ?? []).map(s => s.id));
   const [count, setCount]               = useState(5);
   const [model, setModel]               = useState("");
-  const [difficulty, setDifficulty]     = useState("mixed");
   const [dedupThreshold, setDedup]      = useState(0.75);
   const [running, setRunning]           = useState(false);
   const [events, setEvents]             = useState<GenEvent[]>([]);
@@ -62,7 +61,7 @@ export default function GenerateTab() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        section, subTypes, count, model, difficulty, dedupThreshold,
+        section, subTypes, count, model, dedupThreshold,
         imageGeneration: imageGenEnabled,
         imageModelId:    imageGenEnabled ? imageModelId : undefined,
       }),
@@ -312,40 +311,30 @@ export default function GenerateTab() {
             )}
           </div>
 
-          {/* Difficulty */}
-          <div>
-            <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Difficulty</label>
-            <div className="flex gap-1.5 flex-wrap">
-              {["easy", "medium", "hard", "mixed"].map((d) => (
-                <button
-                  key={d}
-                  onClick={() => setDifficulty(d)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold capitalize"
-                  style={{
-                    background: difficulty === d ? "rgba(27,58,107,0.15)" : "var(--bg-card)",
-                    border: `1px solid ${difficulty === d ? "var(--accent-blue)" : "var(--border)"}`,
-                    color: difficulty === d ? "var(--accent-blue)" : "var(--text-secondary)",
-                  }}
-                >
-                  {d}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* Dedup threshold */}
           <div>
             <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-              Dedup Threshold — <span style={{ color: "var(--text-primary)" }}>{dedupThreshold.toFixed(2)}</span>
+              Duplicate Filter — <span style={{ color: "var(--text-primary)" }}>{dedupThreshold.toFixed(2)}</span>
             </label>
             <input
               type="range" min={0.3} max={0.99} step={0.01} value={dedupThreshold}
               onChange={(e) => setDedup(Number(e.target.value))}
               className="w-full"
             />
-            <div className="flex justify-between text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-              <span>0.30 (strict)</span><span>0.99 (loose)</span>
+            <div className="flex justify-between text-xs mt-1 mb-2" style={{ color: "var(--text-muted)" }}>
+              <span>0.30</span><span>0.99</span>
             </div>
+            <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              {dedupThreshold < 0.5
+                ? "Very strict — blocks questions that share significant topic vocabulary, even if phrased differently."
+                : dedupThreshold < 0.65
+                ? "Strict — blocks questions with substantial word overlap. May reject legitimately different questions on the same topic."
+                : dedupThreshold < 0.8
+                ? "Balanced — blocks near-identical stems while allowing different questions on the same topic."
+                : dedupThreshold < 0.9
+                ? "Loose — only blocks questions that are almost word-for-word the same."
+                : "Very loose — only blocks exact or near-exact copies."}
+            </p>
           </div>
 
           {/* Generate button */}

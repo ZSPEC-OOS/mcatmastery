@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
       getSetting("generation_prompt").then((v) => v ?? GENERATION_SYSTEM_PROMPT),
       getSetting("validation_prompt").then((v) => v ?? VALIDATION_SYSTEM_PROMPT),
       getActiveModel(),
-      getQuestions({ section: body.section, limit: 50 }),
+      getQuestions({ section: body.section }),
     ]);
 
     const modelOpts = {
@@ -51,8 +51,9 @@ export async function POST(req: NextRequest) {
 
     const stream = new ReadableStream({
       async start(controller) {
-        const enqueue = (data: unknown) =>
-          controller.enqueue(encoder.encode(sseChunk(data)));
+        const enqueue = (data: unknown) => {
+          try { controller.enqueue(encoder.encode(sseChunk(data))); } catch { /* client disconnected */ }
+        };
 
         for (let i = 0; i < body.count; i++) {
           enqueue({ type: "progress", current: i + 1, total: body.count });
@@ -72,8 +73,13 @@ export async function POST(req: NextRequest) {
             let parsed: Record<string, unknown>;
             try {
               parsed = extractModelJson(raw);
-            } catch {
-              enqueue({ type: "skip", reason: "parse_error", index: i });
+            } catch (parseErr) {
+              enqueue({
+                type: "skip",
+                reason: "parse_error",
+                message: `${parseErr instanceof Error ? parseErr.message : String(parseErr)} | raw: ${raw.slice(0, 300)}`,
+                index: i,
+              });
               continue;
             }
 
@@ -96,8 +102,13 @@ export async function POST(req: NextRequest) {
             let validation: { pass: boolean; flags?: string[]; corrected_question: Record<string, unknown> | null };
             try {
               validation = extractModelJson(valRaw) as typeof validation;
-            } catch {
-              enqueue({ type: "skip", reason: "validation_parse_error", index: i });
+            } catch (parseErr) {
+              enqueue({
+                type: "skip",
+                reason: "validation_parse_error",
+                message: `${parseErr instanceof Error ? parseErr.message : String(parseErr)} | raw: ${valRaw.slice(0, 200)}`,
+                index: i,
+              });
               continue;
             }
 
