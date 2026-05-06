@@ -65,7 +65,9 @@ export async function POST(req: NextRequest) {
 
     const stream = new ReadableStream({
       async start(controller) {
-        const enqueue = (data: unknown) => controller.enqueue(encoder.encode(sseChunk(data)));
+        const enqueue = (data: unknown) => {
+          try { controller.enqueue(encoder.encode(sseChunk(data))); } catch { /* client disconnected */ }
+        };
 
         enqueue({ type: "status", message: "Sending PDF to Claude for extraction…" });
 
@@ -141,7 +143,8 @@ export async function POST(req: NextRequest) {
         Connection:      "keep-alive",
       },
     });
-  } catch {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return new Response(JSON.stringify({ error: msg }), { status: 500 });
   }
 }

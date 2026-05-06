@@ -5,6 +5,7 @@ import { getQuestions } from "../../../../../lib/firestore";
 import { VALIDATION_SYSTEM_PROMPT } from "../../../../../lib/anthropic";
 import { callModel } from "../../../../../lib/model";
 import { verifyAndSave, sseChunk } from "../../../../../lib/pipeline";
+import { extractModelJson } from "../../../../../lib/parse";
 
 export const maxDuration = 300;
 
@@ -57,7 +58,9 @@ export async function POST(req: NextRequest) {
 
     const stream = new ReadableStream({
       async start(controller) {
-        const enqueue = (data: unknown) => controller.enqueue(encoder.encode(sseChunk(data)));
+        const enqueue = (data: unknown) => {
+          try { controller.enqueue(encoder.encode(sseChunk(data))); } catch { /* client disconnected */ }
+        };
 
         const query = ["MCAT practice questions", body.section, body.topic].filter(Boolean).join(" ");
         enqueue({ type: "status", message: `Searching WISP for "${query}"…` });
@@ -104,12 +107,16 @@ export async function POST(req: NextRequest) {
               ].filter((l) => l !== undefined).join("\n"),
               maxTokens: 1024,
             });
-            const jsonMatch = raw.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) { enqueue({ type: "skip", reason: "parse_error", index: i }); continue; }
-
             let parsed: Record<string, unknown>;
-            try { parsed = JSON.parse(jsonMatch[0]); } catch {
-              enqueue({ type: "skip", reason: "parse_error", index: i });
+            try {
+              parsed = extractModelJson(raw);
+            } catch (parseErr) {
+              enqueue({
+                type: "skip",
+                reason: "parse_error",
+                message: `${parseErr instanceof Error ? parseErr.message : String(parseErr)} | raw: ${raw.slice(0, 200)}`,
+                index: i,
+              });
               continue;
             }
 

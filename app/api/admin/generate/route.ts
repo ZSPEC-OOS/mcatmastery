@@ -11,7 +11,7 @@ import { extractModelJson } from "../../../../lib/parse";
 
 const IMAGE_GENERATION_PROMPT = `You are an expert MCAT question writer who creates figure-based questions requiring visual interpretation of scientific data.
 
-You will receive a request specifying a section, subtype, and difficulty. Generate a high-quality MCAT-style question where a figure (graph, diagram, table, or experimental setup) is ESSENTIAL to answering correctly. Students must interpret the visual to answer.
+You will receive a request specifying a section and subtype. Generate a high-quality MCAT-style question where a figure (graph, diagram, table, or experimental setup) is ESSENTIAL to answering correctly. Students must interpret the visual to answer.
 
 **Auto-selecting a topic:** Choose the canonical topic that best fits the requested section and subtype. Do not ask for one — pick it yourself.
 
@@ -83,13 +83,10 @@ const AdminGenerateSchema = z.object({
   subTypes:        z.array(z.string()).optional(),
   count:           z.number().min(1).max(50).default(5),
   model:           z.string().default("claude-opus-4-7"),
-  difficulty:      z.enum(["easy", "medium", "hard", "mixed"]).default("mixed"),
   dedupThreshold:  z.number().min(0.3).max(0.99).default(0.75),
   imageGeneration: z.boolean().default(false),
   imageModelId:    z.string().optional(),
 });
-
-const DIFFICULTIES = ["easy", "medium", "hard"] as const;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -167,25 +164,21 @@ export async function POST(req: NextRequest) {
       ? await getModelByModelId(body.imageModelId).catch(() => null)
       : null;
 
-    const existing = await getQuestions({ section: body.section, limit: 100 });
+    const existing = await getQuestions({ section: body.section });
 
     const encoder   = new TextEncoder();
     const generated: string[] = [];
 
     const stream = new ReadableStream({
       async start(controller) {
-        const enqueue = (data: unknown) =>
-          controller.enqueue(encoder.encode(sseChunk(data)));
+        const enqueue = (data: unknown) => {
+          try { controller.enqueue(encoder.encode(sseChunk(data))); } catch { /* client disconnected */ }
+        };
 
         for (let i = 0; i < body.count; i++) {
           enqueue({ type: "progress", current: i + 1, total: body.count });
 
           try {
-            const targetDifficulty =
-              body.difficulty === "mixed"
-                ? DIFFICULTIES[Math.floor(Math.random() * 3)]
-                : body.difficulty;
-
             // Pick a subtype for this question (rotate through selected subtypes)
             const subTypeIds = body.subTypes?.length ? body.subTypes : [];
             const subTypeId  = subTypeIds.length
@@ -200,7 +193,6 @@ export async function POST(req: NextRequest) {
             const userMsg = [
               `Generate one ${body.section} question.`,
               subTypeClause,
-              `Difficulty: ${targetDifficulty}.`,
               body.imageGeneration ? "The question MUST require a figure to answer." : "",
             ].filter(Boolean).join(" ");
 
@@ -276,7 +268,7 @@ export async function POST(req: NextRequest) {
               optionD:       final.optionD as string,
               correctAnswer: final.correctAnswer as string,
               explanation:   final.explanation as string,
-              difficulty:    (final.difficulty as string) ?? targetDifficulty,
+              difficulty:    (final.difficulty as string) ?? "medium",
               aiGenerated:   true,
             });
 

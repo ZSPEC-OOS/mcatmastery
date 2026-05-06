@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
       getSetting("generation_prompt").then((v) => v ?? GENERATION_SYSTEM_PROMPT),
       getSetting("validation_prompt").then((v) => v ?? VALIDATION_SYSTEM_PROMPT),
       getActiveModel(),
-      getQuestions({ section: body.section, limit: 50 }),
+      getQuestions({ section: body.section }),
     ]);
 
     const modelOpts = {
@@ -51,8 +51,9 @@ export async function POST(req: NextRequest) {
 
     const stream = new ReadableStream({
       async start(controller) {
-        const enqueue = (data: unknown) =>
-          controller.enqueue(encoder.encode(sseChunk(data)));
+        const enqueue = (data: unknown) => {
+          try { controller.enqueue(encoder.encode(sseChunk(data))); } catch { /* client disconnected */ }
+        };
 
         for (let i = 0; i < body.count; i++) {
           enqueue({ type: "progress", current: i + 1, total: body.count });
