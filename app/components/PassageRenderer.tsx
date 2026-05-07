@@ -1,9 +1,22 @@
 "use client";
 import { Fragment } from "react";
 
+const SUBSCRIPT: Record<string, string> = {
+  "0":"₀","1":"₁","2":"₂","3":"₃","4":"₄","5":"₅","6":"₆","7":"₇","8":"₈","9":"₉",
+};
+
+// Convert chemical formula subscripts: digits immediately after an element symbol.
+// Uses word-boundary anchor so mid-word occurrences (e.g. pH7, Study2) are skipped.
+function applyChemistry(text: string): string {
+  return text.replace(/\b([A-Z][a-z]?)(\d+)/g, (_, sym: string, num: string) =>
+    sym + [...num].map(d => SUBSCRIPT[d] ?? d).join("")
+  );
+}
+
 // Parses **bold** and *italic* within a single line of text.
 function renderInline(text: string, keyPrefix: string): React.ReactNode {
-  const segments = text.split(/(\*\*(?:[^*]|\*(?!\*))+?\*\*|\*[^*\n]+?\*)/g);
+  const processed = applyChemistry(text);
+  const segments = processed.split(/(\*\*(?:[^*]|\*(?!\*))+?\*\*|\*[^*\n]+?\*)/g);
   return segments.map((seg, i) => {
     const k = `${keyPrefix}-${i}`;
     if (seg.startsWith("**") && seg.endsWith("**") && seg.length > 4) {
