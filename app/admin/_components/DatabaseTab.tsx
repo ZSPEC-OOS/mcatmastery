@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { SECTION_COLORS, DIFF_COLORS } from "./shared";
+import { PassageRenderer } from "../../components/PassageRenderer";
 
 type RecentQ = { id: string; section: string; topic: string; stem: string; difficulty: string; createdAt: string };
 type FullQ = RecentQ & {
@@ -124,7 +125,7 @@ function QuestionModal({ id, onClose, onDelete }: { id: string; onClose: () => v
                   <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--text-muted)" }}>
                     Passage
                   </p>
-                  <p className="text-sm leading-relaxed" style={{ color: "var(--text-primary)" }}>{q.passage}</p>
+                  <PassageRenderer text={q.passage} style={{ color: "var(--text-primary)" }} />
                 </div>
               )}
 

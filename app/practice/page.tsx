@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import { PassageRenderer } from "../components/PassageRenderer";
 import {
   fetchPracticeQuestions, createSession, completeSession,
   type Section, type Difficulty, type Answer, type Question,
@@ -521,7 +522,7 @@ export default function PracticePage() {
             style={{ borderRight: "1px solid var(--border)", color: "var(--text-secondary)" }}>
             <p className="font-semibold mb-3 text-xs uppercase tracking-wide"
               style={{ color: "var(--text-muted)" }}>Passage</p>
-            <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>{currentQ.passage}</p>
+            <PassageRenderer text={currentQ.passage} style={{ color: "var(--text-secondary)" }} />
           </div>
         )}
 
@@ -661,9 +662,7 @@ export default function PracticePage() {
               </button>
             </div>
             <div className="px-5 py-5 overflow-y-auto">
-              <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)", lineHeight: 1.8 }}>
-                {currentQ.passage}
-              </p>
+              <PassageRenderer text={currentQ.passage} style={{ color: "var(--text-secondary)" }} />
             </div>
             <div className="px-5 py-3 flex-shrink-0" style={{ borderTop: "1px solid var(--border)" }}>
               <button
