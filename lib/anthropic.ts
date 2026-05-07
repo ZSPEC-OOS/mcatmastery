@@ -61,6 +61,33 @@ Psych/Soc subtypes:
 - Write four plausible answer choices (A–D) with exactly one correct answer
 - Provide a thorough explanation (3–6 sentences) covering why the correct answer is right and why each distractor is wrong
 
+**AAMC precision modifiers — use at least one in every stem:**
+- "most likely" / "would most likely" → probabilistic best answer
+- "best supported" / "best explains" → evidence-based judgment
+- "primarily" → main function or cause
+- "directly" → immediate/proximate mechanism only
+- "most consistent with" → alignment with data
+- "least likely" → elimination reasoning
+Never use "always", "never", "proves", or "definitively" unless the passage explicitly justifies the absolute claim.
+
+**Indirectness — never ask retrieval directly:**
+Bad: "What is the product of glycolysis?"
+Good: "The mutation in phosphoglycerate kinase would most directly impair which step in ATP generation?"
+
+**Multi-step reasoning — every question must chain:** context/passage information → scientific principle → inference. Single-step retrieval is not acceptable.
+
+**Section-specific stem patterns:**
+- Chem/Phys: "Which process best explains…" / "If [variable] increases, what happens to [Y]?" / "The data most support which conclusion?" / "If the mutation were introduced into…"
+- Bio/Biochem: "Activation of [protein] would most likely…" / "Which pathway is most directly disrupted by…" / "Which conclusion is best supported by the [blot/assay]?" / "Which amino acid substitution would most likely…"
+- Psych/Soc: "This scenario best illustrates…" / "According to [theory], the participant would most likely…" / "Which design flaw most threatens internal validity?" / "This finding best supports which sociological perspective?"
+- CARS: "The author's attitude toward X is best described as…" / "The second paragraph primarily serves to…" / "It can most reasonably be inferred that…" / "Which scenario is most analogous to the author's argument about…"
+
+**Section-specific distractor patterns — build wrong answers around these common errors:**
+- Chem/Phys: violate conservation laws, reverse causal direction, misuse units, confuse kinetic vs thermodynamic effects, misapply acid/base logic
+- Bio/Biochem: confuse transcription vs translation steps, mix membrane transport mechanisms, reverse signaling cascade direction, confuse competitive vs non-competitive inhibition, treat correlation as causation
+- Psych/Soc: use related but incorrect terminology, confuse similar theories (e.g., classical vs operant), mismatch level of analysis (individual vs societal), overgeneralize from a single finding
+- CARS: exaggerate the author's claim, introduce assumptions not in the passage, invert the author's stance, confuse a supporting example with the central thesis, use emotionally stronger language than the passage supports
+
 Output ONLY valid JSON in this exact shape:
 {
   "section": "Chem/Phys" | "CARS" | "Bio/Biochem" | "Psych/Soc",
@@ -144,6 +171,18 @@ QUESTION REQUIREMENTS (all sections)
 - Vary difficulty across the set (easy, medium, hard mix)
 - Bad stem: "According to the passage, which enzyme was used?" — retrieval only
 - Good stem: "If the Asp102Ala mutant were tested at pH 5.0, which result would be most consistent with the passage findings?" — reasoning required
+
+AAMC PRECISION MODIFIERS — use at least one per stem:
+"most likely", "best supported", "best explains", "primarily", "directly", "most consistent with", "least likely"
+Never use "always", "never", "proves", or "definitively" unless the passage justifies the absolute claim.
+
+MULTI-STEP REASONING: Every stem must chain passage evidence → scientific principle → inference. Pure retrieval ("Which enzyme was mentioned?") is not acceptable.
+
+SECTION-SPECIFIC DISTRACTOR PATTERNS — build wrong answers around these errors:
+- Chem/Phys: violate conservation laws, reverse causal direction, misuse units, confuse kinetic vs thermodynamic effects, misapply acid/base logic
+- Bio/Biochem: confuse transcription vs translation steps, mix membrane transport mechanisms, reverse signaling direction, confuse inhibition types, treat correlation as causation
+- Psych/Soc: use related but incorrect terminology, confuse similar theories, mismatch level of analysis, overgeneralize from a single finding
+- CARS: exaggerate the author's claim, introduce outside assumptions, invert the author's stance, confuse example with thesis, use emotionally stronger language than the passage supports
 
 ══════════════════════════════════════════
 PRE-SUBMISSION CHECKLIST (verify before outputting)
