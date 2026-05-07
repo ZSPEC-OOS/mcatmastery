@@ -83,6 +83,7 @@ const AdminGenerateSchema = z.object({
   section:         z.enum(["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"]),
   subTypes:        z.array(z.string()).optional(),
   count:           z.number().min(1).max(50).default(5),
+  passageSets:     z.number().min(1).max(20).optional(),
   model:           z.string().default("claude-opus-4-7"),
   dedupThreshold:  z.number().min(0.3).max(0.99).default(0.75),
   imageGeneration: z.boolean().default(false),
@@ -207,13 +208,17 @@ export async function POST(req: NextRequest) {
       return Math.floor(Math.random() * (max - min + 1)) + min;
     }
 
+    // passageSets mode: each loop iteration = one complete passage, no slot-size cap
+    const passageSetsMode  = !!(body.passageSets && body.passageSets > 0);
+    const totalForProgress = passageSetsMode ? body.passageSets! : body.count;
+
     const stream = new ReadableStream({
       async start(controller) {
         const enqueue = (data: unknown) => {
           try { controller.enqueue(encoder.encode(sseChunk(data))); } catch { /* client disconnected */ }
         };
 
-        let remaining  = body.count;
+        let remaining  = totalForProgress;
         let totalSaved = 0;
         let slotIndex  = 0;
 
@@ -242,13 +247,17 @@ export async function POST(req: NextRequest) {
               : undefined;
           }
 
-          const subTypeDef  = targetSubTypeId ? getSubTypeById(targetSubTypeId) : undefined;
-          const passageBased = !body.imageGeneration && (subTypeDef?.passageBased ?? false);
-          const slotSize     = passageBased
-            ? Math.min(remaining, body.section === "CARS" ? randInt(5, 7) : randInt(4, 6))
-            : 1;
+          const subTypeDef   = targetSubTypeId ? getSubTypeById(targetSubTypeId) : undefined;
+          const passageBased = passageSetsMode || (!body.imageGeneration && (subTypeDef?.passageBased ?? false));
 
-          enqueue({ type: "progress", current: body.count - remaining, total: body.count, topic: targetTopic });
+          // In passageSets mode each iteration = 1 slot; questions-per-passage are uncapped
+          const passageQCount = body.section === "CARS" ? randInt(5, 7) : randInt(4, 6);
+          const setSize  = passageBased
+            ? (passageSetsMode ? passageQCount : Math.min(remaining, passageQCount))
+            : 1;
+          const slotSize = passageSetsMode ? 1 : setSize;
+
+          enqueue({ type: "progress", current: totalForProgress - remaining, total: totalForProgress, topic: targetTopic });
 
           const subTypeClause = subTypeDef
             ? ` Subtype: "${subTypeDef.label}" — ${subTypeDef.description}`
@@ -259,7 +268,7 @@ export async function POST(req: NextRequest) {
             if (passageBased) {
               // ── PASSAGE SET ──────────────────────────────────────────────────
               const userMsg = [
-                `Generate one ${body.section} passage with ${slotSize} questions.`,
+                `Generate one ${body.section} passage with ${setSize} questions.`,
                 topicClause,
                 subTypeClause,
               ].filter(Boolean).join(" ");
