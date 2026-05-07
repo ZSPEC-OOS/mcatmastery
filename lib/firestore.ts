@@ -58,6 +58,7 @@ export interface QuestionDoc {
   section: string;
   topic: string;
   subType?: string;
+  passageGroupId?: string | null;
   passage?: string | null;
   stem: string;
   optionA: string;
