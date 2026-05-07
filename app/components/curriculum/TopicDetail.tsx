@@ -11,8 +11,7 @@ type Props = { topicKey: string };
 
 export default function TopicDetail({ topicKey }: Props) {
   const [activeTab, setActiveTab] = useState("Summary");
-  const [accuracy, setAccuracy]   = useState<number | null>(null);
-  const [attempted, setAttempted] = useState<number>(0);
+  const [questionCount, setQuestionCount] = useState<number>(0);
 
   const [sectionId, topicLabel] = (topicKey || ":").split(":") as [string, string];
   const sectionLabel = SECTION_LABELS[sectionId] ?? sectionId;
@@ -34,21 +33,15 @@ export default function TopicDetail({ topicKey }: Props) {
 
   useEffect(() => {
     setActiveTab("Summary");
-    setAccuracy(null);
-    setAttempted(0);
+    setQuestionCount(0);
     fetch("/api/curriculum")
       .then(r => r.json())
-      .then((data: { topicAccuracy: { topic: string; accuracy: number; attempted: number }[] }) => {
-        const match = data.topicAccuracy?.find(t => t.topic === topicLabel);
-        if (match) {
-          setAccuracy(match.accuracy);
-          setAttempted(match.attempted);
-        }
+      .then((data: { topicCounts: { topic: string; count: number }[] }) => {
+        const match = data.topicCounts?.find(t => t.topic === topicLabel);
+        setQuestionCount(match?.count ?? 0);
       })
       .catch(() => {});
   }, [topicKey, topicLabel]);
-
-  const isWeak = accuracy !== null && accuracy < 60;
 
   return (
     <div className="flex-1 overflow-y-auto px-7 py-6 min-w-0">
@@ -63,13 +56,17 @@ export default function TopicDetail({ topicKey }: Props) {
           <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
             {topicLabel}
           </h1>
-          {isWeak && (
+          {questionCount > 0 && (
             <span
               className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full"
-              style={{ background: "rgba(240,100,0,0.15)", color: "#f07030", border: "1px solid rgba(240,100,0,0.3)" }}
+              style={{
+                background: questionCount >= 10 ? "rgba(74,222,128,0.12)" : questionCount >= 4 ? "rgba(27,58,107,0.12)" : "rgba(245,158,11,0.12)",
+                color:      questionCount >= 10 ? "#4ade80"                : questionCount >= 4 ? "var(--accent-blue)"   : "#f59e0b",
+                border: `1px solid ${questionCount >= 10 ? "rgba(74,222,128,0.3)" : questionCount >= 4 ? "rgba(27,58,107,0.3)" : "rgba(245,158,11,0.3)"}`,
+              }}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-current" />
-              Weak Topic
+              {questionCount} question{questionCount !== 1 ? "s" : ""} in bank
             </span>
           )}
         </div>
@@ -84,14 +81,13 @@ export default function TopicDetail({ topicKey }: Props) {
 
       {/* Stats */}
       <div className="flex items-center gap-3 mb-5 text-sm" style={{ color: "var(--text-secondary)" }}>
-        {accuracy !== null ? (
-          <>
-            <span>Your Accuracy: <strong style={{ color: isWeak ? "#e05c5c" : "#4ade80" }}>{accuracy}%</strong></span>
-            <span style={{ color: "var(--border)" }}>|</span>
-            <span>Questions Attempted: <strong style={{ color: "var(--text-primary)" }}>{attempted}</strong></span>
-          </>
+        {questionCount > 0 ? (
+          <span>
+            <strong style={{ color: "var(--text-primary)" }}>{questionCount}</strong>
+            {" "}question{questionCount !== 1 ? "s" : ""} available in this topic
+          </span>
         ) : (
-          <span style={{ color: "var(--text-muted)" }}>No attempts yet for this topic.</span>
+          <span style={{ color: "var(--text-muted)" }}>No questions generated for this topic yet.</span>
         )}
       </div>
 
