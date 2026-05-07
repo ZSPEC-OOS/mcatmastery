@@ -50,7 +50,9 @@ export default function PracticePage() {
   const [submitted,  setSubmitted]  = useState(false);
   const [showExp,    setShowExp]    = useState(false);
   const [answers,    setAnswers]    = useState<Record<string, Answer>>({});
-  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [lightboxUrl,        setLightboxUrl]        = useState<string | null>(null);
+  const [showPassageSidebar, setShowPassageSidebar] = useState(true);
+  const [showPassageModal,   setShowPassageModal]   = useState(false);
 
   const [elapsed, setElapsed] = useState(0);
   const timerRef              = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -478,6 +480,26 @@ export default function PracticePage() {
             {foundInfo.returned} of {foundInfo.found} available
           </span>
         )}
+        {currentQ?.passage && (
+          <>
+            <button
+              onClick={() => setShowPassageSidebar(p => !p)}
+              className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded font-medium"
+              style={{
+                background: showPassageSidebar ? "rgba(99,102,241,0.12)" : "var(--bg-card-hover)",
+                border: `1px solid ${showPassageSidebar ? "rgba(99,102,241,0.35)" : "var(--border)"}`,
+                color: showPassageSidebar ? "#6366f1" : "var(--text-secondary)",
+              }}>
+              {showPassageSidebar ? "Hide Passage" : "View Passage"}
+            </button>
+            <button
+              onClick={() => setShowPassageModal(true)}
+              className="flex md:hidden items-center gap-1.5 px-2.5 py-1 rounded font-medium"
+              style={{ background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.35)", color: "#6366f1" }}>
+              Passage
+            </button>
+          </>
+        )}
         <span className="ml-auto" style={{ color: "var(--text-secondary)" }}>
           {idx + 1} / {questions.length}
         </span>
@@ -494,12 +516,12 @@ export default function PracticePage() {
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {currentQ.passage && (
-          <div className="hidden md:flex flex-col w-72 flex-shrink-0 overflow-y-auto p-4 text-xs leading-relaxed"
+        {currentQ.passage && showPassageSidebar && (
+          <div className="hidden md:flex flex-col w-80 flex-shrink-0 overflow-y-auto p-5 text-xs leading-relaxed"
             style={{ borderRight: "1px solid var(--border)", color: "var(--text-secondary)" }}>
-            <p className="font-semibold mb-2 text-xs uppercase tracking-wide"
+            <p className="font-semibold mb-3 text-xs uppercase tracking-wide"
               style={{ color: "var(--text-muted)" }}>Passage</p>
-            <p>{currentQ.passage}</p>
+            <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>{currentQ.passage}</p>
           </div>
         )}
 
@@ -515,6 +537,18 @@ export default function PracticePage() {
             </span>
             <span className="text-xs" style={{ color: "var(--text-muted)" }}>{currentQ.topic}</span>
           </div>
+
+          {currentQ.passage && (
+            <button
+              onClick={() => setShowPassageModal(true)}
+              className="md:hidden w-full mb-4 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-2"
+              style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.28)", color: "#6366f1" }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+              </svg>
+              Read Passage
+            </button>
+          )}
 
           {currentQ.figureUrl && (
             <div className="mb-4">
@@ -602,6 +636,46 @@ export default function PracticePage() {
           </div>
         </div>
       </div>
+
+      {/* Passage modal */}
+      {showPassageModal && currentQ?.passage && (
+        <div
+          className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-6"
+          style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}
+          onClick={() => setShowPassageModal(false)}>
+          <div
+            className="w-full md:max-w-2xl rounded-t-2xl md:rounded-2xl overflow-hidden flex flex-col"
+            style={{ background: "var(--bg-card)", maxHeight: "82vh" }}
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3.5 flex-shrink-0"
+              style={{ borderBottom: "1px solid var(--border)" }}>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Passage</p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{currentQ.topic}</p>
+              </div>
+              <button
+                onClick={() => setShowPassageModal(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-lg leading-none"
+                style={{ background: "var(--bg-card-hover)", color: "var(--text-secondary)", border: "1px solid var(--border)" }}>
+                ×
+              </button>
+            </div>
+            <div className="px-5 py-5 overflow-y-auto">
+              <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)", lineHeight: 1.8 }}>
+                {currentQ.passage}
+              </p>
+            </div>
+            <div className="px-5 py-3 flex-shrink-0" style={{ borderTop: "1px solid var(--border)" }}>
+              <button
+                onClick={() => setShowPassageModal(false)}
+                className="w-full py-2.5 rounded-lg text-sm font-semibold"
+                style={{ background: "var(--accent-blue)", color: "#fff", border: "none" }}>
+                Back to Question
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Lightbox */}
       {lightboxUrl && (
