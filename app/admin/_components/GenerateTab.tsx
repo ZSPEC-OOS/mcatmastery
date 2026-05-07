@@ -27,8 +27,9 @@ const PIPELINE_STEPS = [
 export default function GenerateTab() {
   const [section, setSection]           = useState<Section>("Bio/Biochem");
   const [subTypes, setSubTypes]         = useState<string[]>(() =>
-    (SECTION_SUBTYPES["Bio/Biochem"] ?? []).map(s => s.id));
-  const [count, setCount]               = useState(5);
+    (SECTION_SUBTYPES["Bio/Biochem"] ?? []).filter(s => s.passageBased).map(s => s.id));
+  const [count, setCount]               = useState(10);
+  const [passageSets, setPassageSets]   = useState(3);
   const [model, setModel]               = useState("");
   const [dedupThreshold, setDedup]      = useState(0.75);
   const [running, setRunning]           = useState(false);
@@ -52,18 +53,23 @@ export default function GenerateTab() {
       .finally(() => setModelsLoading(false));
   }, []);
 
+  const sectionSubtypes = SECTION_SUBTYPES[section] ?? [];
+  const isPassageMode = subTypes.length > 0 &&
+    subTypes.every(id => sectionSubtypes.find(s => s.id === id)?.passageBased ?? false);
+
   async function handleGenerate() {
     setRunning(true);
     setEvents([]);
-    setProgress({ current: 0, total: count });
+    setProgress({ current: 0, total: isPassageMode ? passageSets : count });
 
     const res = await fetch("/api/admin/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        section, subTypes, count, model, dedupThreshold,
+        section, subTypes, model, dedupThreshold,
         imageGeneration: imageGenEnabled,
         imageModelId:    imageGenEnabled ? imageModelId : undefined,
+        ...(isPassageMode ? { passageSets } : { count }),
       }),
     });
 
@@ -97,15 +103,20 @@ export default function GenerateTab() {
 
   function changeSection(s: Section) {
     setSection(s);
-    setSubTypes((SECTION_SUBTYPES[s] ?? []).map(st => st.id));
+    const sts = SECTION_SUBTYPES[s] ?? [];
+    const passage = sts.filter(st => st.passageBased).map(st => st.id);
+    setSubTypes(passage.length > 0 ? passage : sts.map(st => st.id));
   }
 
   function toggleSubType(id: string) {
-    setSubTypes(prev =>
-      prev.includes(id)
-        ? prev.length > 1 ? prev.filter(x => x !== id) : prev
-        : [...prev, id]
-    );
+    const clicked = sectionSubtypes.find(s => s.id === id);
+    if (!clicked) return;
+    setSubTypes(prev => {
+      const prevIsPassage = prev.some(pId => sectionSubtypes.find(s => s.id === pId)?.passageBased);
+      if (clicked.passageBased !== prevIsPassage) return [id]; // mode switch
+      if (prev.includes(id)) return prev.length > 1 ? prev.filter(x => x !== id) : prev;
+      return [...prev, id];
+    });
   }
 
   const doneEv = events.find((e) => e.type === "done") as { type: "done"; generated: number } | undefined;
@@ -185,16 +196,20 @@ export default function GenerateTab() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                Sub Types ({subTypes.length}/{(SECTION_SUBTYPES[section] ?? []).length})
+                Sub Types — <span style={{ color: isPassageMode ? "var(--accent-blue)" : "#f59e0b" }}>
+                  {isPassageMode ? "passage mode" : "discrete mode"}
+                </span>
               </label>
               <div className="flex gap-2">
-                <button onClick={() => setSubTypes((SECTION_SUBTYPES[section] ?? []).map(s => s.id))}
-                  className="text-xs" style={{ color: "var(--accent-blue)" }}>All</button>
                 <button onClick={() => {
-                  const first = (SECTION_SUBTYPES[section] ?? [])[0];
+                  const group = sectionSubtypes.filter(s => isPassageMode ? s.passageBased : !s.passageBased);
+                  setSubTypes((group.length > 0 ? group : sectionSubtypes).map(s => s.id));
+                }} className="text-xs" style={{ color: "var(--accent-blue)" }}>All</button>
+                <button onClick={() => {
+                  const group = sectionSubtypes.filter(s => isPassageMode ? s.passageBased : !s.passageBased);
+                  const first = (group.length > 0 ? group : sectionSubtypes)[0];
                   if (first) setSubTypes([first.id]);
-                }}
-                  className="text-xs" style={{ color: "var(--text-muted)" }}>Clear</button>
+                }} className="text-xs" style={{ color: "var(--text-muted)" }}>Clear</button>
               </div>
             </div>
             <div className="space-y-1.5 max-h-44 overflow-y-auto">
@@ -221,20 +236,43 @@ export default function GenerateTab() {
             </div>
           </div>
 
-          {/* Count */}
-          <div>
-            <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-              Count — <span style={{ color: "var(--text-primary)" }}>{count}</span>
-            </label>
-            <input
-              type="range" min={1} max={50} value={count}
-              onChange={(e) => setCount(Number(e.target.value))}
-              className="w-full"
-            />
-            <div className="flex justify-between text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-              <span>1</span><span>50</span>
+          {/* Count / Passage Sets */}
+          {isPassageMode ? (
+            <div>
+              <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                Passage Sets — <span style={{ color: "var(--text-primary)" }}>{passageSets}</span>
+              </label>
+              <input
+                type="range" min={1} max={20} value={passageSets}
+                onChange={(e) => setPassageSets(Number(e.target.value))}
+                className="w-full"
+              />
+              <div className="flex justify-between text-xs mt-1 mb-1.5" style={{ color: "var(--text-muted)" }}>
+                <span>1</span><span>20</span>
+              </div>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                {passageSets} complete passage{passageSets !== 1 ? "s" : ""} ×{" "}
+                {section === "CARS" ? "5–7" : "4–6"} questions each
+                {" "}≈ <span style={{ color: "var(--text-primary)" }}>
+                  {passageSets * (section === "CARS" ? 6 : 5)} questions
+                </span> total
+              </p>
             </div>
-          </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                Count — <span style={{ color: "var(--text-primary)" }}>{count}</span>
+              </label>
+              <input
+                type="range" min={1} max={50} value={count}
+                onChange={(e) => setCount(Number(e.target.value))}
+                className="w-full"
+              />
+              <div className="flex justify-between text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                <span>1</span><span>50</span>
+              </div>
+            </div>
+          )}
 
           {/* Model */}
           <div>
@@ -349,7 +387,11 @@ export default function GenerateTab() {
               cursor: (running || !model) ? "not-allowed" : "pointer",
             }}
           >
-            {running ? `Generating ${progress.current} / ${progress.total}…` : `Generate ${count} Question${count !== 1 ? "s" : ""}`}
+            {running
+              ? `Generating ${progress.current} / ${progress.total}…`
+              : isPassageMode
+                ? `Generate ${passageSets} Passage Set${passageSets !== 1 ? "s" : ""}`
+                : `Generate ${count} Question${count !== 1 ? "s" : ""}`}
           </button>
         </div>
 
@@ -365,7 +407,10 @@ export default function GenerateTab() {
               </div>
               {progress.topic && (
                 <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  Targeting: <span style={{ color: "var(--text-primary)", fontWeight: 500 }}>{progress.topic}</span>
+                  {isPassageMode
+                    ? <>Passage {progress.current + 1} of {progress.total} — <span style={{ color: "var(--text-primary)", fontWeight: 500 }}>{progress.topic}</span></>
+                    : <>Targeting: <span style={{ color: "var(--text-primary)", fontWeight: 500 }}>{progress.topic}</span></>
+                  }
                 </p>
               )}
             </div>
