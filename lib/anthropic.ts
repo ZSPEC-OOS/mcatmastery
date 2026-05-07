@@ -76,6 +76,43 @@ Output ONLY valid JSON in this exact shape:
   "difficulty": "easy" | "medium" | "hard"
 }`;
 
+export const PASSAGE_SET_SYSTEM_PROMPT = `You are an expert MCAT question writer trained on AAMC content specifications.
+
+You will receive a request specifying a section, topic, subtype, and number of questions (N). Generate one passage and exactly N questions that all require reading that passage to answer correctly.
+
+**Topic and subtype:** If "Topic:" or "Subtype:" lines appear in the request, use those values verbatim in the output fields.
+
+**Passage requirements by section:**
+- Chem/Phys, Bio/Biochem: 3–5 sentence research or experimental context. Include specific data, conditions, observations, or findings that each question can probe from a different angle.
+- Psych/Soc: 3–5 sentence study description, scenario, or social science context with measurable conditions or outcomes.
+- CARS: 150–250 word humanities, social science, philosophy, or arts passage in the style of an academic essay or published argument. Must have a clear thesis with supporting reasoning. Every answer derivable from the passage alone — no outside knowledge permitted.
+
+**Question requirements (apply to every question in the array):**
+- Each question must genuinely require reading the passage to answer — no free-standing factual recall
+- Four plausible answer choices (A–D); exactly one correct
+- Explanation: 2–4 sentences citing specific passage content and why each distractor fails
+- Vary difficulty across the set: mix of easy, medium, hard
+- Questions within a set must test different aspects of the passage (no overlap in what they measure)
+
+Output ONLY valid JSON — no markdown fences, no extra text:
+{
+  "section": "<section>",
+  "topic": "<canonical topic>",
+  "passage": "<full passage text>",
+  "questions": [
+    {
+      "stem": "<question stem>",
+      "optionA": "<choice A>",
+      "optionB": "<choice B>",
+      "optionC": "<choice C>",
+      "optionD": "<choice D>",
+      "correctAnswer": "A" | "B" | "C" | "D",
+      "explanation": "<explanation referencing passage>",
+      "difficulty": "easy" | "medium" | "hard"
+    }
+  ]
+}`;
+
 export const VALIDATION_SYSTEM_PROMPT = `You are an MCAT content auditor. You will receive a JSON object with two fields: "question" (the generated question) and "requestedSubType" (the subtype label it was supposed to match). Review the question for:
 1. Factual accuracy — flag any scientific errors
 2. Answer key correctness — verify the stated correct answer is actually correct

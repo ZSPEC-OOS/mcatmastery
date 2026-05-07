@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { getSetting, ensureSchema } from "../../../../lib/db";
-import { GENERATION_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT } from "../../../../lib/anthropic";
+import { GENERATION_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT, PASSAGE_SET_SYSTEM_PROMPT } from "../../../../lib/anthropic";
 import { saveQuestion, getQuestions, getModelByModelId, uploadQuestionImage, updateQuestion } from "../../../../lib/firestore";
 import { callModel } from "../../../../lib/model";
 import { getSubTypeById } from "../../../../lib/subtypes";
@@ -144,11 +144,12 @@ export async function POST(req: NextRequest) {
 
     await ensureSchema();
 
-    const [customGen, customVal, customImgGen, customImgVal] = await Promise.all([
+    const [customGen, customVal, customImgGen, customImgVal, customPassageGen] = await Promise.all([
       getSetting("generation_prompt"),
       getSetting("validation_prompt"),
       getSetting("image_generation_prompt"),
       getSetting("image_validation_prompt"),
+      getSetting("passage_generation_prompt"),
     ]);
 
     const genPrompt = body.imageGeneration
@@ -158,6 +159,8 @@ export async function POST(req: NextRequest) {
     const valPrompt = body.imageGeneration
       ? (customImgVal || IMAGE_VALIDATION_PROMPT)
       : (customVal || VALIDATION_SYSTEM_PROMPT);
+
+    const passageSetPrompt = customPassageGen || PASSAGE_SET_SYSTEM_PROMPT;
 
     const modelConfig = await getModelByModelId(body.model).catch(() => null);
 
@@ -197,8 +200,12 @@ export async function POST(req: NextRequest) {
           })()
         : null;
 
-    const encoder   = new TextEncoder();
-    const generated: string[] = [];
+    const encoder    = new TextEncoder();
+    const savedStems = existing.map((q) => q.stem);
+
+    function randInt(min: number, max: number) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -206,7 +213,11 @@ export async function POST(req: NextRequest) {
           try { controller.enqueue(encoder.encode(sseChunk(data))); } catch { /* client disconnected */ }
         };
 
-        for (let i = 0; i < body.count; i++) {
+        let remaining  = body.count;
+        let totalSaved = 0;
+        let slotIndex  = 0;
+
+        while (remaining > 0) {
           // Pick (topic, subtype) pair with lowest count — ties broken by list order
           let targetTopic: string | undefined;
           let targetSubTypeId: string | undefined;
@@ -223,146 +234,218 @@ export async function POST(req: NextRequest) {
             targetTopic = canonicalTopics.reduce((best, t) =>
               (counts1D[t] ?? 0) < (counts1D[best] ?? 0) ? t : best, canonicalTopics[0]);
             targetSubTypeId = effectiveSubTypeIds.length
-              ? effectiveSubTypeIds[i % effectiveSubTypeIds.length]
+              ? effectiveSubTypeIds[slotIndex % effectiveSubTypeIds.length]
               : undefined;
           } else {
             targetSubTypeId = effectiveSubTypeIds.length
-              ? effectiveSubTypeIds[i % effectiveSubTypeIds.length]
+              ? effectiveSubTypeIds[slotIndex % effectiveSubTypeIds.length]
               : undefined;
           }
 
-          enqueue({ type: "progress", current: i + 1, total: body.count, topic: targetTopic });
+          const subTypeDef  = targetSubTypeId ? getSubTypeById(targetSubTypeId) : undefined;
+          const passageBased = !body.imageGeneration && (subTypeDef?.passageBased ?? false);
+          const slotSize     = passageBased
+            ? Math.min(remaining, body.section === "CARS" ? randInt(5, 7) : randInt(4, 6))
+            : 1;
+
+          enqueue({ type: "progress", current: body.count - remaining, total: body.count, topic: targetTopic });
+
+          const subTypeClause = subTypeDef
+            ? ` Subtype: "${subTypeDef.label}" — ${subTypeDef.description}`
+            : "";
+          const topicClause = targetTopic ? ` Topic: ${targetTopic}.` : "";
 
           try {
-            const subTypeDef = targetSubTypeId ? getSubTypeById(targetSubTypeId) : undefined;
+            if (passageBased) {
+              // ── PASSAGE SET ──────────────────────────────────────────────────
+              const userMsg = [
+                `Generate one ${body.section} passage with ${slotSize} questions.`,
+                topicClause,
+                subTypeClause,
+              ].filter(Boolean).join(" ");
 
-            const subTypeClause = subTypeDef
-              ? ` Subtype: "${subTypeDef.label}" — ${subTypeDef.description}`
-              : "";
-
-            const topicClause = targetTopic ? ` Topic: ${targetTopic}.` : "";
-
-            const userMsg = [
-              `Generate one ${body.section} question.`,
-              topicClause,
-              subTypeClause,
-              body.imageGeneration ? "The question MUST require a figure to answer." : "",
-            ].filter(Boolean).join(" ");
-
-            const raw = await callModel({
-              modelId:     body.model,
-              baseUrl:     modelConfig?.baseUrl,
-              apiKey:      modelConfig?.apiKey,
-              system:      genPrompt,
-              userContent: userMsg,
-              maxTokens:   1200,
-            });
-
-            let parsed: Record<string, unknown>;
-            try {
-              parsed = extractModelJson(raw);
-            } catch (parseErr) {
-              enqueue({
-                type: "skip",
-                reason: "parse_error",
-                message: `${parseErr instanceof Error ? parseErr.message : String(parseErr)} | raw: ${raw.slice(0, 300)}`,
-                index: i,
+              const raw = await callModel({
+                modelId:     body.model,
+                baseUrl:     modelConfig?.baseUrl,
+                apiKey:      modelConfig?.apiKey,
+                system:      passageSetPrompt,
+                userContent: userMsg,
+                maxTokens:   4000,
               });
-              continue;
-            }
 
-            const allStems = [...existing.map((q: { stem: string }) => q.stem), ...generated];
-            if (allStems.some((stem) => jaccardSimilarity(stem, parsed.stem as string) > body.dedupThreshold)) {
-              enqueue({ type: "skip", reason: "duplicate", index: i });
-              continue;
-            }
-
-            const valRaw = await callModel({
-              modelId:     body.model,
-              baseUrl:     modelConfig?.baseUrl,
-              apiKey:      modelConfig?.apiKey,
-              system:      valPrompt,
-              userContent: JSON.stringify({
-                question: parsed,
-                requestedSubType: subTypeDef?.label ?? "general",
-              }),
-              maxTokens:   600,
-            });
-
-            let validation: { pass: boolean; flags: string[]; corrected_question: Record<string, unknown> | null };
-            try {
-              validation = extractModelJson(valRaw) as typeof validation;
-            } catch (parseErr) {
-              enqueue({
-                type: "skip",
-                reason: "validation_parse_error",
-                message: `${parseErr instanceof Error ? parseErr.message : String(parseErr)} | raw: ${valRaw.slice(0, 200)}`,
-                index: i,
-              });
-              continue;
-            }
-
-            if (!validation.pass && !validation.corrected_question) {
-              enqueue({ type: "skip", reason: "validation_failed", flags: validation.flags, index: i });
-              continue;
-            }
-
-            const final = validation.pass ? parsed : (validation.corrected_question ?? parsed);
-
-            let saved = await saveQuestion({
-              section:       final.section as string,
-              topic:         final.topic as string,
-              subType:       targetSubTypeId,
-              passage:       (final.passage as string) ?? null,
-              stem:          final.stem as string,
-              optionA:       final.optionA as string,
-              optionB:       final.optionB as string,
-              optionC:       final.optionC as string,
-              optionD:       final.optionD as string,
-              correctAnswer: final.correctAnswer as string,
-              explanation:   final.explanation as string,
-              difficulty:    (final.difficulty as string) ?? "medium",
-              aiGenerated:   true,
-            });
-
-            // Generate figure image and upload using real question ID
-            let figureUrl: string | null = null;
-            if (body.imageGeneration && imageModelConfig?.baseUrl && final.figure_prompt) {
-              const imgResult = await generateImage({
-                prompt:  final.figure_prompt as string,
-                modelId: imageModelConfig.modelId,
-                baseUrl: imageModelConfig.baseUrl,
-                apiKey:  imageModelConfig.apiKey,
-              });
-              if (imgResult) {
-                if (imgResult.startsWith("data:")) {
-                  figureUrl = await uploadQuestionImage(imgResult, saved.id).catch(() => null);
-                } else {
-                  figureUrl = imgResult;
+              type PassageSet = { section: string; topic: string; passage: string; questions: Record<string, unknown>[] };
+              let passageSet: PassageSet | null = null;
+              try {
+                const parsed = extractModelJson(raw);
+                if (!parsed.passage || !Array.isArray(parsed.questions)) {
+                  throw new Error("Missing passage or questions array");
                 }
-                if (figureUrl) {
-                  await updateQuestion(saved.id, { figureUrl }).catch(() => {});
-                  saved = { ...saved, figureUrl };
+                passageSet = parsed as PassageSet;
+              } catch (parseErr) {
+                enqueue({
+                  type: "skip", reason: "parse_error",
+                  message: `${parseErr instanceof Error ? parseErr.message : String(parseErr)} | raw: ${raw.slice(0, 300)}`,
+                });
+              }
+
+              if (passageSet) {
+                const passageGroupId = crypto.randomUUID();
+                let setCount = 0;
+
+                for (const q of passageSet.questions) {
+                  const stem = q.stem as string;
+                  if (!stem || !q.optionA || !q.optionB || !q.optionC || !q.optionD || !q.correctAnswer || !q.explanation) continue;
+                  if (savedStems.some((s) => jaccardSimilarity(s, stem) > body.dedupThreshold)) {
+                    enqueue({ type: "skip", reason: "duplicate" });
+                    continue;
+                  }
+                  const saved = await saveQuestion({
+                    section:        passageSet!.section || body.section,
+                    topic:          passageSet!.topic   || targetTopic || "",
+                    subType:        targetSubTypeId,
+                    passageGroupId,
+                    passage:        passageSet!.passage,
+                    stem,
+                    optionA:        q.optionA as string,
+                    optionB:        q.optionB as string,
+                    optionC:        q.optionC as string,
+                    optionD:        q.optionD as string,
+                    correctAnswer:  q.correctAnswer as string,
+                    explanation:    q.explanation as string,
+                    difficulty:     (q.difficulty as string) ?? "medium",
+                    aiGenerated:    true,
+                  });
+                  savedStems.push(stem);
+                  setCount++;
+                  totalSaved++;
+                  enqueue({ type: "question", question: saved });
+                }
+
+                if (counts2D && targetTopic && targetSubTypeId) {
+                  counts2D[targetTopic][targetSubTypeId] = (counts2D[targetTopic][targetSubTypeId] ?? 0) + setCount;
+                } else if (counts1D && targetTopic) {
+                  counts1D[targetTopic] = (counts1D[targetTopic] ?? 0) + setCount;
+                }
+              }
+
+            } else {
+              // ── DISCRETE QUESTION ─────────────────────────────────────────
+              const userMsg = [
+                `Generate one ${body.section} question.`,
+                topicClause,
+                subTypeClause,
+                body.imageGeneration ? "The question MUST require a figure to answer." : "",
+              ].filter(Boolean).join(" ");
+
+              const raw = await callModel({
+                modelId:     body.model,
+                baseUrl:     modelConfig?.baseUrl,
+                apiKey:      modelConfig?.apiKey,
+                system:      genPrompt,
+                userContent: userMsg,
+                maxTokens:   1200,
+              });
+
+              let parsed: Record<string, unknown> | null = null;
+              try {
+                parsed = extractModelJson(raw);
+              } catch (parseErr) {
+                enqueue({
+                  type: "skip", reason: "parse_error",
+                  message: `${parseErr instanceof Error ? parseErr.message : String(parseErr)} | raw: ${raw.slice(0, 300)}`,
+                });
+              }
+
+              if (parsed) {
+                if (savedStems.some((s) => jaccardSimilarity(s, parsed!.stem as string) > body.dedupThreshold)) {
+                  enqueue({ type: "skip", reason: "duplicate" });
+                } else {
+                  const valRaw = await callModel({
+                    modelId:     body.model,
+                    baseUrl:     modelConfig?.baseUrl,
+                    apiKey:      modelConfig?.apiKey,
+                    system:      valPrompt,
+                    userContent: JSON.stringify({ question: parsed, requestedSubType: subTypeDef?.label ?? "general" }),
+                    maxTokens:   600,
+                  });
+
+                  type Validation = { pass: boolean; flags: string[]; corrected_question: Record<string, unknown> | null };
+                  let validation: Validation | null = null;
+                  try {
+                    validation = extractModelJson(valRaw) as Validation;
+                  } catch (parseErr) {
+                    enqueue({
+                      type: "skip", reason: "validation_parse_error",
+                      message: `${parseErr instanceof Error ? parseErr.message : String(parseErr)} | raw: ${valRaw.slice(0, 200)}`,
+                    });
+                  }
+
+                  if (validation) {
+                    if (!validation.pass && !validation.corrected_question) {
+                      enqueue({ type: "skip", reason: "validation_failed", flags: validation.flags });
+                    } else {
+                      const final = validation.pass ? parsed : (validation.corrected_question ?? parsed);
+
+                      let saved = await saveQuestion({
+                        section:        final.section as string,
+                        topic:          final.topic as string,
+                        subType:        targetSubTypeId,
+                        passageGroupId: null,
+                        passage:        (final.passage as string) ?? null,
+                        stem:           final.stem as string,
+                        optionA:        final.optionA as string,
+                        optionB:        final.optionB as string,
+                        optionC:        final.optionC as string,
+                        optionD:        final.optionD as string,
+                        correctAnswer:  final.correctAnswer as string,
+                        explanation:    final.explanation as string,
+                        difficulty:     (final.difficulty as string) ?? "medium",
+                        aiGenerated:    true,
+                      });
+
+                      let figureUrl: string | null = null;
+                      if (body.imageGeneration && imageModelConfig?.baseUrl && final.figure_prompt) {
+                        const imgResult = await generateImage({
+                          prompt:  final.figure_prompt as string,
+                          modelId: imageModelConfig.modelId,
+                          baseUrl: imageModelConfig.baseUrl,
+                          apiKey:  imageModelConfig.apiKey,
+                        });
+                        if (imgResult) {
+                          if (imgResult.startsWith("data:")) {
+                            figureUrl = await uploadQuestionImage(imgResult, saved.id).catch(() => null);
+                          } else {
+                            figureUrl = imgResult;
+                          }
+                          if (figureUrl) {
+                            await updateQuestion(saved.id, { figureUrl }).catch(() => {});
+                            saved = { ...saved, figureUrl };
+                          }
+                        }
+                      }
+
+                      savedStems.push(final.stem as string);
+                      totalSaved++;
+                      if (counts2D && targetTopic && targetSubTypeId) {
+                        counts2D[targetTopic][targetSubTypeId] = (counts2D[targetTopic][targetSubTypeId] ?? 0) + 1;
+                      } else if (counts1D && targetTopic) {
+                        counts1D[targetTopic] = (counts1D[targetTopic] ?? 0) + 1;
+                      }
+                      enqueue({ type: "question", question: { ...saved, hasFigure: !!figureUrl } });
+                    }
+                  }
                 }
               }
             }
-
-            generated.push(final.stem as string);
-            if (counts2D && targetTopic && targetSubTypeId) {
-              counts2D[targetTopic][targetSubTypeId] = (counts2D[targetTopic][targetSubTypeId] ?? 0) + 1;
-            } else if (counts1D && targetTopic) {
-              counts1D[targetTopic] = (counts1D[targetTopic] ?? 0) + 1;
-            }
-            enqueue({
-              type:     "question",
-              question: { ...saved, hasFigure: !!figureUrl },
-            });
           } catch (err) {
-            enqueue({ type: "skip", reason: "error", message: err instanceof Error ? err.message : "unknown", index: i });
+            enqueue({ type: "skip", reason: "error", message: err instanceof Error ? err.message : "unknown" });
           }
+
+          remaining -= slotSize;
+          slotIndex++;
         }
 
-        enqueue({ type: "done", generated: generated.length });
+        enqueue({ type: "done", generated: totalSaved });
         controller.close();
       },
     });

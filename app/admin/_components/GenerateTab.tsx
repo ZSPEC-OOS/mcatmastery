@@ -6,7 +6,7 @@ import { SECTION_SUBTYPES } from "../../../lib/subtypes";
 type Section = "Chem/Phys" | "CARS" | "Bio/Biochem" | "Psych/Soc";
 type GenEvent =
   | { type: "progress"; current: number; total: number; topic?: string }
-  | { type: "question"; question: { id: string; section: string; topic: string; stem: string; difficulty: string; hasFigure?: boolean } }
+  | { type: "question"; question: { id: string; section: string; topic: string; stem: string; difficulty: string; hasFigure?: boolean; passageGroupId?: string | null } }
   | { type: "skip"; reason: string; flags?: string[]; message?: string; index: number }
   | { type: "done"; generated: number };
 
@@ -15,7 +15,7 @@ interface CustomModel { id: string; name: string; modelId: string; baseUrl: stri
 const PIPELINE_STEPS = [
   { n: 1, title: "Input Config",       desc: "Section, subtypes, count, model, and duplicate filter threshold." },
   { n: 2, title: "Load Existing",      desc: "Last 100 questions from the same section fetched for dedup." },
-  { n: 3, title: "Generate (Claude)",  desc: "GENERATION_SYSTEM_PROMPT + user request → model outputs JSON." },
+  { n: 3, title: "Generate (Claude)",  desc: "Passage-based subtypes → one call produces a shared passage + 4–7 questions. Discrete subtypes → one call per question." },
   { n: 4, title: "Parse JSON",         desc: "Output parsed; regex extracts JSON block from model response." },
   { n: 5, title: "Jaccard Dedup",      desc: "Word-overlap similarity vs existing stems. Skip if > threshold." },
   { n: 6, title: "Quality Validation", desc: "Second Claude call checks accuracy, answer key, MCAT alignment." },
@@ -412,9 +412,16 @@ export default function GenerateTab() {
                     <p className="text-sm" style={{ color: "var(--text-primary)" }}>
                       {ev.question.stem.length > 140 ? ev.question.stem.slice(0, 140) + "…" : ev.question.stem}
                     </p>
-                    {ev.question.hasFigure && (
-                      <p className="text-xs mt-1" style={{ color: "var(--accent-blue)" }}>🖼 Figure generated</p>
-                    )}
+                    <div className="flex items-center gap-3 mt-1">
+                      {ev.question.passageGroupId && (
+                        <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>
+                          passage {ev.question.passageGroupId.slice(0, 8)}
+                        </span>
+                      )}
+                      {ev.question.hasFigure && (
+                        <span className="text-xs" style={{ color: "var(--accent-blue)" }}>🖼 figure</span>
+                      )}
+                    </div>
                   </div>
                 );
               }
