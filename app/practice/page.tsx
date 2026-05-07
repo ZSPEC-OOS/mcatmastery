@@ -55,9 +55,15 @@ export default function PracticePage() {
   const [showPassageSidebar, setShowPassageSidebar] = useState(true);
   const [showPassageModal,   setShowPassageModal]   = useState(false);
 
+  const [flagged,       setFlagged]       = useState<Set<string>>(new Set());
+  const [simpleExp,     setSimpleExp]     = useState<string | null>(null);
+  const [loadingSimple, setLoadingSimple] = useState(false);
+
   const [elapsed, setElapsed] = useState(0);
   const timerRef              = useRef<ReturnType<typeof setInterval> | null>(null);
   const qStartRef             = useRef(Date.now());
+  const passageSidebarRef     = useRef<HTMLDivElement>(null);
+  const questionTimesRef      = useRef<Record<string, number>>({});
 
   const currentQ = questions[idx] ?? null;
   const timed    = timeMode !== "untimed";
@@ -97,11 +103,60 @@ export default function PracticePage() {
     );
   }
 
+  // Pre-fill weak topics when arriving from dashboard ?weak=1
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("weak") !== "1") return;
+    fetch("/api/dashboard")
+      .then(r => r.json())
+      .then((data: { weakTopics?: Array<{ section: string }> }) => {
+        const weakSecs = [...new Set((data.weakTopics ?? []).map(t => t.section))] as Section[];
+        if (weakSecs.length > 0) {
+          setSections(weakSecs);
+          setSubTypes(allSubTypeIds(weakSecs));
+          setCount(20);
+        }
+      })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset simple explanation when question changes
+  useEffect(() => { setSimpleExp(null); setLoadingSimple(false); }, [idx]);
+
+  // Auto-scroll passage sidebar to top when question changes
+  useEffect(() => {
+    if (passageSidebarRef.current) passageSidebarRef.current.scrollTop = 0;
+  }, [idx]);
+
   useEffect(() => {
     if (phase !== "active") return;
     timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [phase]);
+
+  // Keyboard shortcuts: 1-4 / A-D to select, Enter to submit or advance, P to toggle passage
+  useEffect(() => {
+    if (phase !== "active") return;
+    function handler(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      switch (e.key) {
+        case "1": case "a": case "A": if (!submitted) setSelected("A"); break;
+        case "2": case "b": case "B": if (!submitted) setSelected("B"); break;
+        case "3": case "c": case "C": if (!submitted) setSelected("C"); break;
+        case "4": case "d": case "D": if (!submitted) setSelected("D"); break;
+        case "Enter":
+          if (!submitted && selected) handleSubmit();
+          else if (submitted) handleNext();
+          break;
+        case "p": case "P":
+          if (currentQ?.passage) setShowPassageModal(p => !p);
+          break;
+      }
+    }
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [phase, submitted, selected, currentQ, handleSubmit, handleNext]);
 
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
@@ -148,6 +203,8 @@ export default function PracticePage() {
   const handleSubmit = useCallback(async () => {
     if (!selected || !currentQ) return;
     const isCorrect = selected === currentQ.correctAnswer;
+    const timeSpent = Math.round((Date.now() - qStartRef.current) / 1000);
+    questionTimesRef.current[currentQ.id] = timeSpent;
     setSubmitted(true);
     setShowExp(true);
     setAnswers(a => ({ ...a, [currentQ.id]: selected }));
@@ -161,7 +218,7 @@ export default function PracticePage() {
           questionId: currentQ.id,
           userAnswer: selected,
           isCorrect,
-          timeSpentSeconds: Math.round((Date.now() - qStartRef.current) / 1000),
+          timeSpentSeconds: timeSpent,
         }),
       });
     } catch { /* non-blocking */ }
@@ -176,6 +233,8 @@ export default function PracticePage() {
       setSelected(null);
       setSubmitted(false);
       setShowExp(false);
+      setSimpleExp(null);
+      setLoadingSimple(false);
       qStartRef.current = Date.now();
     }
   }, [idx, questions.length, sessionId]);
@@ -402,52 +461,107 @@ export default function PracticePage() {
   );
 
   // ── COMPLETE ────────────────────────────────────────────────────────────────
-  if (phase === "complete") return (
-    <div className="flex flex-col min-h-screen">
-      <Navbar />
-      <main className="flex-1 flex flex-col items-center justify-center gap-6 px-4 py-12">
-        <div className="rounded-xl p-8 w-full max-w-md text-center" style={S.card}>
-          <div className="text-5xl font-bold mb-2"
-            style={{ color: questions.length > 0 && correctCount / questions.length >= 0.7 ? "#4ade80" : "#f87171" }}>
-            {questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0}%
-          </div>
-          <p className="text-sm mb-6" style={{ color: "var(--text-secondary)" }}>
-            {correctCount} / {questions.length} correct
-          </p>
-          <div className="flex flex-wrap gap-2 justify-center mb-6">
-            {questions.map((q, i) => {
-              const ans     = answers[q.id];
-              const correct = ans === q.correctAnswer;
-              return (
-                <div key={q.id}
-                  className="w-8 h-8 rounded flex items-center justify-center text-xs font-bold"
-                  style={{
-                    background: !ans ? "var(--bg-card-hover)" : correct ? "rgba(74,222,128,0.15)" : "rgba(248,113,113,0.15)",
-                    color: !ans ? "var(--text-muted)" : correct ? "#4ade80" : "#f87171",
-                    border: `1px solid ${!ans ? "var(--border)" : correct ? "rgba(74,222,128,0.4)" : "rgba(248,113,113,0.4)"}`,
-                  }}>
-                  {i + 1}
+  if (phase === "complete") {
+    // Per-section avg time
+    const secTimeSums: Record<string, { total: number; count: number }> = {};
+    for (const q of questions) {
+      const t = questionTimesRef.current[q.id];
+      if (t != null) {
+        if (!secTimeSums[q.section]) secTimeSums[q.section] = { total: 0, count: 0 };
+        secTimeSums[q.section].total += t;
+        secTimeSums[q.section].count++;
+      }
+    }
+    const secTimes = Object.entries(secTimeSums)
+      .map(([sec, { total, count }]) => ({ sec, avg: Math.round(total / count) }));
+
+    const flaggedQs = questions.filter(q => flagged.has(q.id));
+
+    return (
+      <div className="flex flex-col min-h-screen">
+        <Navbar />
+        <main className="flex-1 flex flex-col items-center justify-center gap-6 px-4 py-12">
+          <div className="rounded-xl p-8 w-full max-w-md text-center" style={S.card}>
+            <div className="text-5xl font-bold mb-2"
+              style={{ color: questions.length > 0 && correctCount / questions.length >= 0.7 ? "#4ade80" : "#f87171" }}>
+              {questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0}%
+            </div>
+            <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>
+              {correctCount} / {questions.length} correct
+            </p>
+
+            {/* Per-section timing */}
+            {secTimes.length > 0 && (
+              <div className="flex flex-wrap justify-center gap-3 mb-4">
+                {secTimes.map(({ sec, avg }) => (
+                  <span key={sec} className="text-xs px-2 py-0.5 rounded"
+                    style={{ background: `${SEC_COLOR[sec as Section] ?? "#6366f1"}15`, color: SEC_COLOR[sec as Section] ?? "#6366f1", border: `1px solid ${SEC_COLOR[sec as Section] ?? "#6366f1"}30` }}>
+                    {sec.split("/")[0]}: {avg >= 60 ? `${Math.floor(avg/60)}m ${avg%60}s` : `${avg}s`} avg
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Question grid with section colors */}
+            <div className="flex flex-wrap gap-2 justify-center mb-4">
+              {questions.map((q, i) => {
+                const ans     = answers[q.id];
+                const correct = ans === q.correctAnswer;
+                const secCol  = SEC_COLOR[q.section as Section] ?? "#6366f1";
+                const isFlagged = flagged.has(q.id);
+                return (
+                  <div key={q.id}
+                    className="w-8 h-8 rounded flex items-center justify-center text-xs font-bold relative"
+                    style={{
+                      background: !ans ? "var(--bg-card-hover)" : correct ? `${secCol}20` : "rgba(248,113,113,0.15)",
+                      color: !ans ? "var(--text-muted)" : correct ? secCol : "#f87171",
+                      border: `1px solid ${!ans ? "var(--border)" : correct ? `${secCol}60` : "rgba(248,113,113,0.4)"}`,
+                    }}>
+                    {i + 1}
+                    {isFlagged && (
+                      <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full flex items-center justify-center"
+                        style={{ background: "#f59e0b", fontSize: 7 }}>★</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Flagged questions */}
+            {flaggedQs.length > 0 && (
+              <div className="text-left rounded-xl p-3 mb-4"
+                style={{ background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.25)" }}>
+                <p className="text-xs font-semibold mb-2" style={{ color: "#f59e0b" }}>
+                  ★ Flagged for review ({flaggedQs.length})
+                </p>
+                <div className="space-y-1">
+                  {flaggedQs.map((q, i) => (
+                    <p key={q.id} className="text-xs leading-snug" style={{ color: "var(--text-secondary)" }}>
+                      {i + 1}. {q.stem.length > 80 ? q.stem.slice(0, 80) + "…" : q.stem}
+                    </p>
+                  ))}
                 </div>
-              );
-            })}
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button onClick={() => window.location.href = "/review"}
+                className="flex-1 py-2 rounded text-sm font-semibold"
+                style={{ background: "transparent", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+                Review Mistakes
+              </button>
+              <button onClick={() => { setPhase("config"); setQuestions([]); setAnswers({}); setFlagged(new Set()); }}
+                className="flex-1 py-2 rounded text-sm font-semibold"
+                style={{ background: "var(--accent-blue)", color: "#fff", border: "none" }}>
+                New Session
+              </button>
+            </div>
           </div>
-          <div className="flex gap-3">
-            <button onClick={() => window.location.href = "/review"}
-              className="flex-1 py-2 rounded text-sm font-semibold"
-              style={{ background: "transparent", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
-              Review Mistakes
-            </button>
-            <button onClick={() => { setPhase("config"); setQuestions([]); setAnswers({}); }}
-              className="flex-1 py-2 rounded text-sm font-semibold"
-              style={{ background: "var(--accent-blue)", color: "#fff", border: "none" }}>
-              New Session
-            </button>
-          </div>
-        </div>
-      </main>
-      <Footer />
-    </div>
-  );
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   // ── NO QUESTIONS ─────────────────────────────────────────────────────────────
   if (!currentQ) return (
@@ -481,6 +595,16 @@ export default function PracticePage() {
             {foundInfo.returned} of {foundInfo.found} available
           </span>
         )}
+        {currentQ?.passageGroupId && (() => {
+          const grpQs = questions.filter(q => q.passageGroupId === currentQ.passageGroupId);
+          const pos   = grpQs.findIndex(q => q.id === currentQ.id);
+          return grpQs.length > 1 ? (
+            <span className="text-xs px-2 py-0.5 rounded hidden sm:inline"
+              style={{ background: "rgba(99,102,241,0.08)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.2)" }}>
+              Q{pos + 1}/{grpQs.length} in passage
+            </span>
+          ) : null;
+        })()}
         {currentQ?.passage && (
           <>
             <button
@@ -518,7 +642,7 @@ export default function PracticePage() {
 
       <div className="flex flex-1 overflow-hidden">
         {currentQ.passage && showPassageSidebar && (
-          <div className="hidden md:flex flex-col w-80 flex-shrink-0 overflow-y-auto p-5 text-xs leading-relaxed"
+          <div ref={passageSidebarRef} className="hidden md:flex flex-col w-80 flex-shrink-0 overflow-y-auto p-5 text-xs leading-relaxed"
             style={{ borderRight: "1px solid var(--border)", color: "var(--text-secondary)" }}>
             <p className="font-semibold mb-3 text-xs uppercase tracking-wide"
               style={{ color: "var(--text-muted)" }}>Passage</p>
@@ -537,6 +661,23 @@ export default function PracticePage() {
               {currentQ.difficulty}
             </span>
             <span className="text-xs" style={{ color: "var(--text-muted)" }}>{currentQ.topic}</span>
+            <button
+              onClick={() => setFlagged(prev => {
+                const next = new Set(prev);
+                next.has(currentQ.id) ? next.delete(currentQ.id) : next.add(currentQ.id);
+                return next;
+              })}
+              className="ml-auto text-xs px-2 py-0.5 rounded flex items-center gap-1"
+              style={{
+                background: flagged.has(currentQ.id) ? "rgba(245,158,11,0.12)" : "transparent",
+                color: flagged.has(currentQ.id) ? "#f59e0b" : "var(--text-muted)",
+                border: `1px solid ${flagged.has(currentQ.id) ? "rgba(245,158,11,0.35)" : "var(--border)"}`,
+              }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill={flagged.has(currentQ.id) ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+              </svg>
+              {flagged.has(currentQ.id) ? "Flagged" : "Flag"}
+            </button>
           </div>
 
           {currentQ.passage && (
@@ -601,11 +742,49 @@ export default function PracticePage() {
           </div>
 
           {showExp && (
-            <div className="rounded-xl p-4 mb-4"
+            <div className="rounded-xl p-4 mb-3"
               style={{ background: "rgba(27,58,107,0.06)", border: "1px solid rgba(27,58,107,0.2)" }}>
               <p className="text-xs font-semibold uppercase mb-2" style={{ color: "#6366f1" }}>Explanation</p>
               <p className="text-sm" style={{ color: "var(--text-secondary)", lineHeight: 1.7 }}>{currentQ.explanation}</p>
             </div>
+          )}
+
+          {showExp && (
+            simpleExp ? (
+              <div className="rounded-xl p-4 mb-3"
+                style={{ background: "rgba(74,222,128,0.06)", border: "1px solid rgba(74,222,128,0.2)" }}>
+                <p className="text-xs font-semibold uppercase mb-2" style={{ color: "#4ade80" }}>Simplified</p>
+                <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)", lineHeight: 1.7 }}>{simpleExp}</p>
+              </div>
+            ) : (
+              <button
+                onClick={async () => {
+                  setLoadingSimple(true);
+                  try {
+                    const res = await fetch("/api/explain-simple", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        stem: currentQ.stem, optionA: currentQ.optionA, optionB: currentQ.optionB,
+                        optionC: currentQ.optionC, optionD: currentQ.optionD,
+                        correctAnswer: currentQ.correctAnswer, explanation: currentQ.explanation,
+                        passage: currentQ.passage ?? null,
+                      }),
+                    });
+                    const data = await res.json() as { simpleExplanation?: string };
+                    setSimpleExp(data.simpleExplanation ?? "Could not load simplified explanation.");
+                  } catch { setSimpleExp("Could not load simplified explanation."); }
+                  setLoadingSimple(false);
+                }}
+                disabled={loadingSimple}
+                className="mb-3 text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5"
+                style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)", color: "#818cf8", opacity: loadingSimple ? 0.6 : 1 }}>
+                {loadingSimple
+                  ? <><span className="w-3 h-3 rounded-full border border-current animate-spin inline-block" style={{ borderTopColor: "transparent" }} /> Simplifying…</>
+                  : <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Explain Simply</>
+                }
+              </button>
+            )
           )}
 
           <div className="flex-1" />

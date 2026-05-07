@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getQuestions } from "../../../../lib/firestore";
+import type { QuestionDoc } from "../../../../lib/firestore";
 
 const Schema = z.object({
   sections:     z.array(z.enum(["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"])).min(1),
@@ -30,10 +31,37 @@ export async function POST(req: NextRequest) {
 
     const selected = shuffle(allMatching).slice(0, body.count);
 
+    // Group passage questions together so all questions from one passage are consecutive.
+    // Shuffle at the unit level (passage group = one unit, discrete = one unit each).
+    const groupMap = new Map<string, QuestionDoc[]>();
+    const discrete: QuestionDoc[] = [];
+
+    for (const q of selected) {
+      if (q.passageGroupId) {
+        const g = groupMap.get(q.passageGroupId) ?? [];
+        g.push(q);
+        groupMap.set(q.passageGroupId, g);
+      } else {
+        discrete.push(q);
+      }
+    }
+
+    // Sort each group internally by createdAt so questions appear in generation order
+    for (const g of groupMap.values()) {
+      g.sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""));
+    }
+
+    // Shuffle the units (groups + discrete), then flatten
+    const units: QuestionDoc[][] = [
+      ...Array.from(groupMap.values()),
+      ...discrete.map(q => [q]),
+    ];
+    const ordered = shuffle(units).flat();
+
     return NextResponse.json({
-      questions: selected,
+      questions: ordered,
       found: allMatching.length,
-      returned: selected.length,
+      returned: ordered.length,
     });
   } catch (err) {
     if (err instanceof z.ZodError)

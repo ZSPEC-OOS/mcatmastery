@@ -184,6 +184,18 @@ export default function HomeDashboard() {
                   <polyline points="9 18 15 12 9 6" />
                 </svg>
               </Link>
+              {stats.weakTopics.length > 0 && (
+                <Link
+                  href={`/practice?weak=1`}
+                  className="px-4 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2"
+                  style={{ background: "rgba(248,113,113,0.12)", color: "#f87171", border: "1px solid rgba(248,113,113,0.3)", textDecoration: "none", whiteSpace: "nowrap" }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  Drill Weak Topics
+                </Link>
+              )}
             </div>
 
             {/* Section rows */}
