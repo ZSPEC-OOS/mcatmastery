@@ -6,6 +6,7 @@ import { saveQuestion, getQuestions, getModelByModelId, uploadQuestionImage, upd
 import { callModel } from "../../../../lib/model";
 import { getSubTypeById } from "../../../../lib/subtypes";
 import { extractModelJson } from "../../../../lib/parse";
+import { SECTION_TOPICS } from "../../../../lib/topics";
 
 // ── Image prompts ─────────────────────────────────────────────────────────────
 
@@ -13,7 +14,7 @@ const IMAGE_GENERATION_PROMPT = `You are an expert MCAT question writer who crea
 
 You will receive a request specifying a section and subtype. Generate a high-quality MCAT-style question where a figure (graph, diagram, table, or experimental setup) is ESSENTIAL to answering correctly. Students must interpret the visual to answer.
 
-**Auto-selecting a topic:** Choose the canonical topic that best fits the requested section and subtype. Do not ask for one — pick it yourself.
+**Topic:** If a "Topic:" line appears in the request, you MUST use that exact topic verbatim in the "topic" output field — do not substitute a different one. If no topic is specified, choose the canonical topic that best fits the requested section and subtype from the lists below.
 
 Chem/Phys: Atomic Structure | Periodic Trends | Bonding & Intermolecular Forces | Acids & Bases | Electrochemistry | Thermodynamics & Thermochemistry | Kinetics & Equilibrium | Solutions & Colligative Properties | Nuclear Chemistry | Kinematics & Dynamics | Work, Energy & Power | Fluids & Pressure | Electricity & Magnetism | Circuits | Waves & Sound | Optics & Light | Functional Groups & Nomenclature | Stereochemistry & Chirality | Reaction Mechanisms | Lab Techniques & Separations
 
@@ -166,6 +167,14 @@ export async function POST(req: NextRequest) {
 
     const existing = await getQuestions({ section: body.section });
 
+    // Build topic priority queue seeded with existing question counts
+    const canonicalTopics = SECTION_TOPICS[body.section] ?? [];
+    const sessionCounts: Record<string, number> = {};
+    for (const t of canonicalTopics) sessionCounts[t] = 0;
+    for (const q of existing) {
+      if (q.topic in sessionCounts) sessionCounts[q.topic]++;
+    }
+
     const encoder   = new TextEncoder();
     const generated: string[] = [];
 
@@ -176,7 +185,14 @@ export async function POST(req: NextRequest) {
         };
 
         for (let i = 0; i < body.count; i++) {
-          enqueue({ type: "progress", current: i + 1, total: body.count });
+          // Pick the canonical topic with the fewest questions (ties broken by list order)
+          const targetTopic = canonicalTopics.length > 0
+            ? canonicalTopics.reduce((min, t) =>
+                (sessionCounts[t] ?? 0) < (sessionCounts[min] ?? 0) ? t : min,
+                canonicalTopics[0])
+            : undefined;
+
+          enqueue({ type: "progress", current: i + 1, total: body.count, topic: targetTopic });
 
           try {
             // Pick a subtype for this question (rotate through selected subtypes)
@@ -190,8 +206,11 @@ export async function POST(req: NextRequest) {
               ? ` Subtype: "${subTypeDef.label}" — ${subTypeDef.description}`
               : "";
 
+            const topicClause = targetTopic ? ` Topic: ${targetTopic}.` : "";
+
             const userMsg = [
               `Generate one ${body.section} question.`,
+              topicClause,
               subTypeClause,
               body.imageGeneration ? "The question MUST require a figure to answer." : "",
             ].filter(Boolean).join(" ");
@@ -295,6 +314,7 @@ export async function POST(req: NextRequest) {
             }
 
             generated.push(final.stem as string);
+            if (targetTopic) sessionCounts[targetTopic] = (sessionCounts[targetTopic] ?? 0) + 1;
             enqueue({
               type:     "question",
               question: { ...saved, hasFigure: !!figureUrl },
