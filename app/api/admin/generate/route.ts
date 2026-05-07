@@ -279,7 +279,7 @@ export async function POST(req: NextRequest) {
                 apiKey:      modelConfig?.apiKey,
                 system:      passageSetPrompt,
                 userContent: userMsg,
-                maxTokens:   4000,
+                maxTokens:   6000,
               });
 
               type PassageSet = { section: string; topic: string; passage: string; questions: Record<string, unknown>[] };
