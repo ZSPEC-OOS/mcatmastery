@@ -5,7 +5,7 @@ import { SECTION_SUBTYPES } from "../../../lib/subtypes";
 
 type Section = "Chem/Phys" | "CARS" | "Bio/Biochem" | "Psych/Soc";
 type GenEvent =
-  | { type: "progress"; current: number; total: number }
+  | { type: "progress"; current: number; total: number; topic?: string }
   | { type: "question"; question: { id: string; section: string; topic: string; stem: string; difficulty: string; hasFigure?: boolean } }
   | { type: "skip"; reason: string; flags?: string[]; message?: string; index: number }
   | { type: "done"; generated: number };
@@ -33,7 +33,7 @@ export default function GenerateTab() {
   const [dedupThreshold, setDedup]      = useState(0.75);
   const [running, setRunning]           = useState(false);
   const [events, setEvents]             = useState<GenEvent[]>([]);
-  const [progress, setProgress]         = useState({ current: 0, total: 0 });
+  const [progress, setProgress]         = useState<{ current: number; total: number; topic?: string }>({ current: 0, total: 0 });
   const [pipelineOpen, setPipelineOpen] = useState(false);
   const [customModels, setCustomModels] = useState<CustomModel[]>([]);
   const [modelsLoading, setModelsLoading] = useState(true);
@@ -87,7 +87,7 @@ export default function GenerateTab() {
         if (!line.startsWith("data: ")) continue;
         try {
           const ev: GenEvent = JSON.parse(line.slice(6));
-          if (ev.type === "progress") setProgress({ current: ev.current, total: ev.total });
+          if (ev.type === "progress") setProgress({ current: ev.current, total: ev.total, topic: ev.topic });
           setEvents((prev) => [...prev, ev]);
         } catch { /* skip malformed */ }
       }
@@ -356,11 +356,18 @@ export default function GenerateTab() {
         {/* Right: live output */}
         <div className="flex-1 min-w-0">
           {running && (
-            <div className="mb-4 rounded-lg overflow-hidden h-2" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-              <div
-                className="h-full transition-all duration-300"
-                style={{ width: `${progress.total ? (progress.current / progress.total) * 100 : 0}%`, background: "var(--accent-blue)" }}
-              />
+            <div className="mb-4">
+              <div className="rounded-lg overflow-hidden h-2 mb-1.5" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                <div
+                  className="h-full transition-all duration-300"
+                  style={{ width: `${progress.total ? (progress.current / progress.total) * 100 : 0}%`, background: "var(--accent-blue)" }}
+                />
+              </div>
+              {progress.topic && (
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  Targeting: <span style={{ color: "var(--text-primary)", fontWeight: 500 }}>{progress.topic}</span>
+                </p>
+              )}
             </div>
           )}
 

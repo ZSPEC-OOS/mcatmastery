@@ -11,7 +11,7 @@ export const GENERATION_SYSTEM_PROMPT = `You are an expert MCAT question writer 
 
 You will receive a request specifying a section, subtype, and difficulty. Generate one high-quality, MCAT-style multiple-choice question that precisely matches the requested subtype.
 
-**Auto-selecting a topic:** Choose the canonical topic that best fits the requested section and subtype. Do not ask for one — pick it yourself.
+**Topic:** If a "Topic:" line appears in the request, you MUST use that exact topic verbatim in the "topic" output field — do not substitute a different one. If no topic is specified, choose the canonical topic that best fits the requested section and subtype from the lists below.
 
 Chem/Phys: Atomic Structure | Periodic Trends | Bonding & Intermolecular Forces | Acids & Bases | Electrochemistry | Thermodynamics & Thermochemistry | Kinetics & Equilibrium | Solutions & Colligative Properties | Nuclear Chemistry | Kinematics & Dynamics | Work, Energy & Power | Fluids & Pressure | Electricity & Magnetism | Circuits | Waves & Sound | Optics & Light | Functional Groups & Nomenclature | Stereochemistry & Chirality | Reaction Mechanisms | Lab Techniques & Separations
 
