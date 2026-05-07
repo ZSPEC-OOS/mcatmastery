@@ -29,6 +29,10 @@ export async function getActiveModel(): Promise<ModelConfig | null> {
 // specific model. All other routes (practice, pipelines) omit those fields and
 // get the active model resolved automatically.
 
+async function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export async function callModel(opts: {
   system:      string;
   userContent: string;
@@ -36,7 +40,7 @@ export async function callModel(opts: {
   modelId?:    string;   // explicit override (admin routes)
   baseUrl?:    string;
   apiKey?:     string;
-}): Promise<string> {
+}, _attempt = 0): Promise<string> {
   // If no explicit config was passed, resolve the active model from Firestore
   let { modelId, baseUrl, apiKey } = opts;
   if (!modelId) {
@@ -67,6 +71,12 @@ export async function callModel(opts: {
       }),
     });
     if (!res.ok) {
+      // Retry on rate-limit or transient server errors (up to 4 attempts, exponential backoff)
+      if ((res.status === 429 || res.status >= 500) && _attempt < 4) {
+        const backoff = Math.min(2 ** _attempt * 2000, 32000);
+        await sleep(backoff);
+        return callModel(opts, _attempt + 1);
+      }
       const text = await res.text().catch(() => res.statusText);
       throw new Error(`Model API error ${res.status}: ${text.slice(0, 200)}`);
     }
@@ -80,15 +90,26 @@ export async function callModel(opts: {
   }
 
   // Anthropic SDK fallback
-  const msg = await anthropic.messages.create({
-    model:      modelId ?? "claude-opus-4-7",
-    max_tokens: opts.maxTokens,
-    system:     opts.system,
-    messages:   [{ role: "user", content: opts.userContent }],
-  });
-  const block = msg.content[0];
-  if (!block || block.type !== "text" || !block.text) {
-    throw new Error(`Anthropic model returned no text content (block type: ${block?.type ?? "none"})`);
+  try {
+    const msg = await anthropic.messages.create({
+      model:      modelId ?? "claude-opus-4-7",
+      max_tokens: opts.maxTokens,
+      system:     opts.system,
+      messages:   [{ role: "user", content: opts.userContent }],
+    });
+    const block = msg.content[0];
+    if (!block || block.type !== "text" || !block.text) {
+      throw new Error(`Anthropic model returned no text content (block type: ${block?.type ?? "none"})`);
+    }
+    return block.text;
+  } catch (err) {
+    // Retry on rate-limit (429) or overload (529) errors
+    const status = (err as { status?: number })?.status;
+    if ((status === 429 || status === 529 || status === 503) && _attempt < 4) {
+      const backoff = Math.min(2 ** _attempt * 2000, 32000);
+      await sleep(backoff);
+      return callModel(opts, _attempt + 1);
+    }
+    throw err;
   }
-  return block.text;
 }
