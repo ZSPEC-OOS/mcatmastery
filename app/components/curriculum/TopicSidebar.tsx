@@ -164,10 +164,11 @@ const SECTIONS: Section[] = [
   },
 ];
 
-function pctColor(pct: number) {
-  if (pct < 60) return "#e05c5c";
-  if (pct < 70) return "#f0a500";
-  return "var(--text-muted)";
+function countColor(n: number) {
+  if (n === 0)  return "var(--text-muted)";
+  if (n < 4)   return "#f59e0b";   // amber  — sparse
+  if (n < 10)  return "var(--accent-blue)"; // blue — building
+  return "#4ade80";                 // green  — well covered
 }
 
 type Props = {
@@ -177,16 +178,16 @@ type Props = {
 
 export default function TopicSidebar({ activeTopic, onSelect }: Props) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ chem: true, cars: true, bio: true, psych: true });
-  const [accMap, setAccMap] = useState<Record<string, number>>({});
+  const [countMap, setCountMap] = useState<Record<string, number>>({});
 
   useEffect(() => {
     fetch("/api/curriculum")
       .then(r => r.json())
-      .then((data: { topicAccuracy: { topic: string; accuracy: number }[] }) => {
-        if (data.topicAccuracy?.length > 0) {
+      .then((data: { topicCounts: { topic: string; count: number }[] }) => {
+        if (data.topicCounts?.length > 0) {
           const m: Record<string, number> = {};
-          for (const t of data.topicAccuracy) m[t.topic] = t.accuracy;
-          setAccMap(m);
+          for (const t of data.topicCounts) m[t.topic] = t.count;
+          setCountMap(m);
         }
       })
       .catch(() => {});
@@ -244,7 +245,7 @@ export default function TopicSidebar({ activeTopic, onSelect }: Props) {
                   </p>
                   {grp.topics.map((t) => {
                     const isActive = activeTopic === `${sec.id}:${t.label}`;
-                    const pct = accMap[t.label] ?? t.pct;
+                    const count = countMap[t.label] ?? 0;
                     return (
                       <button
                         key={t.label}
@@ -266,10 +267,10 @@ export default function TopicSidebar({ activeTopic, onSelect }: Props) {
                           {t.label}
                         </span>
                         <span
-                          className="text-xs font-semibold ml-2"
-                          style={{ color: isActive ? "var(--accent-blue)" : pct > 0 ? pctColor(pct) : "var(--text-muted)" }}
+                          className="text-xs font-semibold ml-2 tabular-nums"
+                          style={{ color: isActive ? "var(--accent-blue)" : countColor(count) }}
                         >
-                          {pct > 0 ? `${pct}%` : "—"}
+                          {count > 0 ? count : "—"}
                         </span>
                       </button>
                     );

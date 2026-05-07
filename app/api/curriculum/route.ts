@@ -1,33 +1,25 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "../../../lib/auth";
-import { db } from "../../../lib/db";
+import { getQuestions } from "../../../lib/firestore";
 
 export async function GET() {
   try {
-    const user = await requireUser();
+    const questions = await getQuestions({});
 
-    const sessionQuestions = await db.sessionQuestion.findMany({
-      where: { session: { userId: user.id }, answeredAt: { not: null } },
-      include: { question: { select: { section: true, topic: true } } },
-    });
-
-    const topicMap: Record<string, { correct: number; total: number; section: string }> = {};
-    for (const sq of sessionQuestions) {
-      const key = sq.question.topic;
-      if (!topicMap[key]) topicMap[key] = { correct: 0, total: 0, section: sq.question.section };
-      topicMap[key].total++;
-      if (sq.isCorrect) topicMap[key].correct++;
+    const topicMap: Record<string, { count: number; section: string }> = {};
+    for (const q of questions) {
+      if (!topicMap[q.topic]) topicMap[q.topic] = { count: 0, section: q.section };
+      topicMap[q.topic].count++;
     }
 
-    const topicAccuracy = Object.entries(topicMap).map(([topic, v]) => ({
+    const topicCounts = Object.entries(topicMap).map(([topic, v]) => ({
       topic,
-      section:  v.section,
-      accuracy: Math.round((v.correct / v.total) * 100),
-      attempted: v.total,
+      section: v.section,
+      count:   v.count,
     }));
 
-    return NextResponse.json({ topicAccuracy });
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ topicCounts });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Failed";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
