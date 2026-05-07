@@ -167,13 +167,35 @@ export async function POST(req: NextRequest) {
 
     const existing = await getQuestions({ section: body.section });
 
-    // Build topic priority queue seeded with existing question counts
-    const canonicalTopics = SECTION_TOPICS[body.section] ?? [];
-    const sessionCounts: Record<string, number> = {};
-    for (const t of canonicalTopics) sessionCounts[t] = 0;
-    for (const q of existing) {
-      if (q.topic in sessionCounts) sessionCounts[q.topic]++;
-    }
+    // Build 2D coverage matrix: topic × subtype → count
+    const canonicalTopics    = SECTION_TOPICS[body.section] ?? [];
+    const effectiveSubTypeIds = body.subTypes?.length ? body.subTypes : [];
+
+    // 2D mode when both dimensions are available; 1D fallback otherwise
+    const counts2D: Record<string, Record<string, number>> | null =
+      canonicalTopics.length > 0 && effectiveSubTypeIds.length > 0
+        ? (() => {
+            const m: Record<string, Record<string, number>> = {};
+            for (const t of canonicalTopics) {
+              m[t] = {};
+              for (const stId of effectiveSubTypeIds) m[t][stId] = 0;
+            }
+            for (const q of existing) {
+              if (q.topic in m && q.subType && q.subType in m[q.topic]) m[q.topic][q.subType]++;
+            }
+            return m;
+          })()
+        : null;
+
+    const counts1D: Record<string, number> | null =
+      counts2D === null && canonicalTopics.length > 0
+        ? (() => {
+            const m: Record<string, number> = {};
+            for (const t of canonicalTopics) m[t] = 0;
+            for (const q of existing) { if (q.topic in m) m[q.topic]++; }
+            return m;
+          })()
+        : null;
 
     const encoder   = new TextEncoder();
     const generated: string[] = [];
@@ -185,22 +207,34 @@ export async function POST(req: NextRequest) {
         };
 
         for (let i = 0; i < body.count; i++) {
-          // Pick the canonical topic with the fewest questions (ties broken by list order)
-          const targetTopic = canonicalTopics.length > 0
-            ? canonicalTopics.reduce((min, t) =>
-                (sessionCounts[t] ?? 0) < (sessionCounts[min] ?? 0) ? t : min,
-                canonicalTopics[0])
-            : undefined;
+          // Pick (topic, subtype) pair with lowest count — ties broken by list order
+          let targetTopic: string | undefined;
+          let targetSubTypeId: string | undefined;
+
+          if (counts2D) {
+            let min = Infinity;
+            for (const t of canonicalTopics) {
+              for (const stId of effectiveSubTypeIds) {
+                const n = counts2D[t][stId] ?? 0;
+                if (n < min) { min = n; targetTopic = t; targetSubTypeId = stId; }
+              }
+            }
+          } else if (counts1D) {
+            targetTopic = canonicalTopics.reduce((best, t) =>
+              (counts1D[t] ?? 0) < (counts1D[best] ?? 0) ? t : best, canonicalTopics[0]);
+            targetSubTypeId = effectiveSubTypeIds.length
+              ? effectiveSubTypeIds[i % effectiveSubTypeIds.length]
+              : undefined;
+          } else {
+            targetSubTypeId = effectiveSubTypeIds.length
+              ? effectiveSubTypeIds[i % effectiveSubTypeIds.length]
+              : undefined;
+          }
 
           enqueue({ type: "progress", current: i + 1, total: body.count, topic: targetTopic });
 
           try {
-            // Pick a subtype for this question (rotate through selected subtypes)
-            const subTypeIds = body.subTypes?.length ? body.subTypes : [];
-            const subTypeId  = subTypeIds.length
-              ? subTypeIds[i % subTypeIds.length]
-              : undefined;
-            const subTypeDef = subTypeId ? getSubTypeById(subTypeId) : undefined;
+            const subTypeDef = targetSubTypeId ? getSubTypeById(targetSubTypeId) : undefined;
 
             const subTypeClause = subTypeDef
               ? ` Subtype: "${subTypeDef.label}" — ${subTypeDef.description}`
@@ -278,7 +312,7 @@ export async function POST(req: NextRequest) {
             let saved = await saveQuestion({
               section:       final.section as string,
               topic:         final.topic as string,
-              subType:       subTypeId,
+              subType:       targetSubTypeId,
               passage:       (final.passage as string) ?? null,
               stem:          final.stem as string,
               optionA:       final.optionA as string,
@@ -314,7 +348,11 @@ export async function POST(req: NextRequest) {
             }
 
             generated.push(final.stem as string);
-            if (targetTopic) sessionCounts[targetTopic] = (sessionCounts[targetTopic] ?? 0) + 1;
+            if (counts2D && targetTopic && targetSubTypeId) {
+              counts2D[targetTopic][targetSubTypeId] = (counts2D[targetTopic][targetSubTypeId] ?? 0) + 1;
+            } else if (counts1D && targetTopic) {
+              counts1D[targetTopic] = (counts1D[targetTopic] ?? 0) + 1;
+            }
             enqueue({
               type:     "question",
               question: { ...saved, hasFigure: !!figureUrl },
