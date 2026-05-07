@@ -312,7 +312,7 @@ export default function DatabaseTab() {
           <div>
             <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Audit Database</h2>
             <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-              Run a full content accuracy and hallucination check on every question using AI.
+              Run a full content accuracy check on every question. Passage-based sets are audited together as a group — passage quality, question dependency, and set coverage diversity are all checked.
             </p>
           </div>
           {auditState === "idle" && (
@@ -345,7 +345,7 @@ export default function DatabaseTab() {
         {auditState === "running" && (
           <div className="px-5 py-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs" style={{ color: "var(--text-muted)" }}>Checking questions…</span>
+              <span className="text-xs" style={{ color: "var(--text-muted)" }}>Checking questions and passage sets…</span>
               <span className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
                 {auditProgress.current}/{auditProgress.total} processed
               </span>

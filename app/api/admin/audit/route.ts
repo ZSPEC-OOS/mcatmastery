@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { getQuestions } from "../../../../lib/firestore";
+import type { QuestionDoc } from "../../../../lib/firestore";
 import { getSetting, ensureSchema } from "../../../../lib/db";
 import { callModel } from "../../../../lib/model";
 import { extractModelJson } from "../../../../lib/parse";
@@ -14,6 +15,7 @@ Check the following:
 5. Internal consistency — ensure the passage, stem, options, and explanation are logically consistent
 6. MCAT alignment — verify content falls within MCAT scope and appropriate difficulty
 7. Figure consistency — the question includes a "hasFigure" field. If hasFigure is true, the stem should explicitly reference a figure (e.g. "Based on Figure 1…"). If hasFigure is false but the stem references a figure, flag it as a missing figure. If hasFigure is true but the stem never references the figure, flag it as an unused figure.
+8. Passage dependency (if passage present) — the question cannot be correctly answered from general MCAT knowledge alone; reading the passage must be required. Flag if the passage is purely descriptive with no data hook or mechanistic detail the question exploits. Flag if the stem or explanation references information absent from the passage.
 
 If you find NO issues, respond with ONLY this JSON:
 { "pass": true, "issues": [], "corrected_question": null }
@@ -36,6 +38,41 @@ If you find any issues, respond with ONLY this JSON (include only changed fields
 
 Output ONLY valid JSON. No markdown, no preamble.`;
 
+const DEFAULT_PASSAGE_SET_AUDIT_PROMPT = `You are an expert MCAT content auditor. You will receive a JSON object with one shared passage and N questions forming a cohesive passage-based question set. Audit everything together.
+
+Audit the PASSAGE for:
+1. Factual accuracy — all scientific claims, numbers, and processes are correct at MCAT level
+2. MCAT passage structure — passage includes at least one interpretable dataset (a table or numerically described result), integrates 2+ concepts across domains, and has sufficient mechanistic depth to support reasoning questions
+3. Internal consistency — passage content is self-consistent throughout; no contradictions
+
+Audit each QUESTION for:
+4. Passage dependency — the question cannot be correctly answered without reading the passage; not free-standing factual recall
+5. Answer key correctness — the marked correct answer is genuinely correct given the passage
+6. Distractor quality — wrong answers are plausible but clearly incorrect; no distractor is also a defensible correct interpretation
+7. Explanation accuracy — explanation correctly cites passage evidence and contains no scientific errors
+8. Stem quality — stem uses AAMC precision language ("most likely", "best supported", "most consistent with", etc.) and requires multi-step reasoning
+
+Audit the SET as a whole for:
+9. Coverage diversity — no two questions test the same passage sentence or the same cognitive move
+10. Difficulty distribution — set includes a reasonable spread across easy, medium, and hard
+
+Output ONLY valid JSON in this exact shape:
+{
+  "passagePass": true | false,
+  "passageIssues": ["<passage-level issue description>"],
+  "correctedPassage": "<full corrected passage text, or null if passagePass is true>",
+  "questions": [
+    {
+      "id": "<question id from input>",
+      "pass": true | false,
+      "issues": ["<specific issue>"],
+      "corrected_question": { "<only changed fields: stem, optionA-D, correctAnswer, explanation>" } | null
+    }
+  ]
+}
+
+Output ONLY valid JSON. No markdown, no preamble.`;
+
 function sseChunk(data: unknown): string {
   return `data: ${JSON.stringify(data)}\n\n`;
 }
@@ -43,10 +80,31 @@ function sseChunk(data: unknown): string {
 export async function POST(_req: NextRequest) {
   await ensureSchema();
 
-  const customAuditPrompt = await getSetting("audit_prompt").catch(() => null);
-  const auditSystemPrompt = customAuditPrompt || DEFAULT_AUDIT_PROMPT;
+  const [customAuditPrompt, customPassageSetAuditPrompt] = await Promise.all([
+    getSetting("audit_prompt").catch(() => null),
+    getSetting("passage_set_audit_prompt").catch(() => null),
+  ]);
+  const auditSystemPrompt        = customAuditPrompt        || DEFAULT_AUDIT_PROMPT;
+  const passageSetAuditPrompt    = customPassageSetAuditPrompt || DEFAULT_PASSAGE_SET_AUDIT_PROMPT;
 
   const questions = await getQuestions({});
+
+  // Split into passage groups and discrete questions
+  const passageGroups = new Map<string, QuestionDoc[]>();
+  const discrete: QuestionDoc[] = [];
+
+  for (const q of questions) {
+    if (q.passageGroupId) {
+      const group = passageGroups.get(q.passageGroupId) ?? [];
+      group.push(q);
+      passageGroups.set(q.passageGroupId, group);
+    } else {
+      discrete.push(q);
+    }
+  }
+
+  // Total audit items: one per passage group + one per discrete question
+  const totalItems = passageGroups.size + discrete.length;
 
   const encoder = new TextEncoder();
 
@@ -56,11 +114,93 @@ export async function POST(_req: NextRequest) {
         try { controller.enqueue(encoder.encode(sseChunk(data))); } catch { /* client disconnected */ }
       };
 
-      enqueue({ type: "start", total: questions.length });
+      enqueue({ type: "start", total: totalItems });
+      let processed = 0;
 
-      for (let i = 0; i < questions.length; i++) {
-        const q = questions[i];
-        enqueue({ type: "progress", current: i + 1, total: questions.length });
+      // ── Passage group audits ────────────────────────────────────────────────
+      for (const [, groupQs] of passageGroups) {
+        processed++;
+        enqueue({ type: "progress", current: processed, total: totalItems });
+
+        try {
+          const userContent = JSON.stringify({
+            passage: groupQs[0].passage ?? "",
+            questions: groupQs.map((q) => ({
+              id: q.id,
+              section: q.section,
+              topic: q.topic,
+              subType: q.subType ?? null,
+              stem: q.stem,
+              optionA: q.optionA,
+              optionB: q.optionB,
+              optionC: q.optionC,
+              optionD: q.optionD,
+              correctAnswer: q.correctAnswer,
+              explanation: q.explanation,
+              difficulty: q.difficulty,
+            })),
+          });
+
+          const raw = await callModel({
+            system: passageSetAuditPrompt,
+            userContent,
+            maxTokens: 3000,
+          });
+
+          const result = extractModelJson(raw) as {
+            passagePass: boolean;
+            passageIssues: string[];
+            correctedPassage: string | null;
+            questions: Array<{
+              id: string;
+              pass: boolean;
+              issues: string[];
+              corrected_question: Record<string, string> | null;
+            }>;
+          };
+
+          // Passage-level finding — attributed to the first question in the group
+          if (!result.passagePass && result.passageIssues?.length > 0) {
+            const firstQ = groupQs[0];
+            enqueue({
+              type: "finding",
+              questionId: firstQ.id,
+              question: firstQ,
+              issues: result.passageIssues.map((i) => `[Passage] ${i}`),
+              correctedQuestion: result.correctedPassage
+                ? { passage: result.correctedPassage }
+                : null,
+            });
+          }
+
+          // Per-question findings
+          for (const qResult of result.questions ?? []) {
+            if (!qResult.pass && qResult.issues?.length > 0) {
+              const q = groupQs.find((gq) => gq.id === qResult.id);
+              if (q) {
+                enqueue({
+                  type: "finding",
+                  questionId: q.id,
+                  question: q,
+                  issues: qResult.issues,
+                  correctedQuestion: qResult.corrected_question ?? null,
+                });
+              }
+            }
+          }
+        } catch (err) {
+          enqueue({
+            type: "error",
+            questionId: groupQs[0].id,
+            message: err instanceof Error ? err.message : "unknown",
+          });
+        }
+      }
+
+      // ── Discrete question audits ────────────────────────────────────────────
+      for (const q of discrete) {
+        processed++;
+        enqueue({ type: "progress", current: processed, total: totalItems });
 
         try {
           const userContent = JSON.stringify({
@@ -102,7 +242,11 @@ export async function POST(_req: NextRequest) {
             });
           }
         } catch (err) {
-          enqueue({ type: "error", questionId: q.id, message: err instanceof Error ? err.message : "unknown" });
+          enqueue({
+            type: "error",
+            questionId: q.id,
+            message: err instanceof Error ? err.message : "unknown",
+          });
         }
       }
 
