@@ -9,6 +9,12 @@ import {
 } from "../../lib/api-client";
 import { SECTION_SUBTYPES, getSubTypesForSections } from "../../lib/subtypes";
 
+function getDiscreteSubTypeIds(secs: Section[]): string[] {
+  return getSubTypesForSections(secs)
+    .filter(st => !st.passageBased)
+    .map(st => st.id);
+}
+
 const SECTIONS: Section[]        = ["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"];
 const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard"];
 
@@ -39,6 +45,7 @@ export default function PracticePage() {
   const [count,        setCount]        = useState(10);
   const [timeMode,     setTimeMode]     = useState<"untimed" | "default" | "custom">("untimed");
   const [customMins,   setCustomMins]   = useState(10);
+  const [discreteOnly, setDiscreteOnly] = useState(false);
 
   const [phase,     setPhase]     = useState<Phase>("config");
   const [errorMsg,  setErrorMsg]  = useState("");
@@ -76,11 +83,25 @@ export default function PracticePage() {
         : [...prev, s];
       // auto-select subtypes for newly added section; auto-remove for removed section
       if (!prev.includes(s)) {
-        const newIds = (SECTION_SUBTYPES[s] ?? []).map(st => st.id);
+        const newIds = discreteOnly
+          ? (SECTION_SUBTYPES[s] ?? []).filter(st => !st.passageBased).map(st => st.id)
+          : (SECTION_SUBTYPES[s] ?? []).map(st => st.id);
         setSubTypes(cur => [...new Set([...cur, ...newIds])]);
       } else if (next.length < prev.length) {
         const removed = (SECTION_SUBTYPES[s] ?? []).map(st => st.id);
         setSubTypes(cur => cur.filter(id => !removed.includes(id)));
+      }
+      return next;
+    });
+  }
+
+  function toggleDiscreteOnly() {
+    setDiscreteOnly(prev => {
+      const next = !prev;
+      if (next) {
+        setSubTypes(getDiscreteSubTypeIds(sections));
+      } else {
+        setSubTypes(allSubTypeIds(sections));
       }
       return next;
     });
@@ -175,6 +196,7 @@ export default function PracticePage() {
         difficulties,
         subTypes: subTypes.length ? subTypes : undefined,
         count,
+        discreteOnly,
       });
 
       if (result.questions.length === 0) {
@@ -278,6 +300,39 @@ export default function PracticePage() {
             </div>
           </div>
 
+          {/* Discrete Only Mode */}
+          <div className="rounded-lg px-3 py-3" style={{ background: "var(--bg-card-hover)", border: `1px solid ${discreteOnly ? "#f59e0b" : "var(--border)"}` }}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold" style={{ color: discreteOnly ? "#f59e0b" : "var(--text-primary)" }}>
+                  Discrete Only Mode
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                  {discreteOnly
+                    ? "Standalone questions only · No passages · Evenly distributed across topics"
+                    : "Standalone questions only, no passage sets"}
+                </p>
+              </div>
+              <button
+                onClick={toggleDiscreteOnly}
+                className="w-10 h-5 rounded-full relative transition-colors flex-shrink-0 ml-3"
+                style={{
+                  background: discreteOnly ? "#f59e0b" : "var(--bg-card)",
+                  border: `1px solid ${discreteOnly ? "#f59e0b" : "var(--border)"}`,
+                }}
+              >
+                <span
+                  className="absolute top-0.5 h-4 w-4 rounded-full transition-all"
+                  style={{
+                    background: "#fff",
+                    left: discreteOnly ? "calc(100% - 1.125rem)" : "0.125rem",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+                  }}
+                />
+              </button>
+            </div>
+          </div>
+
           {/* Difficulty */}
           <div>
             <label className="text-xs mb-1 block" style={{ color: "var(--text-muted)" }}>
@@ -308,18 +363,21 @@ export default function PracticePage() {
           {/* Sub Types */}
           {(() => {
             const visibleSections = sections.filter(s => SECTION_SUBTYPES[s]?.length);
-            const visibleIds = getSubTypesForSections(sections).map(st => st.id);
-            const allSelected = visibleIds.every(id => subTypes.includes(id));
+            const allIds      = getSubTypesForSections(sections).map(st => st.id);
+            const eligibleIds = discreteOnly
+              ? getSubTypesForSections(sections).filter(st => !st.passageBased).map(st => st.id)
+              : allIds;
+            const allSelected = eligibleIds.every(id => subTypes.includes(id));
             return (
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-xs" style={{ color: "var(--text-muted)" }}>
-                    Sub Types <span style={{ fontWeight: 400 }}>({subTypes.filter(id => visibleIds.includes(id)).length} of {visibleIds.length})</span>
+                    Sub Types <span style={{ fontWeight: 400 }}>({subTypes.filter(id => eligibleIds.includes(id)).length} of {eligibleIds.length}{discreteOnly ? " discrete" : ""})</span>
                   </label>
                   <button
                     onClick={() => allSelected
-                      ? setSubTypes(prev => prev.filter(id => !visibleIds.includes(id)).concat(visibleIds.slice(0,1)))
-                      : setSubTypes(prev => [...new Set([...prev, ...visibleIds])])}
+                      ? setSubTypes(prev => prev.filter(id => !eligibleIds.includes(id)).concat(eligibleIds.slice(0,1)))
+                      : setSubTypes(prev => [...new Set([...prev, ...eligibleIds])])}
                     className="text-xs"
                     style={{ color: "var(--accent-blue)" }}
                   >
@@ -333,20 +391,29 @@ export default function PracticePage() {
                         <p className="text-xs font-semibold mb-1 mt-1" style={{ color: SEC_COLOR[sec as Section] }}>{sec}</p>
                       )}
                       {(SECTION_SUBTYPES[sec] ?? []).map(st => {
-                        const checked = subTypes.includes(st.id);
+                        const isPassage = st.passageBased;
+                        const disabled  = discreteOnly && isPassage;
+                        const checked   = subTypes.includes(st.id);
                         return (
                           <label key={st.id}
-                            className="flex items-start gap-2 py-1 cursor-pointer">
+                            className="flex items-start gap-2 py-1"
+                            style={{ cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.38 : 1 }}>
                             <input
                               type="checkbox"
                               checked={checked}
-                              onChange={() => toggleSubType(st.id)}
+                              disabled={disabled}
+                              onChange={() => !disabled && toggleSubType(st.id)}
                               className="mt-0.5 flex-shrink-0"
                               style={{ accentColor: SEC_COLOR[sec as Section] }}
                             />
-                            <span className="text-xs leading-snug" style={{ color: checked ? "var(--text-primary)" : "var(--text-secondary)" }}>
+                            <span className="text-xs leading-snug" style={{ color: checked && !disabled ? "var(--text-primary)" : "var(--text-secondary)" }}>
                               {st.label}
-                              {st.imageRecommended && (
+                              {disabled && (
+                                <span className="ml-1 text-xs" style={{ color: "var(--text-muted)", fontStyle: "italic" }}>
+                                  (passage-based)
+                                </span>
+                              )}
+                              {!disabled && st.imageRecommended && (
                                 <span className="ml-1 text-xs" style={{ color: "var(--accent-blue)", fontStyle: "italic" }}>
                                   (image-based recommended)
                                 </span>
