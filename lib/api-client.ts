@@ -92,7 +92,6 @@ export async function fetchPracticeQuestions(params: {
   difficulties: Difficulty[];
   subTypes?: string[];
   count: number;
-  discreteOnly?: boolean;
 }): Promise<{ questions: Question[]; found: number; returned: number }> {
   const res = await fetch("/api/questions/practice", {
     method: "POST",

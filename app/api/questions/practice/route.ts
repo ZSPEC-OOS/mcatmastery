@@ -8,7 +8,6 @@ const Schema = z.object({
   difficulties: z.array(z.enum(["easy", "medium", "hard"])).default(["easy", "medium", "hard"]),
   subTypes:     z.array(z.string()).optional(),
   count:        z.number().min(1).max(50).default(10),
-  discreteOnly: z.boolean().optional().default(false),
 });
 
 function shuffle<T>(arr: T[]): T[] {
@@ -18,36 +17,6 @@ function shuffle<T>(arr: T[]): T[] {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
-}
-
-// Round-robin across topics so each topic gets equal representation.
-function selectEvenly(questions: QuestionDoc[], count: number): QuestionDoc[] {
-  const byTopic = new Map<string, QuestionDoc[]>();
-  for (const q of shuffle(questions)) {
-    const arr = byTopic.get(q.topic) ?? [];
-    arr.push(q);
-    byTopic.set(q.topic, arr);
-  }
-
-  const topics = shuffle([...byTopic.keys()]);
-  const result: QuestionDoc[] = [];
-  let round = 0;
-
-  outer: while (result.length < count) {
-    let added = false;
-    for (const t of topics) {
-      const qs = byTopic.get(t)!;
-      if (round < qs.length) {
-        result.push(qs[round]);
-        added = true;
-        if (result.length >= count) break outer;
-      }
-    }
-    if (!added) break;
-    round++;
-  }
-
-  return shuffle(result);
 }
 
 export async function POST(req: NextRequest) {
@@ -60,14 +29,7 @@ export async function POST(req: NextRequest) {
       subTypes:     body.subTypes?.length ? body.subTypes : undefined,
     });
 
-    // In discrete-only mode, explicitly drop any question that belongs to a passage group.
-    const pool = body.discreteOnly
-      ? allMatching.filter(q => !q.passageGroupId)
-      : allMatching;
-
-    const selected = body.discreteOnly
-      ? selectEvenly(pool, body.count)
-      : shuffle(pool).slice(0, body.count);
+    const selected = shuffle(allMatching).slice(0, body.count);
 
     // Group passage questions together so all questions from one passage are consecutive.
     // Shuffle at the unit level (passage group = one unit, discrete = one unit each).
@@ -98,7 +60,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       questions: ordered,
-      found: pool.length,
+      found: allMatching.length,
       returned: ordered.length,
     });
   } catch (err) {
