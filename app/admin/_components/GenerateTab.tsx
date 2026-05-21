@@ -40,6 +40,7 @@ export default function GenerateTab() {
   const [modelsLoading, setModelsLoading] = useState(true);
   const [imageGenEnabled, setImageGen]  = useState(false);
   const [imageModelId, setImageModelId] = useState("");
+  const [discreteOnlyMode, setDiscreteOnlyMode] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/models")
@@ -104,8 +105,28 @@ export default function GenerateTab() {
   function changeSection(s: Section) {
     setSection(s);
     const sts = SECTION_SUBTYPES[s] ?? [];
-    const passage = sts.filter(st => st.passageBased).map(st => st.id);
-    setSubTypes(passage.length > 0 ? passage : sts.map(st => st.id));
+    if (discreteOnlyMode) {
+      const discrete = sts.filter(st => !st.passageBased).map(st => st.id);
+      setSubTypes(discrete.length > 0 ? discrete : sts.map(st => st.id));
+    } else {
+      const passage = sts.filter(st => st.passageBased).map(st => st.id);
+      setSubTypes(passage.length > 0 ? passage : sts.map(st => st.id));
+    }
+  }
+
+  function toggleDiscreteOnly() {
+    setDiscreteOnlyMode(prev => {
+      const next = !prev;
+      const sts = SECTION_SUBTYPES[section] ?? [];
+      if (next) {
+        const discrete = sts.filter(st => !st.passageBased).map(st => st.id);
+        setSubTypes(discrete.length > 0 ? discrete : sts.map(st => st.id));
+      } else {
+        const passage = sts.filter(st => st.passageBased).map(st => st.id);
+        setSubTypes(passage.length > 0 ? passage : sts.map(st => st.id));
+      }
+      return next;
+    });
   }
 
   function toggleSubType(id: string) {
@@ -192,6 +213,41 @@ export default function GenerateTab() {
             </div>
           </div>
 
+          {/* Discrete Only Mode toggle */}
+          <div className="rounded-lg px-3 py-3" style={{ background: "var(--bg-card)", border: `1px solid ${discreteOnlyMode ? "#f59e0b" : "var(--border)"}` }}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold" style={{ color: discreteOnlyMode ? "#f59e0b" : "var(--text-primary)" }}>
+                  Discrete Only Mode
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                  {discreteOnlyMode
+                    ? `Standalone questions only · All ${section} topics covered evenly`
+                    : "Generate standalone questions across all topics, no passages"}
+                </p>
+              </div>
+              <button
+                onClick={toggleDiscreteOnly}
+                disabled={running}
+                className="w-10 h-5 rounded-full relative transition-colors flex-shrink-0 ml-3"
+                style={{
+                  background: discreteOnlyMode ? "#f59e0b" : "var(--bg-input)",
+                  border: `1px solid ${discreteOnlyMode ? "#f59e0b" : "var(--border)"}`,
+                  opacity: running ? 0.5 : 1,
+                }}
+              >
+                <span
+                  className="absolute top-0.5 h-4 w-4 rounded-full transition-all"
+                  style={{
+                    background: "#fff",
+                    left: discreteOnlyMode ? "calc(100% - 1.125rem)" : "0.125rem",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+                  }}
+                />
+              </button>
+            </div>
+          </div>
+
           {/* Sub Types */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -202,11 +258,15 @@ export default function GenerateTab() {
               </label>
               <div className="flex gap-2">
                 <button onClick={() => {
-                  const group = sectionSubtypes.filter(s => isPassageMode ? s.passageBased : !s.passageBased);
+                  const group = discreteOnlyMode
+                    ? sectionSubtypes.filter(s => !s.passageBased)
+                    : sectionSubtypes.filter(s => isPassageMode ? s.passageBased : !s.passageBased);
                   setSubTypes((group.length > 0 ? group : sectionSubtypes).map(s => s.id));
                 }} className="text-xs" style={{ color: "var(--accent-blue)" }}>All</button>
                 <button onClick={() => {
-                  const group = sectionSubtypes.filter(s => isPassageMode ? s.passageBased : !s.passageBased);
+                  const group = discreteOnlyMode
+                    ? sectionSubtypes.filter(s => !s.passageBased)
+                    : sectionSubtypes.filter(s => isPassageMode ? s.passageBased : !s.passageBased);
                   const first = (group.length > 0 ? group : sectionSubtypes)[0];
                   if (first) setSubTypes([first.id]);
                 }} className="text-xs" style={{ color: "var(--text-muted)" }}>Clear</button>
@@ -214,17 +274,26 @@ export default function GenerateTab() {
             </div>
             <div className="space-y-1.5 max-h-44 overflow-y-auto">
               {(SECTION_SUBTYPES[section] ?? []).map(st => {
-                const checked = subTypes.includes(st.id);
+                const disabled = discreteOnlyMode && st.passageBased;
+                const checked  = subTypes.includes(st.id);
                 return (
-                  <label key={st.id} className="flex items-start gap-2 cursor-pointer">
+                  <label key={st.id}
+                    className="flex items-start gap-2"
+                    style={{ cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.35 : 1 }}>
                     <input type="checkbox" checked={checked}
-                      onChange={() => toggleSubType(st.id)}
+                      disabled={disabled}
+                      onChange={() => !disabled && toggleSubType(st.id)}
                       className="mt-0.5 flex-shrink-0"
                       style={{ accentColor: SECTION_COLORS[section] }} />
                     <span className="text-xs leading-snug"
-                      style={{ color: checked ? "var(--text-primary)" : "var(--text-secondary)" }}>
+                      style={{ color: checked && !disabled ? "var(--text-primary)" : "var(--text-secondary)" }}>
                       {st.label}
-                      {st.imageRecommended && (
+                      {disabled && (
+                        <span className="ml-1" style={{ color: "var(--text-muted)", fontStyle: "italic" }}>
+                          (passage-based)
+                        </span>
+                      )}
+                      {!disabled && st.imageRecommended && (
                         <span className="ml-1" style={{ color: "var(--accent-blue)", fontStyle: "italic" }}>
                           (image-based recommended)
                         </span>
