@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { SECTION_COLORS, DIFF_COLORS } from "./shared";
-import { SECTION_SUBTYPES } from "../../../lib/subtypes";
+import { SECTION_SUBTYPES, getSubTypeIdsByMode } from "../../../lib/subtypes";
 
 type Section = "Chem/Phys" | "CARS" | "Bio/Biochem" | "Psych/Soc";
 type GenEvent =
@@ -104,29 +104,13 @@ export default function GenerateTab() {
 
   function changeSection(s: Section) {
     setSection(s);
-    const sts = SECTION_SUBTYPES[s] ?? [];
-    if (discreteOnlyMode) {
-      const discrete = sts.filter(st => !st.passageBased).map(st => st.id);
-      setSubTypes(discrete.length > 0 ? discrete : sts.map(st => st.id));
-    } else {
-      const passage = sts.filter(st => st.passageBased).map(st => st.id);
-      setSubTypes(passage.length > 0 ? passage : sts.map(st => st.id));
-    }
+    setSubTypes(getSubTypeIdsByMode(s, !discreteOnlyMode));
   }
 
   function toggleDiscreteOnly() {
-    setDiscreteOnlyMode(prev => {
-      const next = !prev;
-      const sts = SECTION_SUBTYPES[section] ?? [];
-      if (next) {
-        const discrete = sts.filter(st => !st.passageBased).map(st => st.id);
-        setSubTypes(discrete.length > 0 ? discrete : sts.map(st => st.id));
-      } else {
-        const passage = sts.filter(st => st.passageBased).map(st => st.id);
-        setSubTypes(passage.length > 0 ? passage : sts.map(st => st.id));
-      }
-      return next;
-    });
+    const next = !discreteOnlyMode;
+    setSubTypes(getSubTypeIdsByMode(section, !next));
+    setDiscreteOnlyMode(next);
   }
 
   function toggleSubType(id: string) {
@@ -257,19 +241,13 @@ export default function GenerateTab() {
                 </span>
               </label>
               <div className="flex gap-2">
-                <button onClick={() => {
-                  const group = discreteOnlyMode
-                    ? sectionSubtypes.filter(s => !s.passageBased)
-                    : sectionSubtypes.filter(s => isPassageMode ? s.passageBased : !s.passageBased);
-                  setSubTypes((group.length > 0 ? group : sectionSubtypes).map(s => s.id));
-                }} className="text-xs" style={{ color: "var(--accent-blue)" }}>All</button>
-                <button onClick={() => {
-                  const group = discreteOnlyMode
-                    ? sectionSubtypes.filter(s => !s.passageBased)
-                    : sectionSubtypes.filter(s => isPassageMode ? s.passageBased : !s.passageBased);
-                  const first = (group.length > 0 ? group : sectionSubtypes)[0];
-                  if (first) setSubTypes([first.id]);
-                }} className="text-xs" style={{ color: "var(--text-muted)" }}>Clear</button>
+                {(() => {
+                  const ids = getSubTypeIdsByMode(section, discreteOnlyMode ? false : isPassageMode);
+                  return (<>
+                    <button onClick={() => setSubTypes(ids)} className="text-xs" style={{ color: "var(--accent-blue)" }}>All</button>
+                    <button onClick={() => setSubTypes([ids[0]])} className="text-xs" style={{ color: "var(--text-muted)" }}>Clear</button>
+                  </>);
+                })()}
               </div>
             </div>
             <div className="space-y-1.5 max-h-44 overflow-y-auto">
@@ -282,7 +260,7 @@ export default function GenerateTab() {
                     style={{ cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.35 : 1 }}>
                     <input type="checkbox" checked={checked}
                       disabled={disabled}
-                      onChange={() => !disabled && toggleSubType(st.id)}
+                      onChange={() => toggleSubType(st.id)}
                       className="mt-0.5 flex-shrink-0"
                       style={{ accentColor: SECTION_COLORS[section] }} />
                     <span className="text-xs leading-snug"

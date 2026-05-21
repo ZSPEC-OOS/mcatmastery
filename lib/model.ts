@@ -40,7 +40,12 @@ export async function callModel(opts: {
   modelId?:    string;   // explicit override (admin routes)
   baseUrl?:    string;
   apiKey?:     string;
-}, _attempt = 0): Promise<string> {
+}, attempt = 0): Promise<string> {
+  const retry = async () => {
+    await sleep(Math.min(2 ** attempt * 2000, 32000));
+    return callModel(opts, attempt + 1);
+  };
+
   // If no explicit config was passed, resolve the active model from Firestore
   let { modelId, baseUrl, apiKey } = opts;
   if (!modelId) {
@@ -71,12 +76,7 @@ export async function callModel(opts: {
       }),
     });
     if (!res.ok) {
-      // Retry on rate-limit or transient server errors (up to 4 attempts, exponential backoff)
-      if ((res.status === 429 || res.status >= 500) && _attempt < 4) {
-        const backoff = Math.min(2 ** _attempt * 2000, 32000);
-        await sleep(backoff);
-        return callModel(opts, _attempt + 1);
-      }
+      if ((res.status === 429 || res.status >= 500) && attempt < 4) return retry();
       const text = await res.text().catch(() => res.statusText);
       throw new Error(`Model API error ${res.status}: ${text.slice(0, 200)}`);
     }
@@ -103,13 +103,8 @@ export async function callModel(opts: {
     }
     return block.text;
   } catch (err) {
-    // Retry on rate-limit (429) or overload (529) errors
     const status = (err as { status?: number })?.status;
-    if ((status === 429 || status === 529 || status === 503) && _attempt < 4) {
-      const backoff = Math.min(2 ** _attempt * 2000, 32000);
-      await sleep(backoff);
-      return callModel(opts, _attempt + 1);
-    }
+    if ((status === 429 || status === 529 || status === 503) && attempt < 4) return retry();
     throw err;
   }
 }

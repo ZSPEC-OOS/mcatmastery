@@ -188,6 +188,14 @@ export function getSubTypeById(id: string): SubTypeDefinition | undefined {
   return undefined;
 }
 
+// Returns IDs of all subtypes for a section matching the given mode, falling
+// back to all subtypes if none exist for that mode.
+export function getSubTypeIdsByMode(section: string, passageBased: boolean): string[] {
+  const sts = SECTION_SUBTYPES[section] ?? [];
+  const filtered = sts.filter(st => st.passageBased === passageBased).map(st => st.id);
+  return filtered.length > 0 ? filtered : sts.map(st => st.id);
+}
+
 export function getSubTypesForSections(sections: string[]): SubTypeDefinition[] {
   const seen = new Set<string>();
   const result: SubTypeDefinition[] = [];

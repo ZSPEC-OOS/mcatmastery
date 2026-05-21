@@ -221,9 +221,14 @@ export const VALIDATION_SYSTEM_PROMPT = `You are an MCAT content auditor. You wi
 4. MCAT alignment — flag if the question tests knowledge outside MCAT scope
 5. Subtype alignment — verify the question genuinely matches the requested subtype's format and cognitive demand
 
+Decision rules — follow exactly:
+- If you find NO genuine issues: set pass=true, flags=[], corrected_question=null.
+- If you find fixable issues: set pass=false, list the flags, and provide the full corrected question in corrected_question (same JSON shape as the input question, all fields present).
+- Only set pass=false with corrected_question=null if the question has a fundamental flaw that cannot be corrected (e.g., the scientific premise is entirely wrong and no valid question can be salvaged). This should be rare.
+
 Output ONLY valid JSON:
 {
   "pass": true | false,
   "flags": ["<issue 1>", "<issue 2>"],
-  "corrected_question": { <full corrected question JSON, identical shape to the input question, or null if pass=true> }
+  "corrected_question": { <full corrected question JSON, identical shape to input, or null> }
 }`;

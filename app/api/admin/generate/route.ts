@@ -375,7 +375,7 @@ export async function POST(req: NextRequest) {
                     apiKey:      modelConfig?.apiKey,
                     system:      valPrompt,
                     userContent: JSON.stringify({ question: parsed, requestedSubType: subTypeDef?.label ?? "general" }),
-                    maxTokens:   600,
+                    maxTokens:   2000,
                   });
 
                   type Validation = { pass: boolean; flags: string[]; corrected_question: Record<string, unknown> | null };
