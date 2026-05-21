@@ -9,6 +9,7 @@ export interface Question {
   section: Section;
   topic: string;
   subType?: string;
+  passageGroupId?: string | null;
   passage: string | null;
   stem: string;
   optionA: string; optionB: string; optionC: string; optionD: string;

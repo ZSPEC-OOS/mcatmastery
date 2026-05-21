@@ -134,30 +134,6 @@ export default function PracticePage() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [phase]);
 
-  // Keyboard shortcuts: 1-4 / A-D to select, Enter to submit or advance, P to toggle passage
-  useEffect(() => {
-    if (phase !== "active") return;
-    function handler(e: KeyboardEvent) {
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-      switch (e.key) {
-        case "1": case "a": case "A": if (!submitted) setSelected("A"); break;
-        case "2": case "b": case "B": if (!submitted) setSelected("B"); break;
-        case "3": case "c": case "C": if (!submitted) setSelected("C"); break;
-        case "4": case "d": case "D": if (!submitted) setSelected("D"); break;
-        case "Enter":
-          if (!submitted && selected) handleSubmit();
-          else if (submitted) handleNext();
-          break;
-        case "p": case "P":
-          if (currentQ?.passage) setShowPassageModal(p => !p);
-          break;
-      }
-    }
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [phase, submitted, selected, currentQ, handleSubmit, handleNext]);
-
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
   const handleFetch = useCallback(async () => {
@@ -238,6 +214,30 @@ export default function PracticePage() {
       qStartRef.current = Date.now();
     }
   }, [idx, questions.length, sessionId]);
+
+  // Keyboard shortcuts: 1-4 / A-D to select, Enter to submit or advance, P to toggle passage
+  useEffect(() => {
+    if (phase !== "active") return;
+    function handler(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      switch (e.key) {
+        case "1": case "a": case "A": if (!submitted) setSelected("A"); break;
+        case "2": case "b": case "B": if (!submitted) setSelected("B"); break;
+        case "3": case "c": case "C": if (!submitted) setSelected("C"); break;
+        case "4": case "d": case "D": if (!submitted) setSelected("D"); break;
+        case "Enter":
+          if (!submitted && selected) handleSubmit();
+          else if (submitted) handleNext();
+          break;
+        case "p": case "P":
+          if (currentQ?.passage) setShowPassageModal(p => !p);
+          break;
+      }
+    }
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [phase, submitted, selected, currentQ, handleSubmit, handleNext]);
 
   const correctCount = questions.filter(q => answers[q.id] === q.correctAnswer).length;
 
