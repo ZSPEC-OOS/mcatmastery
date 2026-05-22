@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 
-type ModelRole = "generation" | "audit" | "both";
+type ModelRole = "generation" | "audit" | "both" | "disabled";
 
 interface ModelConfig {
   id: string;
@@ -17,6 +17,7 @@ const ROLE_LABELS: Record<ModelRole, string> = {
   generation: "Question Gen",
   audit: "Audit Only",
   both: "Both",
+  disabled: "Disabled",
 };
 
 const EMPTY_FORM = { name: "", modelId: "", baseUrl: "", apiKey: "", role: "both" as ModelRole };
@@ -609,13 +610,13 @@ export default function SettingsTab() {
                     )}
                     <div className="pt-0.5">
                       {(() => {
+                        // Only active (non-disabled) other models create conflicts
                         const otherHasBoth  = models.some(x => x.id !== m.id && x.role === "both");
                         const otherHasGen   = models.some(x => x.id !== m.id && x.role === "generation");
                         const otherHasAudit = models.some(x => x.id !== m.id && x.role === "audit");
                         const genBlocked    = otherHasBoth || otherHasGen;
                         const auditBlocked  = otherHasBoth || otherHasAudit;
                         const bothBlocked   = otherHasBoth || otherHasGen || otherHasAudit;
-                        const locked        = updatingRoleId === m.id || (genBlocked && auditBlocked && bothBlocked && m.role !== "generation" && m.role !== "audit" && m.role !== "both");
                         return (
                           <>
                             <select
@@ -623,17 +624,15 @@ export default function SettingsTab() {
                               disabled={updatingRoleId === m.id}
                               onChange={(e) => updateRole(m.id, e.target.value as ModelRole)}
                               className="text-xs rounded px-2 py-0.5"
-                              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-secondary)", cursor: locked ? "not-allowed" : "pointer" }}
+                              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-secondary)", cursor: "pointer" }}
                             >
                               <option value="generation" disabled={genBlocked && m.role !== "generation"}>Question Gen</option>
                               <option value="audit"      disabled={auditBlocked && m.role !== "audit"}>Audit Only</option>
                               <option value="both"       disabled={bothBlocked && m.role !== "both"}>Both</option>
+                              <option value="disabled">Disabled</option>
                             </select>
-                            {otherHasBoth && m.role !== "both" && (
-                              <p className="text-xs mt-1" style={{ color: "#f59e0b" }}>Locked — another model is set to Both</p>
-                            )}
-                            {!otherHasBoth && (genBlocked && m.role === "generation" || auditBlocked && m.role === "audit") && (
-                              <p className="text-xs mt-1" style={{ color: "#f59e0b" }}>Role conflict — another model shares this role</p>
+                            {otherHasBoth && m.role !== "both" && m.role !== "disabled" && (
+                              <p className="text-xs mt-1" style={{ color: "#f59e0b" }}>Set to Disabled to free up roles</p>
                             )}
                           </>
                         );
@@ -754,6 +753,7 @@ export default function SettingsTab() {
                         <option value="generation" disabled={genBlocked}>Question Gen{genBlocked ? " (taken)" : ""}</option>
                         <option value="audit"      disabled={auditBlocked}>Audit Only{auditBlocked ? " (taken)" : ""}</option>
                         <option value="both"       disabled={bothBlocked}>Both{bothBlocked ? " (taken)" : ""}</option>
+                        <option value="disabled">Disabled</option>
                       </select>
                       {(genBlocked || auditBlocked || bothBlocked) && (
                         <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
