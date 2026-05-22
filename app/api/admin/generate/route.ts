@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getSetting, ensureSchema } from "../../../../lib/db";
 import { GENERATION_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT, PASSAGE_SET_SYSTEM_PROMPT } from "../../../../lib/anthropic";
 import { saveQuestion, getQuestions, getModelByModelId, uploadQuestionImage, updateQuestion } from "../../../../lib/firestore";
-import { callModel } from "../../../../lib/model";
+import { callModel, getModelForRole } from "../../../../lib/model";
 import { getSubTypeById } from "../../../../lib/subtypes";
 import { extractModelJson } from "../../../../lib/parse";
 import { SECTION_TOPICS } from "../../../../lib/topics";
@@ -84,7 +84,6 @@ const AdminGenerateSchema = z.object({
   subTypes:        z.array(z.string()).optional(),
   count:           z.number().min(1).max(50).default(5),
   passageSets:     z.number().min(1).max(20).optional(),
-  model:           z.string().default("claude-opus-4-7"),
   dedupThreshold:  z.number().min(0.3).max(0.99).default(0.75),
   imageGeneration: z.boolean().default(false),
   imageModelId:    z.string().optional(),
@@ -163,7 +162,7 @@ export async function POST(req: NextRequest) {
 
     const passageSetPrompt = customPassageGen || PASSAGE_SET_SYSTEM_PROMPT;
 
-    const modelConfig = await getModelByModelId(body.model).catch(() => null);
+    const genModel = await getModelForRole("generation");
 
     const imageModelConfig = body.imageGeneration && body.imageModelId
       ? await getModelByModelId(body.imageModelId).catch(() => null)
@@ -274,9 +273,9 @@ export async function POST(req: NextRequest) {
               ].filter(Boolean).join(" ");
 
               const raw = await callModel({
-                modelId:     body.model,
-                baseUrl:     modelConfig?.baseUrl,
-                apiKey:      modelConfig?.apiKey,
+                modelId:     genModel?.modelId,
+                baseUrl:     genModel?.baseUrl,
+                apiKey:      genModel?.apiKey,
                 system:      passageSetPrompt,
                 userContent: userMsg,
                 maxTokens:   6000,
@@ -347,9 +346,9 @@ export async function POST(req: NextRequest) {
               ].filter(Boolean).join(" ");
 
               const raw = await callModel({
-                modelId:     body.model,
-                baseUrl:     modelConfig?.baseUrl,
-                apiKey:      modelConfig?.apiKey,
+                modelId:     genModel?.modelId,
+                baseUrl:     genModel?.baseUrl,
+                apiKey:      genModel?.apiKey,
                 system:      genPrompt,
                 userContent: userMsg,
                 maxTokens:   1200,
@@ -370,9 +369,9 @@ export async function POST(req: NextRequest) {
                   enqueue({ type: "skip", reason: "duplicate" });
                 } else {
                   const valRaw = await callModel({
-                    modelId:     body.model,
-                    baseUrl:     modelConfig?.baseUrl,
-                    apiKey:      modelConfig?.apiKey,
+                    modelId:     genModel?.modelId,
+                    baseUrl:     genModel?.baseUrl,
+                    apiKey:      genModel?.apiKey,
                     system:      valPrompt,
                     userContent: JSON.stringify({ question: parsed, requestedSubType: subTypeDef?.label ?? "general" }),
                     maxTokens:   2000,
