@@ -44,12 +44,15 @@ function fs() {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+export type ModelRole = "generation" | "audit" | "both";
+
 export interface ModelConfig {
   id: string;
   name: string;
   modelId: string;
   baseUrl: string;
   apiKey: string;
+  role: ModelRole;
   createdAt: string;
 }
 
@@ -114,6 +117,10 @@ export async function saveModel(model: Omit<ModelConfig, "id" | "createdAt">): P
   const createdAt = new Date().toISOString();
   const ref = await fs().collection("models").add({ ...model, createdAt });
   return { id: ref.id, ...model, createdAt };
+}
+
+export async function updateModelRole(id: string, role: ModelRole): Promise<void> {
+  await fs().collection("models").doc(id).update({ role });
 }
 
 export async function deleteModel(id: string): Promise<void> {

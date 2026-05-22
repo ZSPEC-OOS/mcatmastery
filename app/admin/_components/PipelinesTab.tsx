@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 import { SECTION_COLORS, DIFF_COLORS } from "./shared";
 
-interface CustomModel { id: string; name: string; modelId: string; baseUrl: string; apiKey: string }
+interface CustomModel { id: string; name: string; modelId: string; baseUrl: string; apiKey: string; role?: string }
 
 function useCustomModels() {
   const [models, setModels]   = useState<CustomModel[]>([]);
