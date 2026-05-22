@@ -104,8 +104,18 @@ export async function callModel(opts: {
       const text = await res.text().catch(() => res.statusText);
       throw new Error(`Model API error ${res.status}: ${text.slice(0, 200)}`);
     }
-    const data = await res.json() as { choices?: Array<{ message?: { content?: string | null } }>; error?: unknown };
-    const content = data.choices?.[0]?.message?.content;
+    const data = await res.json() as {
+      choices?: Array<{ message?: { content?: string | Array<{ type: string; text?: string }> | null } }>;
+      error?: unknown;
+    };
+    const raw = data.choices?.[0]?.message?.content;
+    let content: string | null = null;
+    if (typeof raw === "string") {
+      content = raw || null;
+    } else if (Array.isArray(raw)) {
+      // Some newer models return content as an array of typed blocks
+      content = raw.filter((b) => b?.type === "text" && b?.text).map((b) => b.text).join("") || null;
+    }
     if (!content) {
       const hint = data.error ? ` API error: ${JSON.stringify(data.error).slice(0, 200)}` : ` Response: ${JSON.stringify(data).slice(0, 200)}`;
       throw new Error(`Model returned empty content.${hint}`);
