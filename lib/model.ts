@@ -72,21 +72,33 @@ export async function callModel(opts: {
   // Custom OpenAI-compatible endpoint
   if (baseUrl) {
     const url = `${baseUrl.replace(/\/+$/, "")}/chat/completions`;
-    const res = await fetch(url, {
-      method:  "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
-      },
-      body: JSON.stringify({
-        model:    modelId,
-        messages: [
-          { role: "system", content: opts.system },
-          { role: "user",   content: opts.userContent },
-        ],
-        max_tokens: opts.maxTokens,
-      }),
-    });
+    const messages = [
+      { role: "system", content: opts.system },
+      { role: "user",   content: opts.userContent },
+    ];
+
+    const doFetch = (tokenParam: "max_tokens" | "max_completion_tokens") =>
+      fetch(url, {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+        },
+        body: JSON.stringify({ model: modelId, messages, [tokenParam]: opts.maxTokens }),
+      });
+
+    let res = await doFetch("max_tokens");
+
+    // Newer OpenAI models (o1, o3, gpt-5+) require max_completion_tokens
+    if (res.status === 400) {
+      const errText = await res.text().catch(() => "");
+      if (errText.includes("max_tokens")) {
+        res = await doFetch("max_completion_tokens");
+      } else {
+        throw new Error(`Model API error 400: ${errText.slice(0, 200)}`);
+      }
+    }
+
     if (!res.ok) {
       if ((res.status === 429 || res.status >= 500) && attempt < 4) return retry();
       const text = await res.text().catch(() => res.statusText);
