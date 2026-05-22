@@ -107,6 +107,16 @@ export async function ensureSchema(): Promise<void> {
     )`,
     // Add figureUrl to Question if it was created before this column existed
     `ALTER TABLE "Question" ADD COLUMN IF NOT EXISTS "figureUrl" TEXT`,
+    // UserPin: persistent PIN-based user accounts (no Clerk dependency)
+    `CREATE TABLE IF NOT EXISTS "UserPin" (
+      "pinHash"   TEXT PRIMARY KEY,
+      "userId"    TEXT UNIQUE NOT NULL,
+      "firstName" TEXT NOT NULL,
+      "lastName"  TEXT NOT NULL,
+      "email"     TEXT UNIQUE NOT NULL,
+      "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE
+    )`,
   ];
 
   for (const sql of stmts) {
