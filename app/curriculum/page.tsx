@@ -7,50 +7,38 @@ import TopicDetail from "../components/curriculum/TopicDetail";
 import RightPanel from "../components/curriculum/RightPanel";
 
 export default function CurriculumPage() {
-  const [activeTopic, setActiveTopic] = useState("");
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [activeKey, setActiveKey]           = useState("");
+  const [mobileSidebarOpen, setMobileOpen]  = useState(false);
 
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
 
-      {/* Sub-header: search + filter */}
+      {/* Sub-header */}
       <div
         className="px-4 md:px-6 py-3 flex items-center gap-3"
         style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-card)" }}
       >
-        {/* Mobile: Topics toggle button */}
+        {/* Mobile: Topics toggle */}
         <button
           className="md:hidden flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg flex-shrink-0"
           style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}
-          onClick={() => setMobileSidebarOpen(true)}
+          onClick={() => setMobileOpen(true)}
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
           </svg>
           Topics
         </button>
 
-        <div className="flex-1 max-w-md relative">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2" width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <circle cx="6" cy="6" r="4.5" stroke="var(--text-muted)" strokeWidth="1.3" />
-            <path d="M10 10l2.5 2.5" stroke="var(--text-muted)" strokeWidth="1.3" strokeLinecap="round" />
-          </svg>
-          <input
-            type="text"
-            placeholder="Search topics, formulas, concepts..."
-            className="w-full pl-8 pr-3 py-1.5 rounded-lg text-sm"
-            style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
-          />
-        </div>
-        <button
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium flex-shrink-0"
-          style={{ background: "rgba(27,58,107,0.2)", color: "var(--accent-blue)", border: "1px solid rgba(27,58,107,0.35)" }}
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-current" />
-          <span className="hidden sm:inline">Weak Topics</span>
-          <span className="sm:hidden">Weak</span>
-        </button>
+        <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+          Question Bank
+        </p>
+        <p className="text-xs hidden sm:block" style={{ color: "var(--text-muted)" }}>
+          Browse and review all questions by section, group, or topic
+        </p>
       </div>
 
       {/* 3-column main */}
@@ -60,41 +48,39 @@ export default function CurriculumPage() {
         {mobileSidebarOpen && (
           <div className="md:hidden absolute inset-0 z-40 flex">
             <div className="flex-shrink-0 overflow-y-auto" style={{ background: "var(--bg-card)" }}>
-              {/* Mobile drawer close button */}
-              <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
-                <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Sections</span>
-                <button onClick={() => setMobileSidebarOpen(false)} style={{ color: "var(--text-secondary)" }}>
+              <div
+                className="flex items-center justify-between px-4 py-3"
+                style={{ borderBottom: "1px solid var(--border)" }}
+              >
+                <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                  Sections
+                </span>
+                <button onClick={() => setMobileOpen(false)} style={{ color: "var(--text-secondary)" }}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
                 </button>
               </div>
               <TopicSidebar
-                activeTopic={activeTopic}
-                onSelect={(sId, label) => {
-                  setActiveTopic(`${sId}:${label}`);
-                  setMobileSidebarOpen(false);
-                }}
+                activeKey={activeKey}
+                onSelect={(key) => { setActiveKey(key); setMobileOpen(false); }}
               />
             </div>
-            {/* Backdrop */}
-            <div className="flex-1" style={{ background: "rgba(0,0,0,0.55)" }} onClick={() => setMobileSidebarOpen(false)} />
+            <div className="flex-1" style={{ background: "rgba(0,0,0,0.55)" }} onClick={() => setMobileOpen(false)} />
           </div>
         )}
 
-        {/* Desktop sidebar (hidden on mobile) */}
+        {/* Desktop sidebar */}
         <div className="hidden md:flex flex-shrink-0">
-          <TopicSidebar
-            activeTopic={activeTopic}
-            onSelect={(sId, label) => setActiveTopic(`${sId}:${label}`)}
-          />
+          <TopicSidebar activeKey={activeKey} onSelect={setActiveKey} />
         </div>
 
-        <TopicDetail topicKey={activeTopic} />
+        <TopicDetail selectionKey={activeKey} />
 
-        {/* Right panel — hidden on mobile */}
+        {/* Right panel */}
         <div className="hidden lg:flex flex-shrink-0">
-          <RightPanel topicKey={activeTopic} />
+          <RightPanel selectionKey={activeKey} />
         </div>
       </div>
 
