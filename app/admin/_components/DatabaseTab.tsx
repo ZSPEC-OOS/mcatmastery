@@ -18,6 +18,8 @@ type Stats = {
   needsAudit: RecentQ[];
 };
 
+type AuditError = { questionId: string; message: string };
+
 type AuditFinding = {
   questionId: string;
   question: FullQ;
@@ -204,7 +206,7 @@ export default function DatabaseTab() {
   const [auditState, setAuditState]         = useState<"idle" | "running" | "done">("idle");
   const [auditProgress, setAuditProgress]   = useState({ current: 0, total: 0 });
   const [auditFindings, setAuditFindings]   = useState<AuditFinding[]>([]);
-  const [auditErrors, setAuditErrors]       = useState(0);
+  const [auditErrors, setAuditErrors]       = useState<AuditError[]>([]);
   const [applyingId, setApplyingId]         = useState<string | null>(null);
   const [applyErrors, setApplyErrors]       = useState<Record<string, string>>({});
   const [denyingId, setDenyingId]           = useState<string | null>(null);
@@ -259,7 +261,7 @@ export default function DatabaseTab() {
     setStopping(false);
     setAuditState("running");
     setAuditFindings([]);
-    setAuditErrors(0);
+    setAuditErrors([]);
     setAuditProgress({ current: 0, total: 0 });
     const res = await fetch("/api/admin/audit", { method: "POST" });
     if (!res.body) { setAuditState("done"); return; }
@@ -298,7 +300,7 @@ export default function DatabaseTab() {
               correctedQuestion: evt.correctedQuestion,
             }]);
           } else if (evt.type === "error") {
-            setAuditErrors((n) => n + 1);
+            setAuditErrors((prev) => [...prev, { questionId: evt.questionId ?? "unknown", message: evt.message ?? "Unknown error" }]);
           } else if (evt.type === "done") {
             setAuditState("done");
           }
@@ -442,10 +444,20 @@ export default function DatabaseTab() {
                 {auditFindings.length} issue{auditFindings.length !== 1 ? "s" : ""} found so far — review below when complete.
               </p>
             )}
-            {auditErrors > 0 && (
-              <p className="text-xs mt-1" style={{ color: "#e05c5c" }}>
-                {auditErrors} question{auditErrors !== 1 ? "s" : ""} could not be audited due to errors.
-              </p>
+            {auditErrors.length > 0 && (
+              <div className="mt-2 rounded-lg overflow-hidden" style={{ border: "1px solid rgba(224,92,92,0.3)", background: "rgba(224,92,92,0.05)" }}>
+                <p className="text-xs font-semibold px-3 py-2" style={{ color: "#e05c5c", borderBottom: "1px solid rgba(224,92,92,0.2)" }}>
+                  {auditErrors.length} question{auditErrors.length !== 1 ? "s" : ""} could not be audited
+                </p>
+                <ul className="divide-y" style={{ borderColor: "rgba(224,92,92,0.15)" }}>
+                  {auditErrors.map((err, i) => (
+                    <li key={i} className="px-3 py-2 flex flex-col gap-0.5">
+                      <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>ID: {err.questionId}</span>
+                      <span className="text-xs" style={{ color: "#e05c5c" }}>{err.message}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </div>
         )}
@@ -548,6 +560,21 @@ export default function DatabaseTab() {
           <div className="px-5 py-6 text-center">
             <p className="text-sm font-semibold" style={{ color: "#4ade80" }}>No issues found</p>
             <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>All questions passed the content accuracy audit.</p>
+            {auditErrors.length > 0 && (
+              <div className="mt-4 text-left rounded-lg overflow-hidden" style={{ border: "1px solid rgba(224,92,92,0.3)", background: "rgba(224,92,92,0.05)" }}>
+                <p className="text-xs font-semibold px-3 py-2" style={{ color: "#e05c5c", borderBottom: "1px solid rgba(224,92,92,0.2)" }}>
+                  {auditErrors.length} question{auditErrors.length !== 1 ? "s" : ""} skipped due to errors
+                </p>
+                <ul className="divide-y" style={{ borderColor: "rgba(224,92,92,0.15)" }}>
+                  {auditErrors.map((err, i) => (
+                    <li key={i} className="px-3 py-2 flex flex-col gap-0.5">
+                      <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>ID: {err.questionId}</span>
+                      <span className="text-xs" style={{ color: "#e05c5c" }}>{err.message}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </div>
