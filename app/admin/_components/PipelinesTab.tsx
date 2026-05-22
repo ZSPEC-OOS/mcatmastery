@@ -48,6 +48,8 @@ function ModelPicker({ models, loading, value, onChange }: {
   );
 }
 
+// ModelPicker / useCustomModels used by PDFPipeline only
+
 type SseEvent =
   | { type: "status";   message: string }
   | { type: "progress"; current: number; total: number }
@@ -79,12 +81,12 @@ async function readSse(
 
 type Section = "Chem/Phys" | "CARS" | "Bio/Biochem" | "Psych/Soc";
 const SECTIONS: Section[] = ["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"];
-type Pipeline = "ai" | "pdf" | "wisp";
+type Pipeline = "ai" | "pdf" | "websearch";
 
 const PIPELINES: { id: Pipeline; label: string; desc: string }[] = [
-  { id: "ai",   label: "1 · AI Generation",    desc: "Claude generates questions from scratch using MCAT specs." },
-  { id: "pdf",  label: "2 · PDF Book Extraction", desc: "Upload MCAT prep book pages — AI extracts or generates questions." },
-  { id: "wisp", label: "3 · WISP Web Research", desc: "Search the web via WISP API for free question sets and refine them." },
+  { id: "ai",        label: "1 · AI Generation",      desc: "Claude generates questions from scratch using MCAT specs." },
+  { id: "pdf",       label: "2 · PDF Book Extraction", desc: "Upload MCAT prep book pages — AI extracts or generates questions." },
+  { id: "websearch", label: "3 · Web Search",          desc: "Claude searches the internet for real MCAT questions and saves them to the audit queue." },
 ];
 
 export default function PipelinesTab() {
@@ -101,8 +103,8 @@ export default function PipelinesTab() {
             onClick={() => setActive(p.id)}
             className="rounded-xl px-5 py-4 text-left transition-colors"
             style={{
-              background:   active === p.id ? "rgba(27,58,107,0.1)" : "var(--bg-card)",
-              border:       `1px solid ${active === p.id ? "var(--accent-blue)" : "var(--border)"}`,
+              background: active === p.id ? "rgba(27,58,107,0.1)" : "var(--bg-card)",
+              border:     `1px solid ${active === p.id ? "var(--accent-blue)" : "var(--border)"}`,
             }}
           >
             <div className="text-sm font-semibold mb-1" style={{ color: active === p.id ? "var(--accent-blue)" : "var(--text-primary)" }}>
@@ -114,9 +116,9 @@ export default function PipelinesTab() {
       </div>
 
       {/* Pipeline detail */}
-      {active === "ai"   && <AIPipeline />}
-      {active === "pdf"  && <PDFPipeline />}
-      {active === "wisp" && <WISPPipeline />}
+      {active === "ai"        && <AIPipeline />}
+      {active === "pdf"       && <PDFPipeline />}
+      {active === "websearch" && <WebSearchPipeline />}
 
     </div>
   );
@@ -303,38 +305,28 @@ function PDFPipeline() {
   );
 }
 
-function WISPPipeline() {
-  const [endpoint, setEndpoint] = useState("");
-  const [apiKey, setApiKey]     = useState("");
-  const [section, setSection]   = useState<Section>("Bio/Biochem");
-  const [topic, setTopic]       = useState("");
-  const [count, setCount]       = useState(5);
-  const [model, setModel]       = useState("");
-  const [dedup, setDedup]       = useState(0.75);
-  const { models: customModels, loading: modelsLoading } = useCustomModels();
-  useEffect(() => { if (customModels.length > 0 && !model) setModel(customModels[0].modelId); }, [customModels, model]);
-  const [running, setRunning]   = useState(false);
-  const [events, setEvents]     = useState<SseEvent[]>([]);
+function WebSearchPipeline() {
+  const [section, setSection] = useState<Section>("Bio/Biochem");
+  const [topic, setTopic]     = useState("");
+  const [count, setCount]     = useState(5);
+  const [dedup, setDedup]     = useState(0.75);
+  const [running, setRunning] = useState(false);
+  const [events, setEvents]   = useState<SseEvent[]>([]);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
 
-  const canRun = endpoint.length > 0 && !running;
-
   async function handleSearch() {
-    if (!canRun) return;
+    if (running) return;
     setRunning(true);
     setEvents([]);
     setProgress({ current: 0, total: count });
 
-    const res = await fetch("/api/admin/pipeline/wisp", {
-      method: "POST",
+    const res = await fetch("/api/admin/pipeline/websearch", {
+      method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        wispEndpoint: endpoint,
-        wispApiKey:   apiKey || undefined,
+      body:    JSON.stringify({
         section,
-        topic:        topic || undefined,
+        topic:          topic.trim() || undefined,
         count,
-        model,
         dedupThreshold: dedup,
       }),
     });
@@ -355,43 +347,13 @@ function WISPPipeline() {
   return (
     <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
       <div className="px-5 py-3.5" style={{ background: "var(--bg-card)", borderBottom: "1px solid var(--border)" }}>
-        <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>WISP Web Research</p>
+        <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Web Search</p>
         <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-          Searches the web via a self-hosted WISP API, extracts question material, then refines and verifies each question.
+          Claude searches the internet for real, pre-existing MCAT questions. It auto-targets the topic with the fewest questions, extracts and validates them, then places them in the audit queue.
         </p>
       </div>
 
       <div className="px-5 py-5 space-y-5">
-
-        {/* Endpoint + API key */}
-        <div className="space-y-3">
-          <div>
-            <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-              WISP Endpoint URL
-            </label>
-            <input
-              type="url"
-              value={endpoint}
-              onChange={(e) => setEndpoint(e.target.value)}
-              placeholder="https://wisp.example.com"
-              className="w-full px-3 py-2 rounded-lg text-sm"
-              style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-              API Key <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(optional)</span>
-            </label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Bearer token"
-              className="w-full px-3 py-2 rounded-lg text-sm"
-              style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
-            />
-          </div>
-        </div>
 
         {/* Section */}
         <div>
@@ -402,8 +364,8 @@ function WISPPipeline() {
                 className="py-2 px-3 rounded-lg text-xs font-semibold text-left flex items-center gap-2"
                 style={{
                   background: section === s ? `${SECTION_COLORS[s]}22` : "var(--bg-elevated)",
-                  border: `1px solid ${section === s ? SECTION_COLORS[s] : "var(--border)"}`,
-                  color: section === s ? SECTION_COLORS[s] : "var(--text-secondary)",
+                  border:     `1px solid ${section === s ? SECTION_COLORS[s] : "var(--border)"}`,
+                  color:      section === s ? SECTION_COLORS[s] : "var(--text-secondary)",
                 }}
               >
                 <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: SECTION_COLORS[s] }} />
@@ -413,36 +375,31 @@ function WISPPipeline() {
           </div>
         </div>
 
-        {/* Topic */}
+        {/* Topic override */}
         <div>
           <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-            Topic hint <span style={{ fontWeight: 400 }}>(optional)</span>
+            Topic override{" "}
+            <span style={{ fontWeight: 400, textTransform: "none" }}>— leave blank to auto-select sparsest topic</span>
           </label>
           <input
             type="text"
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
-            placeholder="e.g. Enzyme Kinetics"
+            placeholder="e.g. Enzyme Kinetics & Inhibition"
             className="w-full px-3 py-2 rounded-lg text-sm"
             style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
           />
         </div>
 
-        {/* Count + Model */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-              Count — <span style={{ color: "var(--text-primary)" }}>{count}</span>
-            </label>
-            <input type="range" min={1} max={30} value={count}
-              onChange={(e) => setCount(Number(e.target.value))} className="w-full" />
-            <div className="flex justify-between text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-              <span>1</span><span>30</span>
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Model</label>
-            <ModelPicker models={customModels} loading={modelsLoading} value={model} onChange={setModel} />
+        {/* Count */}
+        <div>
+          <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+            Questions to find — <span style={{ color: "var(--text-primary)" }}>{count}</span>
+          </label>
+          <input type="range" min={1} max={20} value={count}
+            onChange={(e) => setCount(Number(e.target.value))} className="w-full" />
+          <div className="flex justify-between text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+            <span>1</span><span>20</span>
           </div>
         </div>
 
@@ -458,18 +415,23 @@ function WISPPipeline() {
           </div>
         </div>
 
+        {/* Info note */}
+        <div className="px-3 py-2 rounded-lg text-xs" style={{ background: "rgba(27,58,107,0.08)", border: "1px solid rgba(27,58,107,0.2)", color: "var(--text-secondary)" }}>
+          Uses the Anthropic API with built-in web search. Questions are validated and saved to the audit queue automatically. Requires <code style={{ color: "var(--accent-blue)" }}>ANTHROPIC_API_KEY</code>.
+        </div>
+
         <button
           onClick={handleSearch}
-          disabled={!canRun || !model}
+          disabled={running}
           className="w-full py-2.5 rounded-lg text-sm font-semibold"
           style={{
-            background: canRun ? "var(--accent-blue)" : "var(--bg-elevated)",
-            color: canRun ? "#fff" : "var(--text-muted)",
-            border: canRun ? "none" : "1px solid var(--border)",
-            cursor: canRun ? "pointer" : "not-allowed",
+            background: !running ? "var(--accent-blue)" : "var(--bg-elevated)",
+            color:      !running ? "#fff" : "var(--text-muted)",
+            border:     !running ? "none" : "1px solid var(--border)",
+            cursor:     !running ? "pointer" : "not-allowed",
           }}
         >
-          {running ? `Processing ${progress.current} / ${progress.total}…` : "Search & Extract Questions"}
+          {running ? `Searching… ${progress.current} / ${progress.total}` : "Search the Web"}
         </button>
 
         <LiveOutput events={events} running={running} progress={progress} />
