@@ -6,14 +6,6 @@ const SECTION_MAP: Record<string, string> = {
   chem: "Chem/Phys", cars: "CARS", bio: "Bio/Biochem", psych: "Psych/Soc",
 };
 
-const calDays = [
-  { label: "Mon", value: "✓", sub: "Easy",   active: false, done: true },
-  { label: "Tue", value: "✓", sub: "Good",   active: false, done: true },
-  { label: "Wed", value: "8",  sub: "Review", active: true,  done: false },
-  { label: "Thu", value: "12", sub: "New",    active: false, done: false },
-  { label: "Fri", value: "5",  sub: "Today",  active: false, done: false },
-];
-
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
     <div
@@ -25,32 +17,53 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
   );
 }
 
-interface Props { topicKey: string; }
+// Parse the selection key to get a topic label for filtering mistakes/notes
+function getTopicLabel(key: string): string {
+  if (!key) return "";
+  const tag = key.split(":")[0];
+  if (tag === "topic") {
+    // "topic:sectionId:topicLabel"
+    const rest = key.slice("topic:".length);
+    const colonIdx = rest.indexOf(":");
+    return colonIdx >= 0 ? rest.slice(colonIdx + 1) : "";
+  }
+  return "";
+}
 
-export default function RightPanel({ topicKey }: Props) {
+function getSectionId(key: string): string {
+  if (!key) return "";
+  const parts = key.split(":");
+  return parts.length >= 2 ? parts[1] : "";
+}
+
+interface Props { selectionKey: string; }
+
+export default function RightPanel({ selectionKey }: Props) {
   const [mistakes, setMistakes] = useState<SessionQuestion[]>([]);
   const [note, setNote]         = useState("");
   const [saving, setSaving]     = useState(false);
   const [saved, setSaved]       = useState(false);
 
-  const [sectionId, topicLabel] = topicKey.split(":") as [string, string];
+  const topicLabel  = getTopicLabel(selectionKey);
+  const sectionId   = getSectionId(selectionKey);
   const sectionName = SECTION_MAP[sectionId] ?? sectionId;
 
   useEffect(() => {
     setMistakes([]);
+    if (!topicLabel) return;
     fetchMistakes({ wrong: true, limit: 50 })
-      .then(r => {
-        const filtered = r.questions.filter(q => q.question.topic === topicLabel);
+      .then((r) => {
+        const filtered = r.questions.filter((q) => q.question.topic === topicLabel);
         setMistakes(filtered);
       })
       .catch(() => {});
   }, [topicLabel]);
 
   const handleSaveNote = async () => {
-    if (!note.trim() || mistakes.length === 0) return;
+    if (!note.trim()) return;
     setSaving(true);
     try {
-      await saveNote({ content: note.trim(), topic: topicLabel });
+      await saveNote({ content: note.trim(), topic: topicLabel || sectionName });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch {
@@ -68,7 +81,7 @@ export default function RightPanel({ topicKey }: Props) {
       className="overflow-y-auto py-6 px-4 space-y-4"
       style={{ width: 272, minWidth: 272, borderLeft: "1px solid var(--border)" }}
     >
-      {/* Recent mistakes for topic */}
+      {/* Recent mistakes */}
       <Card>
         <div className="flex items-center justify-between mb-3">
           <span className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
@@ -76,13 +89,17 @@ export default function RightPanel({ topicKey }: Props) {
           </span>
           <span className="text-xs" style={{ color: "var(--text-muted)" }}>{sectionName}</span>
         </div>
-        {mistakes.length === 0 ? (
+        {!topicLabel ? (
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            No mistakes recorded for {topicLabel || "this topic"}.
+            Select a specific topic to see mistakes.
+          </p>
+        ) : mistakes.length === 0 ? (
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            No mistakes recorded for {topicLabel}.
           </p>
         ) : (
           <div className="space-y-3">
-            {mistakes.slice(0, 4).map(m => (
+            {mistakes.slice(0, 4).map((m) => (
               <div key={m.id} className="flex items-start gap-2">
                 <div
                   className="w-3.5 h-3.5 rounded-sm flex-shrink-0 mt-0.5"
@@ -90,7 +107,7 @@ export default function RightPanel({ topicKey }: Props) {
                 />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs truncate" style={{ color: "var(--text-primary)" }}>{m.question.stem}</p>
-                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>{m.question.topic} • #{m.id.slice(-5)}</p>
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>{m.question.topic} · #{m.id.slice(-5)}</p>
                 </div>
                 <span className="text-xs flex-shrink-0" style={{ color: "var(--text-muted)" }}>
                   {fmtDate(m.answeredAt ?? m.question.createdAt)}
@@ -106,7 +123,7 @@ export default function RightPanel({ topicKey }: Props) {
         <p className="text-xs font-semibold mb-2" style={{ color: "var(--text-primary)" }}>Notes</p>
         <textarea
           value={note}
-          onChange={e => setNote(e.target.value)}
+          onChange={(e) => setNote(e.target.value)}
           rows={4}
           placeholder="Add a note about this topic…"
           className="w-full text-xs resize-none rounded-lg p-2"
@@ -133,59 +150,22 @@ export default function RightPanel({ topicKey }: Props) {
 
       {/* Quick Actions */}
       <Card>
-        <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-primary)" }}>
-          Quick Actions
-        </p>
+        <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-primary)" }}>Quick Actions</p>
         <div className="space-y-1">
           {[
-            { icon: "▤", label: "Practice Questions",  href: `/practice?topic=${encodeURIComponent(topicLabel ?? "")}` },
-            { icon: "⇄", label: "Review Mistakes",     href: "/review" },
-            { icon: "✓", label: "Mark as Reviewed",    href: "#" },
-          ].map(a => (
+            { icon: "▤", label: "Practice Questions", href: `/practice?topic=${encodeURIComponent(topicLabel ?? "")}` },
+            { icon: "⇄", label: "Review Mistakes",    href: "/review" },
+          ].map((a) => (
             <a
               key={a.label}
               href={a.href}
-              className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-left transition-colors"
+              className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-left"
               style={{ color: "var(--text-secondary)", textDecoration: "none", display: "flex" }}
             >
               <span className="text-base w-5 text-center" style={{ color: "var(--text-muted)" }}>{a.icon}</span>
               <span className="flex-1 text-xs">{a.label}</span>
               <span className="text-xs" style={{ color: "var(--text-muted)" }}>→</span>
             </a>
-          ))}
-        </div>
-      </Card>
-
-      {/* Spaced Repetition */}
-      <Card>
-        <p className="text-xs font-semibold mb-0.5" style={{ color: "var(--text-primary)" }}>
-          Spaced Repetition
-        </p>
-        <p className="text-xs mb-4" style={{ color: "var(--text-secondary)" }}>
-          Next review in: <strong style={{ color: "var(--text-primary)" }}>2 days</strong>
-        </p>
-        <div className="grid grid-cols-5 gap-1 text-center">
-          {calDays.map(d => (
-            <div key={d.label} className="flex flex-col items-center gap-1">
-              <span className="text-xs" style={{ color: "var(--text-muted)" }}>{d.label}</span>
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold"
-                style={{
-                  background: d.done
-                    ? "var(--accent-blue)"
-                    : d.active
-                    ? "rgba(27,58,107,0.35)"
-                    : "rgba(255,255,255,0.06)",
-                  color: d.done || d.active ? "#fff" : "var(--text-secondary)",
-                  border: d.active ? "1px solid var(--accent-blue)" : "none",
-                }}
-              >
-                {d.value}
-              </div>
-              <span className="text-xs" style={{ color: d.active ? "var(--text-primary)" : "var(--text-muted)" }}>
-                {d.sub}
-              </span>
-            </div>
           ))}
         </div>
       </Card>
