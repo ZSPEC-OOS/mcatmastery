@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
+type ResetState = "idle" | "confirm" | "resetting";
+
 interface DashStats {
   lastFL: number | null;
   sectionMap: Record<string, { correct: number; total: number }>;
@@ -115,6 +117,7 @@ const EMPTY: DashStats = {
 export default function HomeDashboard() {
   const [stats, setStats] = useState<DashStats>(EMPTY);
   const [loaded, setLoaded] = useState(false);
+  const [resetState, setResetState] = useState<ResetState>("idle");
 
   useEffect(() => {
     fetch("/api/dashboard")
@@ -123,6 +126,17 @@ export default function HomeDashboard() {
       .catch(() => {})
       .finally(() => setLoaded(true));
   }, []);
+
+  async function handleReset() {
+    if (resetState === "idle") { setResetState("confirm"); return; }
+    setResetState("resetting");
+    try {
+      await fetch("/api/user", { method: "DELETE" });
+      setStats(EMPTY);
+    } finally {
+      setResetState("idle");
+    }
+  }
 
   const totalAnswered = Object.values(stats.sectionMap).reduce((s, v) => s + v.total, 0);
   const totalCorrect  = Object.values(stats.sectionMap).reduce((s, v) => s + v.correct, 0);
@@ -133,12 +147,59 @@ export default function HomeDashboard() {
       {/* ── Top stat bar ── */}
       <div style={{ background: "var(--bg-card)", borderBottom: "1px solid var(--border)" }}>
         <div className="max-w-6xl mx-auto px-4 md:px-6 py-4 flex flex-wrap gap-4 items-center justify-between">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider mb-0.5" style={{ color: "var(--text-muted)" }}>
-              {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-            </p>
-            <h1 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>Your MCAT Dashboard</h1>
+          <div className="flex items-center gap-3">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wider mb-0.5" style={{ color: "var(--text-muted)" }}>
+                {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+              </p>
+              <h1 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>Your MCAT Dashboard</h1>
+            </div>
+
+            {/* Reset button — idle */}
+            {resetState === "idle" && (
+              <button
+                onClick={handleReset}
+                title="Reset all practice data"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium mt-3 md:mt-4"
+                style={{ background: "transparent", border: "1px solid var(--border)", color: "var(--text-muted)" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#e05c5c"; (e.currentTarget as HTMLButtonElement).style.color = "#e05c5c"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border)"; (e.currentTarget as HTMLButtonElement).style.color = "var(--text-muted)"; }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/>
+                </svg>
+                <span className="hidden sm:inline">Reset</span>
+              </button>
+            )}
+
+            {/* Reset confirm inline */}
+            {(resetState === "confirm" || resetState === "resetting") && (
+              <div className="flex items-center gap-2 mt-3 md:mt-4 flex-wrap">
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  Clear all practice history?
+                </span>
+                <button
+                  onClick={handleReset}
+                  disabled={resetState === "resetting"}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold"
+                  style={{ background: "rgba(224,92,92,0.12)", color: "#e05c5c", border: "1px solid rgba(224,92,92,0.35)",
+                    opacity: resetState === "resetting" ? 0.5 : 1 }}
+                >
+                  {resetState === "resetting" ? "Clearing…" : "Yes, reset"}
+                </button>
+                {resetState === "confirm" && (
+                  <button
+                    onClick={() => setResetState("idle")}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-semibold"
+                    style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border)" }}
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            )}
           </div>
+
           <div className="flex items-center gap-3 flex-wrap">
             <StatPill label="Overall accuracy" value={overallAcc !== null ? `${overallAcc}%` : "—"} loaded={loaded} />
             <StatPill label="Last full length" value={stats.lastFL !== null ? `${stats.lastFL} / 528` : "—"} loaded={loaded} />
