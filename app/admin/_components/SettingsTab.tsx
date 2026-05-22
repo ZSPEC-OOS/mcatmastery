@@ -608,17 +608,36 @@ export default function SettingsTab() {
                       </div>
                     )}
                     <div className="pt-0.5">
-                      <select
-                        value={m.role ?? "both"}
-                        disabled={updatingRoleId === m.id}
-                        onChange={(e) => updateRole(m.id, e.target.value as ModelRole)}
-                        className="text-xs rounded px-2 py-0.5"
-                        style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-secondary)", cursor: "pointer" }}
-                      >
-                        <option value="generation">Question Gen</option>
-                        <option value="audit">Audit Only</option>
-                        <option value="both">Both</option>
-                      </select>
+                      {(() => {
+                        const otherHasBoth  = models.some(x => x.id !== m.id && x.role === "both");
+                        const otherHasGen   = models.some(x => x.id !== m.id && x.role === "generation");
+                        const otherHasAudit = models.some(x => x.id !== m.id && x.role === "audit");
+                        const genBlocked    = otherHasBoth || otherHasGen;
+                        const auditBlocked  = otherHasBoth || otherHasAudit;
+                        const bothBlocked   = otherHasBoth || otherHasGen || otherHasAudit;
+                        const locked        = updatingRoleId === m.id || (genBlocked && auditBlocked && bothBlocked && m.role !== "generation" && m.role !== "audit" && m.role !== "both");
+                        return (
+                          <>
+                            <select
+                              value={m.role ?? "both"}
+                              disabled={updatingRoleId === m.id}
+                              onChange={(e) => updateRole(m.id, e.target.value as ModelRole)}
+                              className="text-xs rounded px-2 py-0.5"
+                              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-secondary)", cursor: locked ? "not-allowed" : "pointer" }}
+                            >
+                              <option value="generation" disabled={genBlocked && m.role !== "generation"}>Question Gen</option>
+                              <option value="audit"      disabled={auditBlocked && m.role !== "audit"}>Audit Only</option>
+                              <option value="both"       disabled={bothBlocked && m.role !== "both"}>Both</option>
+                            </select>
+                            {otherHasBoth && m.role !== "both" && (
+                              <p className="text-xs mt-1" style={{ color: "#f59e0b" }}>Locked — another model is set to Both</p>
+                            )}
+                            {!otherHasBoth && (genBlocked && m.role === "generation" || auditBlocked && m.role === "audit") && (
+                              <p className="text-xs mt-1" style={{ color: "#f59e0b" }}>Role conflict — another model shares this role</p>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                   <div className="ml-3 flex flex-col items-end gap-1.5 flex-shrink-0">
@@ -717,16 +736,35 @@ export default function SettingsTab() {
               </div>
               <div>
                 <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Role</label>
-                <select
-                  value={modelForm.role}
-                  onChange={(e) => setModelForm((f) => ({ ...f, role: e.target.value as ModelRole }))}
-                  className="w-full px-3 py-2 rounded-lg text-sm"
-                  style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
-                >
-                  <option value="generation">Question Gen</option>
-                  <option value="audit">Audit Only</option>
-                  <option value="both">Both</option>
-                </select>
+                {(() => {
+                  const existingHasBoth  = models.some(x => x.role === "both");
+                  const existingHasGen   = models.some(x => x.role === "generation");
+                  const existingHasAudit = models.some(x => x.role === "audit");
+                  const genBlocked    = existingHasBoth || existingHasGen;
+                  const auditBlocked  = existingHasBoth || existingHasAudit;
+                  const bothBlocked   = existingHasBoth || existingHasGen || existingHasAudit;
+                  return (
+                    <>
+                      <select
+                        value={modelForm.role}
+                        onChange={(e) => setModelForm((f) => ({ ...f, role: e.target.value as ModelRole }))}
+                        className="w-full px-3 py-2 rounded-lg text-sm"
+                        style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
+                      >
+                        <option value="generation" disabled={genBlocked}>Question Gen{genBlocked ? " (taken)" : ""}</option>
+                        <option value="audit"      disabled={auditBlocked}>Audit Only{auditBlocked ? " (taken)" : ""}</option>
+                        <option value="both"       disabled={bothBlocked}>Both{bothBlocked ? " (taken)" : ""}</option>
+                      </select>
+                      {(genBlocked || auditBlocked || bothBlocked) && (
+                        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                          {existingHasBoth
+                            ? "A model with Both role already covers all tasks."
+                            : `${existingHasGen ? "Question Gen" : ""}${existingHasGen && existingHasAudit ? " and " : ""}${existingHasAudit ? "Audit Only" : ""} role${existingHasGen && existingHasAudit ? "s are" : " is"} already assigned.`}
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
 
