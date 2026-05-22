@@ -1,16 +1,25 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 
+type ModelRole = "generation" | "audit" | "both";
+
 interface ModelConfig {
   id: string;
   name: string;
   modelId: string;
   baseUrl: string;
   apiKey: string;
+  role: ModelRole;
   createdAt: string;
 }
 
-const EMPTY_FORM = { name: "", modelId: "", baseUrl: "", apiKey: "" };
+const ROLE_LABELS: Record<ModelRole, string> = {
+  generation: "Question Gen",
+  audit: "Audit Only",
+  both: "Both",
+};
+
+const EMPTY_FORM = { name: "", modelId: "", baseUrl: "", apiKey: "", role: "both" as ModelRole };
 
 const DEFAULT_GEN_PROMPT = `You are an expert MCAT question writer trained on AAMC content specifications.
 
@@ -340,6 +349,7 @@ export default function SettingsTab() {
   const [modelSaving, setModelSaving] = useState(false);
   const [modelError, setModelError]   = useState<string | null>(null);
   const [deletingId, setDeletingId]   = useState<string | null>(null);
+  const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null);
   const [showKey, setShowKey]         = useState<Record<string, boolean>>({});
   const apiKeyRef                     = useRef<HTMLInputElement>(null);
 
@@ -405,6 +415,20 @@ export default function SettingsTab() {
       setModels((prev) => prev.filter((m) => m.id !== id));
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function updateRole(id: string, role: ModelRole) {
+    setUpdatingRoleId(id);
+    setModels((prev) => prev.map((m) => m.id === id ? { ...m, role } : m));
+    try {
+      await fetch("/api/admin/models", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, role }),
+      });
+    } finally {
+      setUpdatingRoleId(null);
     }
   }
 
@@ -583,6 +607,19 @@ export default function SettingsTab() {
                         </button>
                       </div>
                     )}
+                    <div className="pt-0.5">
+                      <select
+                        value={m.role ?? "both"}
+                        disabled={updatingRoleId === m.id}
+                        onChange={(e) => updateRole(m.id, e.target.value as ModelRole)}
+                        className="text-xs rounded px-2 py-0.5"
+                        style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-secondary)", cursor: "pointer" }}
+                      >
+                        <option value="generation">Question Gen</option>
+                        <option value="audit">Audit Only</option>
+                        <option value="both">Both</option>
+                      </select>
+                    </div>
                   </div>
                   <div className="ml-3 flex flex-col items-end gap-1.5 flex-shrink-0">
                     <div className="flex gap-1.5">
@@ -665,17 +702,32 @@ export default function SettingsTab() {
               />
             </div>
 
-            <div>
-              <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>API Key</label>
-              <input
-                ref={apiKeyRef}
-                type="password"
-                value={modelForm.apiKey}
-                onChange={(e) => setModelForm((f) => ({ ...f, apiKey: e.target.value }))}
-                placeholder="sk-..."
-                className="w-full px-3 py-2 rounded-lg text-sm font-mono"
-                style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>API Key</label>
+                <input
+                  ref={apiKeyRef}
+                  type="password"
+                  value={modelForm.apiKey}
+                  onChange={(e) => setModelForm((f) => ({ ...f, apiKey: e.target.value }))}
+                  placeholder="sk-..."
+                  className="w-full px-3 py-2 rounded-lg text-sm font-mono"
+                  style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Role</label>
+                <select
+                  value={modelForm.role}
+                  onChange={(e) => setModelForm((f) => ({ ...f, role: e.target.value as ModelRole }))}
+                  className="w-full px-3 py-2 rounded-lg text-sm"
+                  style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
+                >
+                  <option value="generation">Question Gen</option>
+                  <option value="audit">Audit Only</option>
+                  <option value="both">Both</option>
+                </select>
+              </div>
             </div>
 
             {modelError && (

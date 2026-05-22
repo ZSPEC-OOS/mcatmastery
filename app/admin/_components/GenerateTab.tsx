@@ -10,7 +10,7 @@ type GenEvent =
   | { type: "skip"; reason: string; flags?: string[]; message?: string; index: number }
   | { type: "done"; generated: number };
 
-interface CustomModel { id: string; name: string; modelId: string; baseUrl: string; apiKey: string }
+interface CustomModel { id: string; name: string; modelId: string; baseUrl: string; apiKey: string; role?: string }
 
 const PIPELINE_STEPS = [
   { n: 1, title: "Input Config",       desc: "Section, subtypes, count, model, and duplicate filter threshold." },
