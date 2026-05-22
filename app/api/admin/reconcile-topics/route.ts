@@ -37,7 +37,7 @@ export async function POST() {
     }
 
     const fixed: string[] = [];
-    const unmatched: { id: string; topic: string; section: string }[] = [];
+    const unmatched: { id: string; topic: string; section: string; stem: string }[] = [];
 
     await Promise.all(
       orphans.map(async (q) => {
@@ -46,7 +46,7 @@ export async function POST() {
           await updateQuestion(q.id, { topic: match });
           fixed.push(q.id);
         } else {
-          unmatched.push({ id: q.id, topic: q.topic, section: q.section });
+          unmatched.push({ id: q.id, topic: q.topic, section: q.section, stem: q.stem });
         }
       })
     );
