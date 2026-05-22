@@ -120,13 +120,20 @@ export async function callModel(opts: {
       content = raw.filter((b) => b?.type === "text" && b?.text).map((b) => b.text).join("") || null;
     }
     // DeepSeek reasoning models (R1, V4 Pro, etc.) put the chain-of-thought in
-    // reasoning_content and may leave content empty when max_tokens is low
+    // reasoning_content and may leave content empty when max_tokens is low.
+    // Only fall back to reasoning_content if it looks like JSON — never use
+    // raw prose thinking text as a substitute for structured output.
     if (!content && typeof msg?.reasoning_content === "string" && msg.reasoning_content) {
-      content = msg.reasoning_content;
+      const rc = msg.reasoning_content.trim();
+      if (rc.startsWith("{") || rc.startsWith("[")) content = rc;
     }
     if (!content) {
-      const hint = data.error ? ` API error: ${JSON.stringify(data.error).slice(0, 200)}` : ` Response: ${JSON.stringify(data).slice(0, 200)}`;
-      throw new Error(`Model returned empty content.${hint}`);
+      const hint = data.error
+        ? ` API error: ${JSON.stringify(data.error).slice(0, 200)}`
+        : ` Response: ${JSON.stringify(data).slice(0, 200)}`;
+      const isReasoning = typeof msg?.reasoning_content === "string" && !!msg.reasoning_content;
+      const reasoningHint = isReasoning ? " (reasoning model exhausted token budget before writing output — increase maxTokens)" : "";
+      throw new Error(`Model returned empty content.${reasoningHint}${hint}`);
     }
     return content;
   }
