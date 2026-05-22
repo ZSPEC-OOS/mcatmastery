@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
 
         for (let i = 0; i < total; i++) {
           // Force section + topic to match what was requested
-          const q = { ...questions[i], section: body.section, topic };
+          const q: Record<string, unknown> = { ...questions[i], section: body.section, topic };
 
           const result = await verifyAndSave(q, {
             dedupThreshold: body.dedupThreshold,
