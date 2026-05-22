@@ -1,24 +1,36 @@
 import { anthropic } from "./anthropic";
 import { getModels } from "./firestore";
-import type { ModelConfig } from "./firestore";
+import type { ModelConfig, ModelRole } from "./firestore";
 
 // ── Active model resolution ───────────────────────────────────────────────────
-// Caches the first configured custom model for 30 seconds to avoid a Firestore
-// round-trip on every request.
+// Caches the full model list for 30 seconds to avoid a Firestore round-trip on
+// every request. Storing all models (not just models[0]) lets role-aware
+// callers pick the right model from the same cache.
 
-let _cached: ModelConfig | null | undefined = undefined;
+let _cachedModels: ModelConfig[] | undefined = undefined;
 let _expiry = 0;
 
-export async function getActiveModel(): Promise<ModelConfig | null> {
-  if (_cached !== undefined && Date.now() < _expiry) return _cached;
+async function getAllModels(): Promise<ModelConfig[]> {
+  if (_cachedModels !== undefined && Date.now() < _expiry) return _cachedModels;
   try {
-    const models = await getModels();
-    _cached  = models[0] ?? null;
-    _expiry  = Date.now() + 30_000;
-    return _cached;
+    _cachedModels = await getModels();
+    _expiry = Date.now() + 30_000;
+    return _cachedModels;
   } catch {
-    return null;
+    return _cachedModels ?? [];
   }
+}
+
+export async function getActiveModel(): Promise<ModelConfig | null> {
+  const models = await getAllModels();
+  return models[0] ?? null;
+}
+
+// Returns the best model for a given role: prefers an exact role match or
+// "both", falls back to any configured model, then null (Anthropic SDK).
+export async function getModelForRole(role: ModelRole): Promise<ModelConfig | null> {
+  const models = await getAllModels();
+  return models.find((m) => m.role === role || m.role === "both") ?? models[0] ?? null;
 }
 
 // ── Shared model caller ───────────────────────────────────────────────────────

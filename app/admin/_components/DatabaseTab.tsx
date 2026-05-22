@@ -206,6 +206,7 @@ export default function DatabaseTab() {
   const [auditFindings, setAuditFindings]   = useState<AuditFinding[]>([]);
   const [auditErrors, setAuditErrors]       = useState(0);
   const [applyingId, setApplyingId]         = useState<string | null>(null);
+  const [applyErrors, setApplyErrors]       = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetch("/api/admin/stats")
@@ -277,13 +278,24 @@ export default function DatabaseTab() {
   async function applyFix(finding: AuditFinding) {
     if (!finding.correctedQuestion) return;
     setApplyingId(finding.questionId);
-    await fetch(`/api/admin/questions/${finding.questionId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(finding.correctedQuestion),
-    });
-    setApplyingId(null);
-    removeFinding(finding.questionId);
+    setApplyErrors((prev) => { const next = { ...prev }; delete next[finding.questionId]; return next; });
+    try {
+      const res = await fetch(`/api/admin/questions/${finding.questionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(finding.correctedQuestion),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        setApplyErrors((prev) => ({ ...prev, [finding.questionId]: data.error ?? `Server error ${res.status}` }));
+        return;
+      }
+      removeFinding(finding.questionId);
+    } catch {
+      setApplyErrors((prev) => ({ ...prev, [finding.questionId]: "Network error — fix not saved" }));
+    } finally {
+      setApplyingId(null);
+    }
   }
 
   function denyFinding(id: string) {
@@ -427,35 +439,42 @@ export default function DatabaseTab() {
                   </div>
                 )}
                 {/* Actions */}
-                <div className="px-4 py-3 flex items-center gap-2">
-                  {finding.correctedQuestion && (
+                <div className="px-4 py-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    {finding.correctedQuestion && (
+                      <button
+                        onClick={() => applyFix(finding)}
+                        disabled={applyingId === finding.questionId}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                        style={{
+                          background: "rgba(74,222,128,0.12)",
+                          color: "#4ade80",
+                          border: "1px solid rgba(74,222,128,0.3)",
+                          opacity: applyingId === finding.questionId ? 0.5 : 1,
+                        }}
+                      >
+                        {applyingId === finding.questionId ? "Applying…" : "Apply Fix"}
+                      </button>
+                    )}
                     <button
-                      onClick={() => applyFix(finding)}
+                      onClick={() => denyFinding(finding.questionId)}
                       disabled={applyingId === finding.questionId}
                       className="px-3 py-1.5 rounded-lg text-xs font-semibold"
                       style={{
-                        background: "rgba(74,222,128,0.12)",
-                        color: "#4ade80",
-                        border: "1px solid rgba(74,222,128,0.3)",
+                        background: "rgba(224,92,92,0.1)",
+                        color: "#e05c5c",
+                        border: "1px solid rgba(224,92,92,0.25)",
                         opacity: applyingId === finding.questionId ? 0.5 : 1,
                       }}
                     >
-                      {applyingId === finding.questionId ? "Applying…" : "Apply Fix"}
+                      Deny
                     </button>
+                  </div>
+                  {applyErrors[finding.questionId] && (
+                    <p className="text-xs font-semibold" style={{ color: "#e05c5c" }}>
+                      ✗ {applyErrors[finding.questionId]}
+                    </p>
                   )}
-                  <button
-                    onClick={() => denyFinding(finding.questionId)}
-                    disabled={applyingId === finding.questionId}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold"
-                    style={{
-                      background: "rgba(224,92,92,0.1)",
-                      color: "#e05c5c",
-                      border: "1px solid rgba(224,92,92,0.25)",
-                      opacity: applyingId === finding.questionId ? 0.5 : 1,
-                    }}
-                  >
-                    Deny
-                  </button>
                 </div>
               </div>
             ))}

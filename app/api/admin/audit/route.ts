@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { getQuestions } from "../../../../lib/firestore";
 import type { QuestionDoc } from "../../../../lib/firestore";
 import { getSetting, ensureSchema } from "../../../../lib/db";
-import { callModel } from "../../../../lib/model";
+import { callModel, getModelForRole } from "../../../../lib/model";
 import { extractModelJson } from "../../../../lib/parse";
 
 const DEFAULT_AUDIT_PROMPT = `You are an expert MCAT content auditor. You will receive an MCAT practice question in JSON format. Perform a complete content accuracy and validity audit to detect hallucinations or incorrect material.
@@ -80,12 +80,17 @@ function sseChunk(data: unknown): string {
 export async function POST(_req: NextRequest) {
   await ensureSchema();
 
-  const [customAuditPrompt, customPassageSetAuditPrompt] = await Promise.all([
+  const [customAuditPrompt, customPassageSetAuditPrompt, auditModel] = await Promise.all([
     getSetting("audit_prompt").catch(() => null),
     getSetting("passage_set_audit_prompt").catch(() => null),
+    getModelForRole("audit"),
   ]);
-  const auditSystemPrompt        = customAuditPrompt        || DEFAULT_AUDIT_PROMPT;
-  const passageSetAuditPrompt    = customPassageSetAuditPrompt || DEFAULT_PASSAGE_SET_AUDIT_PROMPT;
+  const auditSystemPrompt     = customAuditPrompt        || DEFAULT_AUDIT_PROMPT;
+  const passageSetAuditPrompt = customPassageSetAuditPrompt || DEFAULT_PASSAGE_SET_AUDIT_PROMPT;
+
+  const modelOpts = auditModel
+    ? { modelId: auditModel.modelId, baseUrl: auditModel.baseUrl || undefined, apiKey: auditModel.apiKey || undefined }
+    : {};
 
   const questions = await getQuestions({});
 
@@ -142,6 +147,7 @@ export async function POST(_req: NextRequest) {
           });
 
           const raw = await callModel({
+            ...modelOpts,
             system: passageSetAuditPrompt,
             userContent,
             maxTokens: 3000,
@@ -221,6 +227,7 @@ export async function POST(_req: NextRequest) {
           });
 
           const raw = await callModel({
+            ...modelOpts,
             system: auditSystemPrompt,
             userContent,
             maxTokens: 1500,
