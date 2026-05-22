@@ -12,6 +12,9 @@ export async function GET() {
       byDifficulty[q.difficulty] = (byDifficulty[q.difficulty] ?? 0) + 1;
     }
 
+    // Questions needing audit: those without auditStatus or explicitly marked needs_audit
+    const needsAudit = all.filter((q) => q.auditStatus !== "audited");
+
     return NextResponse.json({
       total: all.length,
       bySection: {
@@ -25,7 +28,7 @@ export async function GET() {
         medium: byDifficulty["medium"] ?? 0,
         hard:   byDifficulty["hard"]   ?? 0,
       },
-      recent: all.slice(0, 30),
+      needsAudit,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Failed";

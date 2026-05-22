@@ -15,7 +15,7 @@ type Stats = {
   total: number;
   bySection: Record<string, number>;
   byDifficulty: Record<string, number>;
-  recent: RecentQ[];
+  needsAudit: RecentQ[];
 };
 
 type AuditFinding = {
@@ -207,6 +207,7 @@ export default function DatabaseTab() {
   const [auditErrors, setAuditErrors]       = useState(0);
   const [applyingId, setApplyingId]         = useState<string | null>(null);
   const [applyErrors, setApplyErrors]       = useState<Record<string, string>>({});
+  const [denyingId, setDenyingId]           = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/admin/stats")
@@ -219,7 +220,7 @@ export default function DatabaseTab() {
     if (clearState === "idle") { setClearState("confirm"); return; }
     setClearState("clearing");
     await fetch("/api/admin/questions", { method: "DELETE" });
-    setStats((prev) => prev ? { ...prev, total: 0, bySection: {}, byDifficulty: {}, recent: [] } : prev);
+    setStats((prev) => prev ? { ...prev, total: 0, bySection: {}, byDifficulty: {}, needsAudit: [] } : prev);
     setClearState("idle");
   }
 
@@ -227,10 +228,23 @@ export default function DatabaseTab() {
     setDeleting(id);
     fetch(`/api/admin/questions/${id}`, { method: "DELETE" }).then(() => {
       setStats((prev) =>
-        prev ? { ...prev, total: prev.total - 1, recent: prev.recent.filter((q) => q.id !== id) } : prev
+        prev ? { ...prev, total: prev.total - 1, needsAudit: prev.needsAudit.filter((q) => q.id !== id) } : prev
       );
       setDeleting(null);
     });
+  }
+
+  function removeFromQueue(id: string) {
+    setStats((prev) =>
+      prev ? { ...prev, needsAudit: prev.needsAudit.filter((q) => q.id !== id) } : prev
+    );
+  }
+
+  function removeFromQueueMany(ids: string[]) {
+    const idSet = new Set(ids);
+    setStats((prev) =>
+      prev ? { ...prev, needsAudit: prev.needsAudit.filter((q) => !idSet.has(q.id)) } : prev
+    );
   }
 
   async function startAudit() {
@@ -257,6 +271,9 @@ export default function DatabaseTab() {
             setAuditProgress({ current: 0, total: evt.total });
           } else if (evt.type === "progress") {
             setAuditProgress({ current: evt.current, total: evt.total });
+          } else if (evt.type === "passed") {
+            // Questions that passed audit — remove from the needs-audit queue
+            removeFromQueueMany(evt.questionIds as string[]);
           } else if (evt.type === "finding") {
             setAuditFindings((prev) => [...prev, {
               questionId: evt.questionId,
@@ -283,13 +300,14 @@ export default function DatabaseTab() {
       const res = await fetch(`/api/admin/questions/${finding.questionId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(finding.correctedQuestion),
+        body: JSON.stringify({ ...finding.correctedQuestion, auditStatus: "audited" }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({})) as { error?: string };
         setApplyErrors((prev) => ({ ...prev, [finding.questionId]: data.error ?? `Server error ${res.status}` }));
         return;
       }
+      removeFromQueue(finding.questionId);
       removeFinding(finding.questionId);
     } catch {
       setApplyErrors((prev) => ({ ...prev, [finding.questionId]: "Network error — fix not saved" }));
@@ -298,8 +316,18 @@ export default function DatabaseTab() {
     }
   }
 
-  function denyFinding(id: string) {
+  async function denyFinding(id: string) {
+    setDenyingId(id);
+    try {
+      await fetch(`/api/admin/questions/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ auditStatus: "audited" }),
+      });
+    } catch { /* best-effort */ }
+    removeFromQueue(id);
     removeFinding(id);
+    setDenyingId(null);
   }
 
   function removeFinding(id: string) {
@@ -316,29 +344,37 @@ export default function DatabaseTab() {
   if (loading) return <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading stats…</p>;
   if (!stats) return null;
 
+  const needsAuditCount = stats.needsAudit.length;
+
   return (
     <div>
-      {/* ── Audit Database section ── */}
+      {/* ── Audit Queue section ── */}
       <div className="mb-6 rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
         <div className="flex items-center justify-between px-5 py-3.5"
           style={{ background: "var(--bg-card)", borderBottom: auditState !== "idle" ? "1px solid var(--border)" : undefined }}>
           <div>
             <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Audit Database</h2>
             <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-              Run a full content accuracy check on every question. Passage-based sets are audited together as a group — passage quality, question dependency, and set coverage diversity are all checked.
+              Run a content accuracy check on the {needsAuditCount} question{needsAuditCount !== 1 ? "s" : ""} in the audit queue. Questions that pass are marked as audited. Passage-based sets are audited together as a group.
             </p>
           </div>
-          {auditState === "idle" && (
+          {auditState === "idle" && needsAuditCount > 0 && (
             <button
               onClick={startAudit}
-              className="px-4 py-2 rounded-lg text-sm font-semibold"
+              className="px-4 py-2 rounded-lg text-sm font-semibold flex-shrink-0 ml-4"
               style={{ background: "var(--accent-blue)", color: "#fff" }}
             >
               Start Audit
             </button>
           )}
+          {auditState === "idle" && needsAuditCount === 0 && (
+            <span className="text-xs font-semibold px-3 py-1.5 rounded-full flex-shrink-0 ml-4"
+              style={{ background: "rgba(74,222,128,0.12)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.3)" }}>
+              All audited
+            </span>
+          )}
           {auditState === "running" && (
-            <span className="text-xs font-semibold px-3 py-1.5 rounded-full"
+            <span className="text-xs font-semibold px-3 py-1.5 rounded-full flex-shrink-0 ml-4"
               style={{ background: "rgba(99,102,241,0.12)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)" }}>
               Running…
             </span>
@@ -346,7 +382,7 @@ export default function DatabaseTab() {
           {auditState === "done" && auditFindings.length === 0 && (
             <button
               onClick={() => setAuditState("idle")}
-              className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+              className="text-xs px-3 py-1.5 rounded-lg font-semibold flex-shrink-0 ml-4"
               style={{ background: "rgba(74,222,128,0.12)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.3)" }}
             >
               ✓ All clear — Reset
@@ -444,7 +480,7 @@ export default function DatabaseTab() {
                     {finding.correctedQuestion && (
                       <button
                         onClick={() => applyFix(finding)}
-                        disabled={applyingId === finding.questionId}
+                        disabled={applyingId === finding.questionId || denyingId === finding.questionId}
                         className="px-3 py-1.5 rounded-lg text-xs font-semibold"
                         style={{
                           background: "rgba(74,222,128,0.12)",
@@ -458,16 +494,16 @@ export default function DatabaseTab() {
                     )}
                     <button
                       onClick={() => denyFinding(finding.questionId)}
-                      disabled={applyingId === finding.questionId}
+                      disabled={applyingId === finding.questionId || denyingId === finding.questionId}
                       className="px-3 py-1.5 rounded-lg text-xs font-semibold"
                       style={{
                         background: "rgba(224,92,92,0.1)",
                         color: "#e05c5c",
                         border: "1px solid rgba(224,92,92,0.25)",
-                        opacity: applyingId === finding.questionId ? 0.5 : 1,
+                        opacity: denyingId === finding.questionId ? 0.5 : 1,
                       }}
                     >
-                      Deny
+                      {denyingId === finding.questionId ? "Denying…" : "Deny"}
                     </button>
                   </div>
                   {applyErrors[finding.questionId] && (
@@ -495,7 +531,7 @@ export default function DatabaseTab() {
           onClose={() => setExpanded(null)}
           onDelete={(id) => {
             setStats((prev) =>
-              prev ? { ...prev, total: prev.total - 1, recent: prev.recent.filter((q) => q.id !== id) } : prev
+              prev ? { ...prev, total: prev.total - 1, needsAudit: prev.needsAudit.filter((q) => q.id !== id) } : prev
             );
             setExpanded(null);
           }}
@@ -555,11 +591,16 @@ export default function DatabaseTab() {
         </div>
       </div>
 
-      {/* Recent questions table */}
+      {/* Questions needing audit table */}
       <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
         <div className="px-5 py-3" style={{ background: "var(--bg-card)", borderBottom: "1px solid var(--border)" }}>
           <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-            Recent Questions ({stats.recent.length})
+            Questions Needing Audit
+            <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-semibold"
+              style={{ background: needsAuditCount > 0 ? "rgba(245,158,11,0.12)" : "rgba(74,222,128,0.12)",
+                color: needsAuditCount > 0 ? "#f59e0b" : "#4ade80" }}>
+              {needsAuditCount}
+            </span>
             <span className="font-normal ml-2" style={{ color: "var(--text-muted)" }}>— click any row to view</span>
           </h2>
         </div>
@@ -570,13 +611,13 @@ export default function DatabaseTab() {
           <span>Section</span><span>Stem</span><span>Difficulty</span><span>Date</span><span />
         </div>
 
-        {stats.recent.length === 0 && (
+        {needsAuditCount === 0 && (
           <div className="px-5 py-10 text-center text-sm" style={{ color: "var(--text-muted)" }}>
-            No questions yet. Use the Generation tab to create some.
+            No questions pending audit. Generate new questions or they will appear here after generation.
           </div>
         )}
 
-        {stats.recent.map((q) => (
+        {stats.needsAudit.map((q) => (
           <div key={q.id}>
             {/* Desktop row */}
             <div
