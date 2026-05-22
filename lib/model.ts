@@ -23,14 +23,16 @@ async function getAllModels(): Promise<ModelConfig[]> {
 
 export async function getActiveModel(): Promise<ModelConfig | null> {
   const models = await getAllModels();
-  return models[0] ?? null;
+  return models.find((m) => m.role !== "disabled") ?? null;
 }
 
 // Returns the best model for a given role: prefers an exact role match or
-// "both", falls back to any configured model, then null (Anthropic SDK).
+// "both", falls back to any non-disabled model, then null (Anthropic SDK).
 export async function getModelForRole(role: ModelRole): Promise<ModelConfig | null> {
   const models = await getAllModels();
-  return models.find((m) => m.role === role || m.role === "both") ?? models[0] ?? null;
+  return models.find((m) => m.role === role || m.role === "both")
+    ?? models.find((m) => m.role !== "disabled")
+    ?? null;
 }
 
 // ── Shared model caller ───────────────────────────────────────────────────────

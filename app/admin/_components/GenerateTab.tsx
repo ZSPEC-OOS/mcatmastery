@@ -324,7 +324,7 @@ export default function GenerateTab() {
             {modelsLoading ? (
               <p className="text-xs py-2" style={{ color: "var(--text-muted)" }}>Loading…</p>
             ) : (() => {
-              const genModel = customModels.find((m) => m.role === "generation" || m.role === "both") ?? customModels[0] ?? null;
+              const genModel = customModels.find((m) => m.role === "generation" || m.role === "both") ?? customModels.find((m) => m.role !== "disabled") ?? null;
               return genModel ? (
                 <div className="px-3 py-2.5 rounded-lg flex items-center justify-between"
                   style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
@@ -334,7 +334,7 @@ export default function GenerateTab() {
                   </div>
                   <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
                     style={{ background: "rgba(27,58,107,0.12)", color: "var(--accent-blue)", border: "1px solid rgba(27,58,107,0.25)" }}>
-                    {genModel.role === "both" ? "Both" : "Question Gen"}
+                    {genModel.role === "both" ? "Both" : genModel.role === "generation" ? "Question Gen" : "Fallback"}
                   </span>
                 </div>
               ) : (

@@ -44,7 +44,7 @@ function fs() {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type ModelRole = "generation" | "audit" | "both";
+export type ModelRole = "generation" | "audit" | "both" | "disabled";
 
 export interface ModelConfig {
   id: string;
