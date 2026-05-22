@@ -38,10 +38,15 @@ export function getCurrentUser(): PinUser | null {
 
 function setCurrentUser(user: PinUser) {
   sessionStorage.setItem("pin_current_user", JSON.stringify(user));
+  // Cookie lets server-side requireUser() identify the caller so practice
+  // data is scoped per-user rather than shared under the "guest" fallback.
+  const uid = user.email.toLowerCase().trim();
+  document.cookie = `pin_uid=${encodeURIComponent(uid)}; path=/; SameSite=Lax; max-age=${60 * 60 * 24 * 30}`;
 }
 
 export function clearCurrentUser() {
   sessionStorage.removeItem("pin_current_user");
+  document.cookie = "pin_uid=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
 }
 
 type Mode = "login" | "signup" | "welcome";
