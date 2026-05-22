@@ -6,28 +6,7 @@ export type PinUser = {
   firstName: string;
   lastName:  string;
   email:     string;
-  pin:       string;
 };
-
-const HARDCODED_USERS: PinUser[] = [
-  { pin: "5522", firstName: "Jesse", lastName: "Zelazny", email: "jdzelazny@gmail.com" },
-];
-
-function getStoredUsers(): PinUser[] {
-  try {
-    const raw = sessionStorage.getItem("pin_users");
-    return raw ? (JSON.parse(raw) as PinUser[]) : HARDCODED_USERS;
-  } catch { return HARDCODED_USERS; }
-}
-
-function saveUser(user: PinUser) {
-  const users = getStoredUsers();
-  const exists = users.find((u) => u.pin === user.pin);
-  if (!exists) {
-    users.push(user);
-    sessionStorage.setItem("pin_users", JSON.stringify(users));
-  }
-}
 
 export function getCurrentUser(): PinUser | null {
   try {
@@ -36,33 +15,29 @@ export function getCurrentUser(): PinUser | null {
   } catch { return null; }
 }
 
-function setCurrentUser(user: PinUser) {
+export function setCurrentUser(user: PinUser) {
   sessionStorage.setItem("pin_current_user", JSON.stringify(user));
-  // Cookie lets server-side requireUser() identify the caller so practice
-  // data is scoped per-user rather than shared under the "guest" fallback.
-  const uid = user.email.toLowerCase().trim();
-  document.cookie = `pin_uid=${encodeURIComponent(uid)}; path=/; SameSite=Lax; max-age=${60 * 60 * 24 * 30}`;
 }
 
 export function clearCurrentUser() {
   sessionStorage.removeItem("pin_current_user");
-  document.cookie = "pin_uid=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+  fetch("/api/auth/signout", { method: "POST" }).catch(() => {});
 }
 
 type Mode = "login" | "signup" | "welcome";
-
 type Props = { onAuth: (user: PinUser) => void };
 
 export default function PinAuth({ onAuth }: Props) {
-  const [mode, setMode]         = useState<Mode>("login");
-  const [pin, setPin]           = useState("");
-  const [firstName, setFirst]   = useState("");
-  const [lastName, setLast]     = useState("");
-  const [email, setEmail]       = useState("");
-  const [pinConfirm, setConfirm]= useState("");
-  const [error, setError]       = useState("");
-  const [shake, setShake]       = useState(false);
-  const [welcome, setWelcome]   = useState<PinUser | null>(null);
+  const [mode, setMode]       = useState<Mode>("login");
+  const [pin, setPin]         = useState("");
+  const [firstName, setFirst] = useState("");
+  const [lastName, setLast]   = useState("");
+  const [email, setEmail]     = useState("");
+  const [pinConfirm, setConfirm] = useState("");
+  const [error, setError]     = useState("");
+  const [shake, setShake]     = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [welcome, setWelcome] = useState<PinUser | null>(null);
 
   function triggerShake(msg: string) {
     setError(msg);
@@ -70,34 +45,54 @@ export default function PinAuth({ onAuth }: Props) {
     setTimeout(() => setShake(false), 400);
   }
 
-  function handleLogin() {
-    const users = getStoredUsers();
-    const user = users.find((u) => u.pin === pin);
-    if (!user) { triggerShake("Incorrect PIN. Try again."); setPin(""); return; }
-    setCurrentUser(user);
-    setWelcome(user);
-    setMode("welcome");
-    setTimeout(() => onAuth(user), 1800);
+  async function handleLogin() {
+    if (!pin) { triggerShake("Enter your PIN."); return; }
+    setLoading(true);
+    try {
+      const res  = await fetch("/api/auth/signin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+      const data = await res.json() as { ok?: boolean; user?: PinUser; error?: string };
+      if (!res.ok || !data.user) { triggerShake(data.error ?? "Incorrect PIN. Try again."); setPin(""); return; }
+      setCurrentUser(data.user);
+      setWelcome(data.user);
+      setMode("welcome");
+      setTimeout(() => onAuth(data.user!), 1800);
+    } catch {
+      triggerShake("Connection error. Try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function handleSignup() {
+  async function handleSignup() {
     if (!firstName.trim() || !lastName.trim()) { triggerShake("Enter your full name."); return; }
     if (!/^\S+@\S+\.\S+$/.test(email))         { triggerShake("Enter a valid email."); return; }
-    if (pin.length < 4)                          { triggerShake("PIN must be 4 digits."); return; }
+    if (pin.length < 4)                          { triggerShake("PIN must be at least 4 digits."); return; }
     if (pin !== pinConfirm)                      { triggerShake("PINs do not match."); return; }
-    const users = getStoredUsers();
-    if (users.find((u) => u.pin === pin))        { triggerShake("That PIN is already taken."); return; }
-    const user: PinUser = { firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim(), pin };
-    saveUser(user);
-    setCurrentUser(user);
-    setWelcome(user);
-    setMode("welcome");
-    setTimeout(() => onAuth(user), 2200);
+    setLoading(true);
+    try {
+      const res  = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ firstName, lastName, email, pin }),
+      });
+      const data = await res.json() as { ok?: boolean; user?: PinUser; error?: string };
+      if (!res.ok || !data.user) { triggerShake(data.error ?? "Signup failed. Try again."); return; }
+      setCurrentUser(data.user);
+      setWelcome(data.user);
+      setMode("welcome");
+      setTimeout(() => onAuth(data.user!), 2200);
+    } catch {
+      triggerShake("Connection error. Try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  // Welcome screen
   if (mode === "welcome" && welcome) {
-    const isNew = !HARDCODED_USERS.find((u) => u.pin === welcome.pin);
     return (
       <div className="flex flex-col min-h-screen items-center justify-center px-6"
         style={{ background: "var(--bg-primary)" }}>
@@ -108,26 +103,13 @@ export default function PinAuth({ onAuth }: Props) {
               {welcome.firstName[0]}{welcome.lastName[0]}
             </span>
           </div>
-          {isNew ? (
-            <>
-              <p className="text-xl font-bold mb-2" style={{ color: "var(--text-primary)" }}>
-                Thank you for registering!
-              </p>
-              <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                Welcome, {welcome.firstName} {welcome.lastName}.
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="text-xl font-bold mb-2" style={{ color: "var(--text-primary)" }}>
-                Welcome back,
-              </p>
-              <p className="text-2xl font-bold" style={{ color: "var(--accent-blue)" }}>
-                {welcome.firstName} {welcome.lastName}
-              </p>
-              <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>{welcome.email}</p>
-            </>
-          )}
+          <p className="text-xl font-bold mb-2" style={{ color: "var(--text-primary)" }}>
+            {mode === "welcome" && !welcome ? "" : "Welcome back,"}
+          </p>
+          <p className="text-2xl font-bold" style={{ color: "var(--accent-blue)" }}>
+            {welcome.firstName} {welcome.lastName}
+          </p>
+          <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>{welcome.email}</p>
           <p className="text-xs mt-4" style={{ color: "var(--text-muted)" }}>Loading your dashboard…</p>
         </div>
       </div>
@@ -147,10 +129,9 @@ export default function PinAuth({ onAuth }: Props) {
         className={`w-full max-w-sm rounded-2xl p-7 space-y-4 ${shake ? "animate-shake" : ""}`}
         style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
       >
-        {/* Tab toggle */}
         <div className="flex rounded-lg overflow-hidden mb-1" style={{ border: "1px solid var(--border)" }}>
           {(["login", "signup"] as const).map((m) => (
-            <button key={m} onClick={() => { setMode(m); setError(""); setPin(""); }}
+            <button key={m} onClick={() => { setMode(m); setError(""); setPin(""); setConfirm(""); }}
               className="flex-1 py-2 text-sm font-semibold"
               style={{
                 background: mode === m ? "var(--accent-blue)" : "transparent",
@@ -182,10 +163,10 @@ export default function PinAuth({ onAuth }: Props) {
                 style={{ background: "var(--bg-input)", border: `1px solid ${error ? "rgba(224,92,92,0.6)" : "var(--border)"}`, color: "var(--text-primary)", outline: "none" }}
               />
             </div>
-            <button onClick={handleLogin}
+            <button onClick={handleLogin} disabled={loading}
               className="w-full py-3 rounded-xl text-sm font-semibold"
-              style={{ background: "var(--accent-blue)", color: "#fff" }}>
-              Enter
+              style={{ background: "var(--accent-blue)", color: "#fff", opacity: loading ? 0.7 : 1 }}>
+              {loading ? "Signing in…" : "Enter"}
             </button>
           </>
         )}
@@ -216,21 +197,21 @@ export default function PinAuth({ onAuth }: Props) {
               <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>PIN</label>
               <input type="password" inputMode="numeric" maxLength={6} value={pin}
                 onChange={(e) => { setPin(e.target.value.replace(/\D/g, "")); setError(""); }}
-                placeholder="Choose a PIN" className="w-full px-3 py-2.5 rounded-xl text-sm"
+                placeholder="Choose a 4–6 digit PIN" className="w-full px-3 py-2.5 rounded-xl text-sm"
                 style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }} />
             </div>
             <div>
-              <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Re-enter PIN</label>
+              <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Confirm PIN</label>
               <input type="password" inputMode="numeric" maxLength={6} value={pinConfirm}
                 onChange={(e) => { setConfirm(e.target.value.replace(/\D/g, "")); setError(""); }}
                 onKeyDown={(e) => e.key === "Enter" && handleSignup()}
-                placeholder="Confirm PIN" className="w-full px-3 py-2.5 rounded-xl text-sm"
+                placeholder="Re-enter PIN" className="w-full px-3 py-2.5 rounded-xl text-sm"
                 style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }} />
             </div>
-            <button onClick={handleSignup}
+            <button onClick={handleSignup} disabled={loading}
               className="w-full py-3 rounded-xl text-sm font-semibold"
-              style={{ background: "var(--accent-blue)", color: "#fff" }}>
-              Create Account
+              style={{ background: "var(--accent-blue)", color: "#fff", opacity: loading ? 0.7 : 1 }}>
+              {loading ? "Creating account…" : "Create Account"}
             </button>
           </>
         )}
