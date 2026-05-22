@@ -74,6 +74,7 @@ export interface QuestionDoc {
   aiGenerated: boolean;
   figureUrl?: string | null;
   createdAt: string;
+  auditStatus?: "needs_audit" | "audited";
 }
 
 export interface SessionDoc {
@@ -133,8 +134,9 @@ export async function saveQuestion(
   data: Omit<QuestionDoc, "id" | "createdAt"> & { subType?: string }
 ): Promise<QuestionDoc> {
   const createdAt = new Date().toISOString();
-  const ref = await fs().collection("questions").add({ ...data, createdAt });
-  return { id: ref.id, ...data, createdAt };
+  const withStatus = { ...data, createdAt, auditStatus: "needs_audit" as const };
+  const ref = await fs().collection("questions").add(withStatus);
+  return { id: ref.id, ...withStatus };
 }
 
 export async function getQuestions(opts: {

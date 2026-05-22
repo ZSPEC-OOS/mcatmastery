@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getQuestions } from "../../../../lib/firestore";
+import { getQuestions, updateQuestion } from "../../../../lib/firestore";
 import type { QuestionDoc } from "../../../../lib/firestore";
 import { getSetting, ensureSchema } from "../../../../lib/db";
 import { callModel, getModelForRole } from "../../../../lib/model";
@@ -92,7 +92,9 @@ export async function POST(_req: NextRequest) {
     ? { modelId: auditModel.modelId, baseUrl: auditModel.baseUrl || undefined, apiKey: auditModel.apiKey || undefined }
     : {};
 
-  const questions = await getQuestions({});
+  const allQuestions = await getQuestions({});
+  // Only audit questions that haven't been audited yet
+  const questions = allQuestions.filter((q) => q.auditStatus !== "audited");
 
   // Split into passage groups and discrete questions
   const passageGroups = new Map<string, QuestionDoc[]>();
@@ -165,9 +167,13 @@ export async function POST(_req: NextRequest) {
             }>;
           };
 
+          // Track which question IDs have findings so we know which passed
+          const findingIds = new Set<string>();
+
           // Passage-level finding — attributed to the first question in the group
           if (!result.passagePass && result.passageIssues?.length > 0) {
             const firstQ = groupQs[0];
+            findingIds.add(firstQ.id);
             enqueue({
               type: "finding",
               questionId: firstQ.id,
@@ -184,6 +190,7 @@ export async function POST(_req: NextRequest) {
             if (!qResult.pass && qResult.issues?.length > 0) {
               const q = groupQs.find((gq) => gq.id === qResult.id);
               if (q) {
+                findingIds.add(q.id);
                 enqueue({
                   type: "finding",
                   questionId: q.id,
@@ -193,6 +200,13 @@ export async function POST(_req: NextRequest) {
                 });
               }
             }
+          }
+
+          // Mark questions that had no findings as audited
+          const passedIds = groupQs.filter((q) => !findingIds.has(q.id)).map((q) => q.id);
+          if (passedIds.length > 0) {
+            await Promise.all(passedIds.map((id) => updateQuestion(id, { auditStatus: "audited" })));
+            enqueue({ type: "passed", questionIds: passedIds });
           }
         } catch (err) {
           enqueue({
@@ -239,7 +253,10 @@ export async function POST(_req: NextRequest) {
             corrected_question: Record<string, string> | null;
           };
 
-          if (!result.pass) {
+          if (result.pass) {
+            await updateQuestion(q.id, { auditStatus: "audited" });
+            enqueue({ type: "passed", questionIds: [q.id] });
+          } else {
             enqueue({
               type: "finding",
               questionId: q.id,
