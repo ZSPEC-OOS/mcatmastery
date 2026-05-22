@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { SECTION_COLORS, DIFF_COLORS } from "./shared";
 import { PassageRenderer } from "../../components/PassageRenderer";
 
@@ -208,6 +208,8 @@ export default function DatabaseTab() {
   const [applyingId, setApplyingId]         = useState<string | null>(null);
   const [applyErrors, setApplyErrors]       = useState<Record<string, string>>({});
   const [denyingId, setDenyingId]           = useState<string | null>(null);
+  const [stopping, setStopping]             = useState(false);
+  const stopRequestedRef                    = useRef(false);
 
   useEffect(() => {
     fetch("/api/admin/stats")
@@ -247,7 +249,14 @@ export default function DatabaseTab() {
     );
   }
 
+  function requestStop() {
+    stopRequestedRef.current = true;
+    setStopping(true);
+  }
+
   async function startAudit() {
+    stopRequestedRef.current = false;
+    setStopping(false);
     setAuditState("running");
     setAuditFindings([]);
     setAuditErrors(0);
@@ -270,6 +279,13 @@ export default function DatabaseTab() {
           if (evt.type === "start") {
             setAuditProgress({ current: 0, total: evt.total });
           } else if (evt.type === "progress") {
+            // Check stop flag here — the previous item just finished
+            if (stopRequestedRef.current) {
+              reader.cancel().catch(() => {});
+              setAuditState("done");
+              setStopping(false);
+              return;
+            }
             setAuditProgress({ current: evt.current, total: evt.total });
           } else if (evt.type === "passed") {
             // Questions that passed audit — remove from the needs-audit queue
@@ -374,10 +390,21 @@ export default function DatabaseTab() {
             </span>
           )}
           {auditState === "running" && (
-            <span className="text-xs font-semibold px-3 py-1.5 rounded-full flex-shrink-0 ml-4"
-              style={{ background: "rgba(99,102,241,0.12)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)" }}>
-              Running…
-            </span>
+            <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+              <span className="text-xs font-semibold px-3 py-1.5 rounded-full"
+                style={{ background: "rgba(99,102,241,0.12)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)" }}>
+                {stopping ? "Finishing current…" : "Running…"}
+              </span>
+              {!stopping && (
+                <button
+                  onClick={requestStop}
+                  className="text-xs px-3 py-1.5 rounded-full font-semibold"
+                  style={{ background: "rgba(224,92,92,0.1)", color: "#e05c5c", border: "1px solid rgba(224,92,92,0.3)" }}
+                >
+                  Stop
+                </button>
+              )}
+            </div>
           )}
           {auditState === "done" && auditFindings.length === 0 && (
             <button
