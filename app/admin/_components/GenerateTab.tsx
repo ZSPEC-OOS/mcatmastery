@@ -13,7 +13,7 @@ type GenEvent =
 interface CustomModel { id: string; name: string; modelId: string; baseUrl: string; apiKey: string; role?: string }
 
 const PIPELINE_STEPS = [
-  { n: 1, title: "Input Config",       desc: "Section, subtypes, count, model, and duplicate filter threshold." },
+  { n: 1, title: "Input Config",       desc: "Section, subtypes, count, and duplicate filter threshold. Model is set by role in Custom Models." },
   { n: 2, title: "Load Existing",      desc: "Last 100 questions from the same section fetched for dedup." },
   { n: 3, title: "Generate (Claude)",  desc: "Passage-based subtypes → one call produces a shared passage + 4–7 questions. Discrete subtypes → one call per question." },
   { n: 4, title: "Parse JSON",         desc: "Output parsed; regex extracts JSON block from model response." },
@@ -30,7 +30,6 @@ export default function GenerateTab() {
     (SECTION_SUBTYPES["Bio/Biochem"] ?? []).filter(s => s.passageBased).map(s => s.id));
   const [count, setCount]               = useState(10);
   const [passageSets, setPassageSets]   = useState(3);
-  const [model, setModel]               = useState("");
   const [dedupThreshold, setDedup]      = useState(0.75);
   const [running, setRunning]           = useState(false);
   const [events, setEvents]             = useState<GenEvent[]>([]);
@@ -46,9 +45,7 @@ export default function GenerateTab() {
     fetch("/api/admin/models")
       .then((r) => r.json())
       .then((d: { models?: CustomModel[] }) => {
-        const list = d.models ?? [];
-        setCustomModels(list);
-        if (list.length > 0) setModel(list[0].modelId);
+        setCustomModels(d.models ?? []);
       })
       .catch(() => {})
       .finally(() => setModelsLoading(false));
@@ -67,7 +64,7 @@ export default function GenerateTab() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        section, subTypes, model, dedupThreshold,
+        section, subTypes, dedupThreshold,
         imageGeneration: imageGenEnabled,
         imageModelId:    imageGenEnabled ? imageModelId : undefined,
         ...(isPassageMode ? { passageSets } : { count }),
@@ -321,35 +318,33 @@ export default function GenerateTab() {
             </div>
           )}
 
-          {/* Model */}
+          {/* Generation model — driven by role assignment in Custom Models */}
           <div>
-            <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Model</label>
+            <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Generation Model</label>
             {modelsLoading ? (
-              <p className="text-xs py-2" style={{ color: "var(--text-muted)" }}>Loading models…</p>
-            ) : customModels.length === 0 ? (
-              <div className="px-3 py-3 rounded-lg text-xs text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-muted)" }}>
-                No models configured.{" "}
-                <span style={{ color: "var(--accent-blue)" }}>Add one in Settings → Custom Models.</span>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                {customModels.map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => setModel(m.modelId)}
-                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs"
-                    style={{
-                      background: model === m.modelId ? "rgba(27,58,107,0.12)" : "var(--bg-card)",
-                      border: `1px solid ${model === m.modelId ? "var(--accent-blue)" : "var(--border)"}`,
-                      color: "var(--text-secondary)",
-                    }}
-                  >
-                    <span className="font-semibold" style={{ color: model === m.modelId ? "var(--accent-blue)" : "var(--text-primary)" }}>{m.name}</span>
-                    <span className="font-mono truncate ml-2" style={{ color: "var(--text-muted)", maxWidth: "8rem" }}>{m.modelId}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+              <p className="text-xs py-2" style={{ color: "var(--text-muted)" }}>Loading…</p>
+            ) : (() => {
+              const genModel = customModels.find((m) => m.role === "generation" || m.role === "both") ?? customModels[0] ?? null;
+              return genModel ? (
+                <div className="px-3 py-2.5 rounded-lg flex items-center justify-between"
+                  style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                  <div>
+                    <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>{genModel.name}</p>
+                    <p className="text-xs font-mono mt-0.5" style={{ color: "var(--text-muted)" }}>{genModel.modelId}</p>
+                  </div>
+                  <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    style={{ background: "rgba(27,58,107,0.12)", color: "var(--accent-blue)", border: "1px solid rgba(27,58,107,0.25)" }}>
+                    {genModel.role === "both" ? "Both" : "Question Gen"}
+                  </span>
+                </div>
+              ) : (
+                <div className="px-3 py-3 rounded-lg text-xs text-center"
+                  style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-muted)" }}>
+                  No model configured.{" "}
+                  <span style={{ color: "var(--accent-blue)" }}>Add one in Settings → Custom Models.</span>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Image Generation */}
@@ -425,13 +420,13 @@ export default function GenerateTab() {
           {/* Generate button */}
           <button
             onClick={handleGenerate}
-            disabled={running || !model || (imageGenEnabled && !imageModelId)}
+            disabled={running || (imageGenEnabled && !imageModelId)}
             className="w-full py-2.5 rounded-lg text-sm font-semibold"
             style={{
-              background: (running || !model) ? "var(--bg-card)" : "var(--accent-blue)",
-              color: (running || !model) ? "var(--text-muted)" : "#fff",
-              border: (running || !model) ? "1px solid var(--border)" : "none",
-              cursor: (running || !model) ? "not-allowed" : "pointer",
+              background: running ? "var(--bg-card)" : "var(--accent-blue)",
+              color: running ? "var(--text-muted)" : "#fff",
+              border: running ? "1px solid var(--border)" : "none",
+              cursor: running ? "not-allowed" : "pointer",
             }}
           >
             {running
