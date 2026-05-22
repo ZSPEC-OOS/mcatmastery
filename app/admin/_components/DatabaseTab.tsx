@@ -487,6 +487,11 @@ export default function DatabaseTab() {
                   <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "#f59e0b" }}>
                     Issues Found
                   </p>
+                  {finding.issues.length === 0 && (
+                    <p className="text-xs italic" style={{ color: "var(--text-muted)" }}>
+                      Model flagged this question but did not specify issues — deny to mark as audited.
+                    </p>
+                  )}
                   <ul className="space-y-1">
                     {finding.issues.map((issue, i) => (
                       <li key={i} className="text-xs flex gap-2" style={{ color: "var(--text-secondary)" }}>

@@ -253,7 +253,11 @@ export async function POST(_req: NextRequest) {
             corrected_question: Record<string, string> | null;
           };
 
-          if (result.pass) {
+          const hasIssues = Array.isArray(result.issues) && result.issues.length > 0;
+          const hasFix    = !!result.corrected_question && Object.keys(result.corrected_question).length > 0;
+
+          if (result.pass || (!hasIssues && !hasFix)) {
+            // Pass — or model said fail but couldn't articulate anything (treat as pass)
             await updateQuestion(q.id, { auditStatus: "audited" });
             enqueue({ type: "passed", questionIds: [q.id] });
           } else {
