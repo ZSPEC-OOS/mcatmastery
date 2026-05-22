@@ -107,16 +107,22 @@ export async function callModel(opts: {
       throw new Error(`Model API error ${res.status}: ${text.slice(0, 200)}`);
     }
     const data = await res.json() as {
-      choices?: Array<{ message?: { content?: string | Array<{ type: string; text?: string }> | null } }>;
+      choices?: Array<{ message?: { content?: string | Array<{ type: string; text?: string }> | null; reasoning_content?: string | null } }>;
       error?: unknown;
     };
-    const raw = data.choices?.[0]?.message?.content;
+    const msg = data.choices?.[0]?.message;
+    const raw = msg?.content;
     let content: string | null = null;
     if (typeof raw === "string") {
       content = raw || null;
     } else if (Array.isArray(raw)) {
       // Some newer models return content as an array of typed blocks
       content = raw.filter((b) => b?.type === "text" && b?.text).map((b) => b.text).join("") || null;
+    }
+    // DeepSeek reasoning models (R1, V4 Pro, etc.) put the chain-of-thought in
+    // reasoning_content and may leave content empty when max_tokens is low
+    if (!content && typeof msg?.reasoning_content === "string" && msg.reasoning_content) {
+      content = msg.reasoning_content;
     }
     if (!content) {
       const hint = data.error ? ` API error: ${JSON.stringify(data.error).slice(0, 200)}` : ` Response: ${JSON.stringify(data).slice(0, 200)}`;

@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
           apiKey: apiKey?.trim() || undefined,
           system: "You are a connectivity test assistant. Follow instructions exactly.",
           userContent: 'Respond with only the single word: CONNECTED',
-          maxTokens: 10,
+          maxTokens: 200,
         });
         const ok = reply.trim().toUpperCase().includes("CONNECTED");
         if (ok) return NextResponse.json({ ok: true, message: "Connection successful!" });
