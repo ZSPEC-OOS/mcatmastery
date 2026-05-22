@@ -221,7 +221,21 @@ export async function deleteAllQuestions(): Promise<number> {
   return deleted;
 }
 
-// ── Sessions ──────────────────────────────────────────────────────────────────
+export async function deleteUserSessions(userId: string): Promise<void> {
+  const firestore = fs();
+  const sessSnap = await firestore.collection("sessions").where("userId", "==", userId).get();
+  for (const sess of sessSnap.docs) {
+    const answersSnap = await sess.ref.collection("answers").get();
+    for (let i = 0; i < answersSnap.docs.length; i += 500) {
+      const batch = firestore.batch();
+      for (const a of answersSnap.docs.slice(i, i + 500)) batch.delete(a.ref);
+      await batch.commit();
+    }
+    await sess.ref.delete();
+  }
+}
+
+
 
 export async function createSession(data: {
   userId: string;
