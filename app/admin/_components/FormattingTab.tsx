@@ -47,7 +47,7 @@ export default function FormattingTab() {
     setCardState((prev) => ({ ...prev, [id]: s }));
   }
 
-  async function formatQuestion(id: string) {
+  async function formatQuestion(id: string): Promise<string | null> {
     setState(id, { status: "loading" });
     try {
       const res  = await fetch("/api/admin/format", {
@@ -59,11 +59,13 @@ export default function FormattingTab() {
       if (!res.ok || !data.formattedExplanation) {
         setState(id, { status: "idle" });
         alert(data.error ?? "Format failed");
-        return;
+        return null;
       }
       setState(id, { status: "preview", formatted: data.formattedExplanation });
+      return data.formattedExplanation;
     } catch {
       setState(id, { status: "idle" });
+      return null;
     }
   }
 
@@ -88,15 +90,8 @@ export default function FormattingTab() {
       return s === "idle";
     });
     for (const q of pending) {
-      await formatQuestion(q.id);
-      // Auto-apply after formatting in batch mode
-      setCardState((prev) => {
-        const s = prev[q.id];
-        if (s?.status === "preview") {
-          applyFormat(q.id, s.formatted);
-        }
-        return prev;
-      });
+      const formatted = await formatQuestion(q.id);
+      if (formatted) await applyFormat(q.id, formatted);
     }
     setFormatAll(false);
   }
