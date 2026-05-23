@@ -8,7 +8,7 @@ import SettingsTab from "./_components/SettingsTab";
 import DatabaseTab from "./_components/DatabaseTab";
 import PipelinesTab from "./_components/PipelinesTab";
 
-type Tab = "generate" | "pipelines" | "settings" | "database";
+type Tab = "generate" | "pipelines" | "settings" | "database" | "formatting";
 
 const ADMIN_USER = "admin";
 const ADMIN_PASS = "MCATadmin";
@@ -157,7 +157,7 @@ export default function AdminPage() {
         </div>
 
         <div className="flex gap-0 mb-6 overflow-x-auto" style={{ borderBottom: "1px solid var(--border)" }}>
-          {(["generate", "pipelines", "settings", "database"] as Tab[]).map((t) => (
+          {(["generate", "pipelines", "settings", "database", "formatting"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -168,7 +168,7 @@ export default function AdminPage() {
                 marginBottom: -1,
               }}
             >
-              {t === "generate" ? "Question Generation" : t === "pipelines" ? "Pipelines" : t === "settings" ? "Settings" : "Database"}
+              {t === "generate" ? "Question Generation" : t === "pipelines" ? "Pipelines" : t === "settings" ? "Settings" : t === "database" ? "Database" : "Formatting"}
             </button>
           ))}
         </div>
@@ -176,7 +176,13 @@ export default function AdminPage() {
         {tab === "generate"  && <GenerateTab />}
         {tab === "pipelines" && <PipelinesTab />}
         {tab === "settings"  && <SettingsTab />}
-        {tab === "database"  && <DatabaseTab />}
+        {tab === "database"   && <DatabaseTab />}
+        {tab === "formatting" && (
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Formatting</p>
+            <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>Coming soon.</p>
+          </div>
+        )}
       </div>
 
       <Footer />
