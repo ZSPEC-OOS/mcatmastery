@@ -77,6 +77,8 @@ function sseChunk(data: unknown): string {
   return `data: ${JSON.stringify(data)}\n\n`;
 }
 
+export const maxDuration = 300; // 5 minutes — maximum on Vercel Pro
+
 export async function POST(_req: NextRequest) {
   await ensureSchema();
 
