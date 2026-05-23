@@ -137,9 +137,7 @@ function QuestionModal({ q, onClose }: { q: QuestionDoc; onClose: () => void }) 
             <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--accent-blue)" }}>
               Explanation
             </p>
-            <p className="text-sm leading-relaxed" style={{ color: "var(--text-primary)" }}>
-              {q.explanation}
-            </p>
+            <PassageRenderer text={q.explanation} style={{ color: "var(--text-primary)" }} className="text-sm leading-relaxed" />
           </div>
 
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
