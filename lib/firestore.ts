@@ -74,7 +74,8 @@ export interface QuestionDoc {
   aiGenerated: boolean;
   figureUrl?: string | null;
   createdAt: string;
-  auditStatus?: "needs_audit" | "audited";
+  auditStatus?:      "needs_audit" | "audited";
+  formattingStatus?: "needs_format" | "formatted";
 }
 
 export interface SessionDoc {
