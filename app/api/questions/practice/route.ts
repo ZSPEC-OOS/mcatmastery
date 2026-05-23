@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
       sections:     body.sections,
       difficulties: body.difficulties,
       subTypes:     body.subTypes?.length ? body.subTypes : undefined,
+      auditedOnly:  true,
     });
 
     const selected = shuffle(allMatching).slice(0, body.count);

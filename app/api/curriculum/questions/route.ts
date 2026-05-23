@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
   const topic   = searchParams.get("topic")   ?? undefined;
 
   try {
-    const all = await getQuestions({ section });
+    const all = await getQuestions({ section, auditedOnly: true });
     const questions = topic
       ? all.filter((q) => q.topic === topic)
       : all;
