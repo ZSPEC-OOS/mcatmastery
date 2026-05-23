@@ -22,7 +22,7 @@ function renderInline(text: string, keyPrefix: string): React.ReactNode {
     if (seg.startsWith("*") && seg.endsWith("*") && seg.length > 2)
       return <em key={k}>{seg.slice(1, -1)}</em>;
     if (seg.startsWith("==") && seg.endsWith("==") && seg.length > 4)
-      return <mark key={k} style={{ background: "rgba(250,204,21,0.28)", borderRadius: 3, padding: "0 3px" }}>{seg.slice(2, -2)}</mark>;
+      return <mark key={k}>{seg.slice(2, -2)}</mark>;
     if (seg.startsWith("__") && seg.endsWith("__") && seg.length > 4)
       return <span key={k} style={{ textDecoration: "underline" }}>{seg.slice(2, -2)}</span>;
     return <Fragment key={k}>{seg}</Fragment>;

@@ -65,3 +65,16 @@ h1, h2, h3 {
 * {
   box-sizing: border-box;
 }
+
+/* Highlight marks (==text==) — theme-aware */
+mark {
+  background: rgba(234, 179, 8, 0.32);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 3px;
+}
+
+[data-theme="dark"] mark {
+  background: rgba(234, 179, 8, 0.22);
+  color: #fff;
+}
