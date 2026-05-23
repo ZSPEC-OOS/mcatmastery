@@ -146,6 +146,7 @@ export async function getQuestions(opts: {
   subTypes?: string[];
   topic?: string;
   limit?: number;
+  auditedOnly?: boolean;
 } = {}): Promise<QuestionDoc[]> {
   let q: FirebaseFirestore.Query = fs().collection("questions");
 
@@ -171,6 +172,9 @@ export async function getQuestions(opts: {
   }
   if (opts.subTypes?.length) {
     docs = docs.filter((d) => d.subType !== undefined && opts.subTypes!.includes(d.subType));
+  }
+  if (opts.auditedOnly) {
+    docs = docs.filter((d) => d.auditStatus === "audited");
   }
   if (opts.topic) {
     const needle = opts.topic.toLowerCase();
