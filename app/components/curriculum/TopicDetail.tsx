@@ -245,7 +245,7 @@ export default function TopicDetail({ selectionKey }: Props) {
           fetch(`/api/admin/questions/${q.id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ auditStatus: "needs_audit" }),
+            body: JSON.stringify({ auditStatus: "needs_audit", formattingStatus: "needs_format" }),
           })
         )
       );
