@@ -7,6 +7,7 @@ import GenerateTab from "./_components/GenerateTab";
 import SettingsTab from "./_components/SettingsTab";
 import DatabaseTab from "./_components/DatabaseTab";
 import PipelinesTab from "./_components/PipelinesTab";
+import FormattingTab from "./_components/FormattingTab";
 
 type Tab = "generate" | "pipelines" | "settings" | "database" | "formatting";
 
@@ -177,12 +178,7 @@ export default function AdminPage() {
         {tab === "pipelines" && <PipelinesTab />}
         {tab === "settings"  && <SettingsTab />}
         {tab === "database"   && <DatabaseTab />}
-        {tab === "formatting" && (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Formatting</p>
-            <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>Coming soon.</p>
-          </div>
-        )}
+        {tab === "formatting" && <FormattingTab />}
       </div>
 
       <Footer />
