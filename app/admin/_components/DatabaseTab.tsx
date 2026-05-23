@@ -212,6 +212,7 @@ export default function DatabaseTab() {
   const [denyingId, setDenyingId]           = useState<string | null>(null);
   const [stopping, setStopping]             = useState(false);
   const stopRequestedRef                    = useRef(false);
+  const cumulativeRef                       = useRef(0); // total processed across auto-restarts
 
   useEffect(() => {
     fetch("/api/admin/stats")
@@ -259,55 +260,88 @@ export default function DatabaseTab() {
   async function startAudit() {
     stopRequestedRef.current = false;
     setStopping(false);
+    cumulativeRef.current = 0;
     setAuditState("running");
     setAuditFindings([]);
     setAuditErrors([]);
     setAuditProgress({ current: 0, total: 0 });
-    const res = await fetch("/api/admin/audit", { method: "POST" });
-    if (!res.body) { setAuditState("done"); return; }
-    const reader = res.body.getReader();
-    const dec = new TextDecoder();
-    let buf = "";
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += dec.decode(value, { stream: true });
-      const lines = buf.split("\n");
-      buf = lines.pop() ?? "";
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        try {
-          const evt = JSON.parse(line.slice(6));
-          if (evt.type === "start") {
-            setAuditProgress({ current: 0, total: evt.total });
-          } else if (evt.type === "progress") {
-            // Check stop flag here — the previous item just finished
-            if (stopRequestedRef.current) {
-              reader.cancel().catch(() => {});
-              setAuditState("done");
-              setStopping(false);
-              return;
-            }
-            setAuditProgress({ current: evt.current, total: evt.total });
-          } else if (evt.type === "passed") {
-            // Questions that passed audit — remove from the needs-audit queue
-            removeFromQueueMany(evt.questionIds as string[]);
-          } else if (evt.type === "finding") {
-            setAuditFindings((prev) => [...prev, {
-              questionId: evt.questionId,
-              question: evt.question,
-              issues: evt.issues,
-              correctedQuestion: evt.correctedQuestion,
-            }]);
-          } else if (evt.type === "error") {
-            setAuditErrors((prev) => [...prev, { questionId: evt.questionId ?? "unknown", message: evt.message ?? "Unknown error" }]);
-          } else if (evt.type === "done") {
-            setAuditState("done");
-          }
-        } catch { /* skip malformed */ }
-      }
+    await runAuditBatch();
+  }
+
+  // Runs one SSE batch. Auto-restarts if the stream closes before a "done"
+  // event (i.e. Vercel's 5-min timeout was hit but questions still remain).
+  async function runAuditBatch(): Promise<void> {
+    if (stopRequestedRef.current) {
+      setAuditState("done");
+      setStopping(false);
+      return;
     }
-    setAuditState("done");
+
+    let receivedDone = false;
+
+    try {
+      const res = await fetch("/api/admin/audit", { method: "POST" });
+      if (!res.body) { setAuditState("done"); return; }
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const evt = JSON.parse(line.slice(6));
+            if (evt.type === "start") {
+              // Accumulate total across restarts; current stays cumulative
+              setAuditProgress(p => ({
+                current: cumulativeRef.current,
+                total: cumulativeRef.current + (evt.total as number),
+              }));
+            } else if (evt.type === "progress") {
+              if (stopRequestedRef.current) {
+                reader.cancel().catch(() => {});
+                setAuditState("done");
+                setStopping(false);
+                return;
+              }
+              cumulativeRef.current += 1;
+              setAuditProgress(p => ({ ...p, current: cumulativeRef.current }));
+            } else if (evt.type === "passed") {
+              removeFromQueueMany(evt.questionIds as string[]);
+            } else if (evt.type === "finding") {
+              setAuditFindings((prev) => [...prev, {
+                questionId: evt.questionId,
+                question: evt.question,
+                issues: evt.issues,
+                correctedQuestion: evt.correctedQuestion,
+              }]);
+            } else if (evt.type === "error") {
+              setAuditErrors((prev) => [...prev, { questionId: evt.questionId ?? "unknown", message: evt.message ?? "Unknown error" }]);
+            } else if (evt.type === "done") {
+              receivedDone = true;
+              setAuditState("done");
+            }
+          } catch { /* skip malformed */ }
+        }
+      }
+    } catch {
+      // Network error — fall through to auto-restart logic below
+    }
+
+    if (receivedDone || stopRequestedRef.current) {
+      setAuditState("done");
+      setStopping(false);
+      return;
+    }
+
+    // Stream ended without a "done" event — server hit its time limit.
+    // Auto-restart; the route only processes remaining unaudited questions.
+    await runAuditBatch();
   }
 
   async function applyFix(finding: AuditFinding) {
