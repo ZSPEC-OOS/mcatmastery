@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     const q = await getQuestionById(questionId);
     if (!q) return NextResponse.json({ error: "Question not found" }, { status: 404 });
 
-    const formatModel = await getModelForRole("audit"); // reuse audit model role
+    const formatModel = await getModelForRole("formatting");
     const modelOpts = formatModel
       ? { modelId: formatModel.modelId, baseUrl: formatModel.baseUrl || undefined, apiKey: formatModel.apiKey || undefined }
       : {};

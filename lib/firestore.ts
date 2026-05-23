@@ -44,7 +44,9 @@ function fs() {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type ModelRole = "generation" | "audit" | "both" | "disabled";
+// Stored as a single role ("generation", "audit", "formatting", "disabled"),
+// the legacy "both" value, or a comma-separated set like "generation,formatting".
+export type ModelRole = string;
 
 export interface ModelConfig {
   id: string;

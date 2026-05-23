@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 
-type ModelRole = "generation" | "audit" | "both" | "disabled";
+type ModelRole = string;
 
 interface ModelConfig {
   id: string;
@@ -13,14 +13,24 @@ interface ModelConfig {
   createdAt: string;
 }
 
-const ROLE_LABELS: Record<ModelRole, string> = {
-  generation: "Question Gen",
-  audit: "Audit Only",
-  both: "Both",
-  disabled: "Disabled",
-};
+const ROLE_OPTIONS = [
+  { key: "generation", label: "Question Gen" },
+  { key: "audit",      label: "Audit" },
+  { key: "formatting", label: "Formatting" },
+] as const;
 
-const EMPTY_FORM = { name: "", modelId: "", baseUrl: "", apiKey: "", role: "both" as ModelRole };
+function parseRoles(role: string): Set<string> {
+  if (!role || role === "disabled") return new Set();
+  if (role === "both") return new Set(["generation", "audit"]); // backward compat
+  return new Set(role.split(",").map(r => r.trim()).filter(Boolean));
+}
+
+function serializeRoles(roles: Set<string>): string {
+  if (roles.size === 0) return "disabled";
+  return Array.from(roles).sort().join(",");
+}
+
+const EMPTY_FORM = { name: "", modelId: "", baseUrl: "", apiKey: "", role: "disabled" as ModelRole };
 
 const DEFAULT_GEN_PROMPT = `You are an expert MCAT question writer trained on AAMC content specifications.
 
@@ -608,33 +618,37 @@ export default function SettingsTab() {
                         </button>
                       </div>
                     )}
-                    <div className="pt-0.5">
+                    <div className="pt-1">
                       {(() => {
-                        // Only active (non-disabled) other models create conflicts
-                        const otherHasBoth  = models.some(x => x.id !== m.id && x.role === "both");
-                        const otherHasGen   = models.some(x => x.id !== m.id && x.role === "generation");
-                        const otherHasAudit = models.some(x => x.id !== m.id && x.role === "audit");
-                        const genBlocked    = otherHasBoth || otherHasGen;
-                        const auditBlocked  = otherHasBoth || otherHasAudit;
-                        const bothBlocked   = otherHasBoth || otherHasGen || otherHasAudit;
+                        const roles = parseRoles(m.role);
+                        const takenRoles = new Set<string>(
+                          models
+                            .filter(x => x.id !== m.id)
+                            .flatMap(x => Array.from(parseRoles(x.role)))
+                        );
+                        const isUpdating = updatingRoleId === m.id;
+                        function toggleRole(roleKey: string) {
+                          const next = new Set(roles);
+                          if (next.has(roleKey)) next.delete(roleKey); else next.add(roleKey);
+                          updateRole(m.id, serializeRoles(next));
+                        }
                         return (
-                          <>
-                            <select
-                              value={m.role ?? "both"}
-                              disabled={updatingRoleId === m.id}
-                              onChange={(e) => updateRole(m.id, e.target.value as ModelRole)}
-                              className="text-xs rounded px-2 py-0.5"
-                              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-secondary)", cursor: "pointer" }}
-                            >
-                              <option value="generation" disabled={genBlocked && m.role !== "generation"}>Question Gen</option>
-                              <option value="audit"      disabled={auditBlocked && m.role !== "audit"}>Audit Only</option>
-                              <option value="both"       disabled={bothBlocked && m.role !== "both"}>Both</option>
-                              <option value="disabled">Disabled</option>
-                            </select>
-                            {otherHasBoth && m.role !== "both" && m.role !== "disabled" && (
-                              <p className="text-xs mt-1" style={{ color: "#f59e0b" }}>Set to Disabled to free up roles</p>
-                            )}
-                          </>
+                          <div className="flex flex-col gap-1">
+                            {ROLE_OPTIONS.map(({ key, label }) => {
+                              const checked = roles.has(key);
+                              const taken   = !checked && takenRoles.has(key);
+                              return (
+                                <label key={key} className="flex items-center gap-2 select-none"
+                                  style={{ cursor: isUpdating || taken ? "not-allowed" : "pointer", opacity: taken ? 0.45 : 1 }}>
+                                  <input type="checkbox" checked={checked} disabled={isUpdating || taken}
+                                    onChange={() => toggleRole(key)} />
+                                  <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                                    {label}{taken ? " (taken)" : ""}
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </div>
                         );
                       })()}
                     </div>
@@ -734,35 +748,33 @@ export default function SettingsTab() {
                 />
               </div>
               <div>
-                <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Role</label>
+                <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Roles</label>
                 {(() => {
-                  const existingHasBoth  = models.some(x => x.role === "both");
-                  const existingHasGen   = models.some(x => x.role === "generation");
-                  const existingHasAudit = models.some(x => x.role === "audit");
-                  const genBlocked    = existingHasBoth || existingHasGen;
-                  const auditBlocked  = existingHasBoth || existingHasAudit;
-                  const bothBlocked   = existingHasBoth || existingHasGen || existingHasAudit;
+                  const formRoles  = parseRoles(modelForm.role);
+                  const takenRoles = new Set<string>(models.flatMap(x => Array.from(parseRoles(x.role))));
+                  function toggleFormRole(roleKey: string) {
+                    const next = new Set(formRoles);
+                    if (next.has(roleKey)) next.delete(roleKey); else next.add(roleKey);
+                    setModelForm(f => ({ ...f, role: serializeRoles(next) }));
+                  }
                   return (
-                    <>
-                      <select
-                        value={modelForm.role}
-                        onChange={(e) => setModelForm((f) => ({ ...f, role: e.target.value as ModelRole }))}
-                        className="w-full px-3 py-2 rounded-lg text-sm"
-                        style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
-                      >
-                        <option value="generation" disabled={genBlocked}>Question Gen{genBlocked ? " (taken)" : ""}</option>
-                        <option value="audit"      disabled={auditBlocked}>Audit Only{auditBlocked ? " (taken)" : ""}</option>
-                        <option value="both"       disabled={bothBlocked}>Both{bothBlocked ? " (taken)" : ""}</option>
-                        <option value="disabled">Disabled</option>
-                      </select>
-                      {(genBlocked || auditBlocked || bothBlocked) && (
-                        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                          {existingHasBoth
-                            ? "A model with Both role already covers all tasks."
-                            : `${existingHasGen ? "Question Gen" : ""}${existingHasGen && existingHasAudit ? " and " : ""}${existingHasAudit ? "Audit Only" : ""} role${existingHasGen && existingHasAudit ? "s are" : " is"} already assigned.`}
-                        </p>
-                      )}
-                    </>
+                    <div className="flex flex-col gap-2 px-3 py-2.5 rounded-lg"
+                      style={{ background: "var(--bg-input)", border: "1px solid var(--border)" }}>
+                      {ROLE_OPTIONS.map(({ key, label }) => {
+                        const checked = formRoles.has(key);
+                        const taken   = !checked && takenRoles.has(key);
+                        return (
+                          <label key={key} className="flex items-center gap-2 select-none"
+                            style={{ cursor: taken ? "not-allowed" : "pointer", opacity: taken ? 0.45 : 1 }}>
+                            <input type="checkbox" checked={checked} disabled={taken}
+                              onChange={() => toggleFormRole(key)} />
+                            <span className="text-sm" style={{ color: "var(--text-primary)" }}>
+                              {label}{taken ? " (taken)" : ""}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
                   );
                 })()}
               </div>
