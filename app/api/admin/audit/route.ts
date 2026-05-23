@@ -152,7 +152,7 @@ export async function POST(_req: NextRequest) {
             ...modelOpts,
             system: passageSetAuditPrompt,
             userContent,
-            maxTokens: 8000,
+            maxTokens: 16000,
           });
 
           const result = extractModelJson(raw) as {
@@ -244,7 +244,7 @@ export async function POST(_req: NextRequest) {
             ...modelOpts,
             system: auditSystemPrompt,
             userContent,
-            maxTokens: 4000,
+            maxTokens: 12000,
           });
 
           const result = extractModelJson(raw) as {
