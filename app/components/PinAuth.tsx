@@ -19,9 +19,9 @@ export function setCurrentUser(user: PinUser) {
   sessionStorage.setItem("pin_current_user", JSON.stringify(user));
 }
 
-export function clearCurrentUser() {
+export async function clearCurrentUser() {
   sessionStorage.removeItem("pin_current_user");
-  fetch("/api/auth/signout", { method: "POST" }).catch(() => {});
+  await fetch("/api/auth/signout", { method: "POST" }).catch(() => {});
 }
 
 type Mode = "login" | "signup" | "welcome";
@@ -38,6 +38,7 @@ export default function PinAuth({ onAuth }: Props) {
   const [shake, setShake]     = useState(false);
   const [loading, setLoading] = useState(false);
   const [welcome, setWelcome] = useState<PinUser | null>(null);
+  const [isNewUser, setIsNewUser] = useState(false);
 
   function triggerShake(msg: string) {
     setError(msg);
@@ -58,6 +59,7 @@ export default function PinAuth({ onAuth }: Props) {
       if (!res.ok || !data.user) { triggerShake(data.error ?? "Incorrect PIN. Try again."); setPin(""); return; }
       setCurrentUser(data.user);
       setWelcome(data.user);
+      setIsNewUser(false);
       setMode("welcome");
       setTimeout(() => onAuth(data.user!), 1800);
     } catch {
@@ -83,6 +85,7 @@ export default function PinAuth({ onAuth }: Props) {
       if (!res.ok || !data.user) { triggerShake(data.error ?? "Signup failed. Try again."); return; }
       setCurrentUser(data.user);
       setWelcome(data.user);
+      setIsNewUser(true);
       setMode("welcome");
       setTimeout(() => onAuth(data.user!), 2200);
     } catch {
@@ -103,13 +106,26 @@ export default function PinAuth({ onAuth }: Props) {
               {welcome.firstName[0]}{welcome.lastName[0]}
             </span>
           </div>
-          <p className="text-xl font-bold mb-2" style={{ color: "var(--text-primary)" }}>
-            {mode === "welcome" && !welcome ? "" : "Welcome back,"}
-          </p>
-          <p className="text-2xl font-bold" style={{ color: "var(--accent-blue)" }}>
-            {welcome.firstName} {welcome.lastName}
-          </p>
-          <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>{welcome.email}</p>
+          {isNewUser ? (
+            <>
+              <p className="text-xl font-bold mb-2" style={{ color: "var(--text-primary)" }}>
+                Thank you for registering!
+              </p>
+              <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                Welcome, {welcome.firstName} {welcome.lastName}.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-xl font-bold mb-2" style={{ color: "var(--text-primary)" }}>
+                Welcome back,
+              </p>
+              <p className="text-2xl font-bold" style={{ color: "var(--accent-blue)" }}>
+                {welcome.firstName} {welcome.lastName}
+              </p>
+              <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>{welcome.email}</p>
+            </>
+          )}
           <p className="text-xs mt-4" style={{ color: "var(--text-muted)" }}>Loading your dashboard…</p>
         </div>
       </div>

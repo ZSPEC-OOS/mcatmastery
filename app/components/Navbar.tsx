@@ -90,7 +90,7 @@ export default function Navbar() {
 
             {/* Logout — always visible */}
             <button
-              onClick={() => { clearCurrentUser(); window.location.href = "/"; }}
+              onClick={async () => { await clearCurrentUser(); window.location.href = "/"; }}
               className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
               style={{ color: "var(--text-muted)", border: "1px solid var(--border)", background: "transparent" }}
               title="Log out"
@@ -153,7 +153,7 @@ export default function Navbar() {
             Admin
           </Link>
           <button
-            onClick={() => { clearCurrentUser(); window.location.href = "/"; }}
+            onClick={async () => { await clearCurrentUser(); window.location.href = "/"; }}
             className="flex items-center gap-2.5 px-5 py-3.5 text-sm font-medium w-full text-left"
             style={{ color: "#e05c5c", borderTop: "1px solid var(--border)" }}
           >
