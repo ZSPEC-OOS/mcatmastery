@@ -26,11 +26,16 @@ export async function getActiveModel(): Promise<ModelConfig | null> {
   return models.find((m) => m.role !== "disabled") ?? null;
 }
 
-// Returns the best model for a given role: prefers an exact role match or
-// "both", falls back to any non-disabled model, then null (Anthropic SDK).
-export async function getModelForRole(role: ModelRole): Promise<ModelConfig | null> {
+// Returns the best model for a given role. Handles comma-separated multi-role
+// strings ("generation,formatting") and the legacy "both" value (=generation+audit).
+export async function getModelForRole(role: string): Promise<ModelConfig | null> {
   const models = await getAllModels();
-  return models.find((m) => m.role === role || m.role === "both")
+  function hasRole(stored: string): boolean {
+    if (!stored || stored === "disabled") return false;
+    if (stored === "both") return role === "generation" || role === "audit";
+    return stored.split(",").map(r => r.trim()).includes(role);
+  }
+  return models.find((m) => hasRole(m.role))
     ?? models.find((m) => m.role !== "disabled")
     ?? null;
 }
