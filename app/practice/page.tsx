@@ -52,7 +52,7 @@ export default function PracticePage() {
   const [showExp,    setShowExp]    = useState(false);
   const [answers,    setAnswers]    = useState<Record<string, Answer>>({});
   const [lightboxUrl,        setLightboxUrl]        = useState<string | null>(null);
-  const [showPassageSidebar, setShowPassageSidebar] = useState(true);
+
   const [showPassageModal,   setShowPassageModal]   = useState(false);
 
   const [flagged,       setFlagged]       = useState<Set<string>>(new Set());
@@ -606,24 +606,12 @@ export default function PracticePage() {
           ) : null;
         })()}
         {currentQ?.passage && (
-          <>
-            <button
-              onClick={() => setShowPassageSidebar(p => !p)}
-              className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded font-medium"
-              style={{
-                background: showPassageSidebar ? "rgba(99,102,241,0.12)" : "var(--bg-card-hover)",
-                border: `1px solid ${showPassageSidebar ? "rgba(99,102,241,0.35)" : "var(--border)"}`,
-                color: showPassageSidebar ? "#6366f1" : "var(--text-secondary)",
-              }}>
-              {showPassageSidebar ? "Hide Passage" : "View Passage"}
-            </button>
-            <button
-              onClick={() => setShowPassageModal(true)}
-              className="flex md:hidden items-center gap-1.5 px-2.5 py-1 rounded font-medium"
-              style={{ background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.35)", color: "#6366f1" }}>
-              Passage
-            </button>
-          </>
+          <button
+            onClick={() => setShowPassageModal(true)}
+            className="flex md:hidden items-center gap-1.5 px-2.5 py-1 rounded font-medium"
+            style={{ background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.35)", color: "#6366f1" }}>
+            Passage
+          </button>
         )}
         <span className="ml-auto" style={{ color: "var(--text-secondary)" }}>
           {idx + 1} / {questions.length}
@@ -641,16 +629,67 @@ export default function PracticePage() {
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {currentQ.passage && showPassageSidebar && (
-          <div ref={passageSidebarRef} className="hidden md:flex flex-col w-80 flex-shrink-0 overflow-y-auto p-5 text-xs leading-relaxed"
-            style={{ borderRight: "1px solid var(--border)", color: "var(--text-secondary)" }}>
-            <p className="font-semibold mb-3 text-xs uppercase tracking-wide"
-              style={{ color: "var(--text-muted)" }}>Passage</p>
-            <PassageRenderer text={currentQ.passage} style={{ color: "var(--text-secondary)" }} />
+
+        {/* ── LEFT: Passage panel (desktop, always visible) ── */}
+        {currentQ.passage && (
+          <div className="hidden md:flex flex-col flex-shrink-0 overflow-hidden"
+            style={{ width: "50%", borderRight: "1px solid var(--border)", background: "var(--bg-card)" }}>
+            {/* Header */}
+            <div className="flex-shrink-0 px-9 pt-6 pb-3"
+              style={{ borderBottom: "1px solid var(--border)" }}>
+              <span className="text-xs font-bold uppercase tracking-widest"
+                style={{ color: "var(--text-muted)", letterSpacing: "0.12em" }}>
+                Passage
+              </span>
+              {(() => {
+                const grpQs = currentQ.passageGroupId
+                  ? questions.filter(q => q.passageGroupId === currentQ.passageGroupId)
+                  : [];
+                return grpQs.length > 1 ? (
+                  <span className="ml-3 text-xs" style={{ color: "var(--text-muted)" }}>
+                    · {grpQs.length} questions
+                  </span>
+                ) : null;
+              })()}
+            </div>
+            {/* Scrollable passage text */}
+            <div ref={passageSidebarRef} className="flex-1 overflow-y-auto px-9 py-7">
+              <PassageRenderer
+                text={currentQ.passage}
+                style={{ color: "var(--text-primary)", fontSize: "0.875rem", lineHeight: 1.85 }}
+              />
+            </div>
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto px-6 py-6 flex flex-col max-w-2xl mx-auto w-full">
+        {/* ── RIGHT: Question panel ── */}
+        <div className={`flex-1 overflow-y-auto flex flex-col ${currentQ.passage ? "" : "md:items-center"}`}>
+        <div className={`flex flex-col flex-1 w-full px-7 py-6 ${currentQ.passage ? "" : "md:max-w-2xl"}`}>
+          {/* Passage question context (desktop: replaces sidebar indicator; mobile: also shown) */}
+          {currentQ.passageGroupId && (() => {
+            const grpQs = questions.filter(q => q.passageGroupId === currentQ.passageGroupId);
+            const pos   = grpQs.findIndex(q => q.id === currentQ.id);
+            return grpQs.length > 1 ? (
+              <p className="text-xs font-semibold mb-4 hidden md:block"
+                style={{ color: "var(--text-muted)" }}>
+                Question {pos + 1} of {grpQs.length}
+              </p>
+            ) : null;
+          })()}
+
+          {/* Mobile: Read Passage button */}
+          {currentQ.passage && (
+            <button
+              onClick={() => setShowPassageModal(true)}
+              className="md:hidden w-full mb-4 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-2"
+              style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.28)", color: "#6366f1" }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+              </svg>
+              Read Passage
+            </button>
+          )}
+
           <div className="flex items-center gap-2 mb-3">
             <span className="text-xs px-2 py-0.5 rounded"
               style={{
@@ -679,18 +718,6 @@ export default function PracticePage() {
               {flagged.has(currentQ.id) ? "Flagged" : "Flag"}
             </button>
           </div>
-
-          {currentQ.passage && (
-            <button
-              onClick={() => setShowPassageModal(true)}
-              className="md:hidden w-full mb-4 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-2"
-              style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.28)", color: "#6366f1" }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
-              </svg>
-              Read Passage
-            </button>
-          )}
 
           {currentQ.figureUrl && (
             <div className="mb-4">
@@ -745,7 +772,10 @@ export default function PracticePage() {
             <div className="rounded-xl p-4 mb-3"
               style={{ background: "rgba(27,58,107,0.06)", border: "1px solid rgba(27,58,107,0.2)" }}>
               <p className="text-xs font-semibold uppercase mb-2" style={{ color: "#6366f1" }}>Explanation</p>
-              <p className="text-sm" style={{ color: "var(--text-secondary)", lineHeight: 1.7 }}>{currentQ.explanation}</p>
+              <PassageRenderer
+                text={currentQ.explanation}
+                style={{ color: "var(--text-secondary)", fontFamily: "inherit", lineHeight: 1.7 }}
+              />
             </div>
           )}
 
@@ -814,8 +844,9 @@ export default function PracticePage() {
               )}
             </div>
           </div>
-        </div>
-      </div>
+        </div>{/* end inner question content */}
+        </div>{/* end question panel */}
+      </div>{/* end flex split */}
 
       {/* Passage modal */}
       {showPassageModal && currentQ?.passage && (
