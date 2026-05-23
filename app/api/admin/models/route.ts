@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getModels, saveModel, updateModelRole, deleteModel, type ModelRole } from "../../../../lib/firestore";
+import { getModels, saveModel, updateModelRole, deleteModel } from "../../../../lib/firestore";
 
-const VALID_ROLES: ModelRole[] = ["generation", "audit", "both"];
+const KNOWN_ROLES = new Set(["generation", "audit", "formatting", "both", "disabled"]);
+
+function isValidRole(role: unknown): role is string {
+  if (typeof role !== "string" || !role) return false;
+  if (role === "disabled") return true;
+  return role.split(",").every(r => KNOWN_ROLES.has(r.trim()));
+}
 
 export async function GET() {
   try {
@@ -19,7 +25,7 @@ export async function POST(req: NextRequest) {
     if (!name?.trim() || !modelId?.trim()) {
       return NextResponse.json({ error: "name and modelId are required" }, { status: 400 });
     }
-    const resolvedRole: ModelRole = VALID_ROLES.includes(role as ModelRole) ? (role as ModelRole) : "both";
+    const resolvedRole = isValidRole(role) ? role : "generation,audit";
     const model = await saveModel({ name: name.trim(), modelId: modelId.trim(), baseUrl: baseUrl?.trim() ?? "", apiKey: apiKey?.trim() ?? "", role: resolvedRole });
     return NextResponse.json({ model });
   } catch (e: unknown) {
@@ -32,10 +38,10 @@ export async function PATCH(req: NextRequest) {
   try {
     const { id, role } = await req.json() as { id: string; role: string };
     if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
-    if (!VALID_ROLES.includes(role as ModelRole)) {
+    if (!isValidRole(role)) {
       return NextResponse.json({ error: "invalid role" }, { status: 400 });
     }
-    await updateModelRole(id, role as ModelRole);
+    await updateModelRole(id, role);
     return NextResponse.json({ success: true });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Failed";
