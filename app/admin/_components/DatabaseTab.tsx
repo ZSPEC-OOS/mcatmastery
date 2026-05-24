@@ -287,10 +287,12 @@ export default function DatabaseTab() {
 
     try {
       const limitNum = parseInt(auditLimit, 10);
+      const remaining = limitNum > 0 ? limitNum - cumulativeRef.current : 0;
+      if (limitNum > 0 && remaining <= 0) { setAuditState("done"); return; }
       const res = await fetch("/api/admin/audit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(limitNum > 0 ? { limit: limitNum } : {}),
+        body: JSON.stringify(remaining > 0 ? { limit: remaining } : {}),
       });
       if (!res.body) { setAuditState("done"); return; }
       const reader = res.body.getReader();
