@@ -215,6 +215,8 @@ export default function DatabaseTab() {
   const cumulativeRef                       = useRef(0); // total processed across auto-restarts
   const [auditLimit, setAuditLimit]         = useState<string>("");
   const [auditMode, setAuditMode]           = useState<"manual" | "auto">("manual");
+  const autoSummaryRef                      = useRef({ applied: 0, denied: 0 });
+  const [autoSummary, setAutoSummary]       = useState<{ applied: number; denied: number } | null>(null);
 
   useEffect(() => {
     fetch("/api/admin/stats")
@@ -263,6 +265,8 @@ export default function DatabaseTab() {
     stopRequestedRef.current = false;
     setStopping(false);
     cumulativeRef.current = 0;
+    autoSummaryRef.current = { applied: 0, denied: 0 };
+    setAutoSummary(null);
     setAuditState("running");
     setAuditFindings([]);
     setAuditErrors([]);
@@ -328,10 +332,11 @@ export default function DatabaseTab() {
                 correctedQuestion: evt.correctedQuestion,
               };
               if (auditMode === "auto") {
-                // Fire-and-forget: apply if fix exists, otherwise deny
                 if (finding.correctedQuestion) {
+                  autoSummaryRef.current.applied++;
                   applyFix(finding);
                 } else {
+                  autoSummaryRef.current.denied++;
                   denyFinding(finding.questionId);
                 }
               } else {
@@ -342,6 +347,7 @@ export default function DatabaseTab() {
             } else if (evt.type === "done") {
               receivedDone = true;
               setAuditState("done");
+              if (auditMode === "auto") setAutoSummary({ ...autoSummaryRef.current });
             }
           } catch { /* skip malformed */ }
         }
@@ -495,13 +501,21 @@ export default function DatabaseTab() {
             </div>
           )}
           {auditState === "done" && auditFindings.length === 0 && (
-            <button
-              onClick={() => setAuditState("idle")}
-              className="text-xs px-3 py-1.5 rounded-lg font-semibold flex-shrink-0 ml-4"
-              style={{ background: "rgba(74,222,128,0.12)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.3)" }}
-            >
-              ✓ All clear — Reset
-            </button>
+            <div className="flex items-center gap-2 sm:flex-shrink-0">
+              {autoSummary && (
+                <span className="text-xs font-semibold px-3 py-1.5 rounded-lg"
+                  style={{ background: "rgba(99,102,241,0.12)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)" }}>
+                  {autoSummary.applied} applied · {autoSummary.denied} passed
+                </span>
+              )}
+              <button
+                onClick={() => { setAuditState("idle"); setAutoSummary(null); }}
+                className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+                style={{ background: "rgba(74,222,128,0.12)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.3)" }}
+              >
+                ✓ Done — Reset
+              </button>
+            </div>
           )}
         </div>
 
