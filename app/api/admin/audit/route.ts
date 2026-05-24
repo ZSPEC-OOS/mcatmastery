@@ -79,8 +79,11 @@ function sseChunk(data: unknown): string {
 
 export const maxDuration = 300; // 5 minutes — maximum on Vercel Pro
 
-export async function POST(_req: NextRequest) {
+export async function POST(req: NextRequest) {
   await ensureSchema();
+
+  const body = await req.json().catch(() => ({})) as { limit?: number };
+  const limit = typeof body.limit === "number" && body.limit > 0 ? body.limit : null;
 
   const [customAuditPrompt, customPassageSetAuditPrompt, auditModel] = await Promise.all([
     getSetting("audit_prompt").catch(() => null),
@@ -112,8 +115,21 @@ export async function POST(_req: NextRequest) {
     }
   }
 
+  // Apply limit: fill from passage groups first, then discrete
+  let passageGroupEntries = [...passageGroups.entries()];
+  let discreteItems = discrete;
+  if (limit !== null) {
+    const totalGroups = passageGroupEntries.length;
+    if (limit <= totalGroups) {
+      passageGroupEntries = passageGroupEntries.slice(0, limit);
+      discreteItems = [];
+    } else {
+      discreteItems = discrete.slice(0, limit - totalGroups);
+    }
+  }
+
   // Total audit items: one per passage group + one per discrete question
-  const totalItems = passageGroups.size + discrete.length;
+  const totalItems = passageGroupEntries.length + discreteItems.length;
 
   const encoder = new TextEncoder();
 
@@ -127,7 +143,7 @@ export async function POST(_req: NextRequest) {
       let processed = 0;
 
       // ── Passage group audits ────────────────────────────────────────────────
-      for (const [, groupQs] of passageGroups) {
+      for (const [, groupQs] of passageGroupEntries) {
         processed++;
         enqueue({ type: "progress", current: processed, total: totalItems });
 
@@ -220,7 +236,7 @@ export async function POST(_req: NextRequest) {
       }
 
       // ── Discrete question audits ────────────────────────────────────────────
-      for (const q of discrete) {
+      for (const q of discreteItems) {
         processed++;
         enqueue({ type: "progress", current: processed, total: totalItems });
 

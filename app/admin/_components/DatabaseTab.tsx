@@ -213,6 +213,8 @@ export default function DatabaseTab() {
   const [stopping, setStopping]             = useState(false);
   const stopRequestedRef                    = useRef(false);
   const cumulativeRef                       = useRef(0); // total processed across auto-restarts
+  const [auditLimit, setAuditLimit]         = useState<string>("");
+  const [auditMode, setAuditMode]           = useState<"manual" | "auto">("manual");
 
   useEffect(() => {
     fetch("/api/admin/stats")
@@ -280,7 +282,12 @@ export default function DatabaseTab() {
     let receivedDone = false;
 
     try {
-      const res = await fetch("/api/admin/audit", { method: "POST" });
+      const limitNum = parseInt(auditLimit, 10);
+      const res = await fetch("/api/admin/audit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(limitNum > 0 ? { limit: limitNum } : {}),
+      });
       if (!res.body) { setAuditState("done"); return; }
       const reader = res.body.getReader();
       const dec = new TextDecoder();
@@ -314,12 +321,22 @@ export default function DatabaseTab() {
             } else if (evt.type === "passed") {
               removeFromQueueMany(evt.questionIds as string[]);
             } else if (evt.type === "finding") {
-              setAuditFindings((prev) => [...prev, {
+              const finding: AuditFinding = {
                 questionId: evt.questionId,
                 question: evt.question,
                 issues: evt.issues,
                 correctedQuestion: evt.correctedQuestion,
-              }]);
+              };
+              if (auditMode === "auto") {
+                // Fire-and-forget: apply if fix exists, otherwise deny
+                if (finding.correctedQuestion) {
+                  applyFix(finding);
+                } else {
+                  denyFinding(finding.questionId);
+                }
+              } else {
+                setAuditFindings((prev) => [...prev, finding]);
+              }
             } else if (evt.type === "error") {
               setAuditErrors((prev) => [...prev, { questionId: evt.questionId ?? "unknown", message: evt.message ?? "Unknown error" }]);
             } else if (evt.type === "done") {
@@ -411,13 +428,47 @@ export default function DatabaseTab() {
             </p>
           </div>
           {auditState === "idle" && needsAuditCount > 0 && (
-            <button
-              onClick={startAudit}
-              className="px-4 py-2 rounded-lg text-sm font-semibold flex-shrink-0 ml-4"
-              style={{ background: "var(--accent-blue)", color: "#fff" }}
-            >
-              Start Audit
-            </button>
+            <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+              {/* Mode toggle */}
+              <div className="flex rounded-lg overflow-hidden text-xs font-semibold"
+                style={{ border: "1px solid var(--border)" }}>
+                {(["manual", "auto"] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setAuditMode(m)}
+                    className="px-3 py-1.5 capitalize"
+                    style={{
+                      background: auditMode === m ? "var(--accent-blue)" : "var(--bg-card)",
+                      color: auditMode === m ? "#fff" : "var(--text-muted)",
+                    }}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+              {/* Limit input */}
+              <input
+                type="number"
+                min={1}
+                placeholder="All"
+                value={auditLimit}
+                onChange={(e) => setAuditLimit(e.target.value)}
+                className="w-16 rounded-lg text-xs text-center px-2 py-1.5"
+                style={{
+                  background: "var(--bg-input, var(--bg-card))",
+                  border: "1px solid var(--border)",
+                  color: "var(--text-primary)",
+                  outline: "none",
+                }}
+              />
+              <button
+                onClick={startAudit}
+                className="px-4 py-2 rounded-lg text-sm font-semibold"
+                style={{ background: "var(--accent-blue)", color: "#fff" }}
+              >
+                Start Audit
+              </button>
+            </div>
           )}
           {auditState === "idle" && needsAuditCount === 0 && (
             <span className="text-xs font-semibold px-3 py-1.5 rounded-full flex-shrink-0 ml-4"
