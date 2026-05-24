@@ -236,6 +236,13 @@ export async function POST(req: NextRequest) {
             await Promise.all(passedIds.map((id) => updateQuestion(id, { auditStatus: "audited" })));
             enqueue({ type: "passed", questionIds: passedIds });
           }
+          // Also mark finding questions as audited so they leave the queue.
+          // The finding data was already sent to the client for human review above;
+          // keeping them as "needs_audit" would cause them to be re-audited every run.
+          const findingQIds = [...findingIds];
+          if (findingQIds.length > 0) {
+            await Promise.all(findingQIds.map((id) => updateQuestion(id, { auditStatus: "audited" })));
+          }
         } catch (err) {
           enqueue({
             type: "error",
@@ -291,6 +298,8 @@ export async function POST(req: NextRequest) {
             await updateQuestion(q.id, { auditStatus: "audited" });
             enqueue({ type: "passed", questionIds: [q.id] });
           } else {
+            // Mark audited so it leaves the queue; finding data is sent to client for review.
+            await updateQuestion(q.id, { auditStatus: "audited" });
             enqueue({
               type: "finding",
               questionId: q.id,
