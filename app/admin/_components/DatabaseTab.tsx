@@ -277,10 +277,13 @@ export default function DatabaseTab() {
     cumulativeRef.current = 0;
     autoSummaryRef.current = { applied: 0, denied: 0 };
     setAutoSummary(null);
-    setAuditState("running");
     setAuditFindings([]);
     setAuditErrors([]);
     setAuditProgress({ current: 0, total: 0 });
+    // Sync stats before starting so the displayed queue count matches what the
+    // audit server will read, not a stale snapshot.
+    await fetch("/api/admin/stats").then(r => r.json()).then((d: Stats) => setStats(d)).catch(() => {});
+    setAuditState("running");
     await runAuditBatch();
     // Re-fetch the true queue count — the server may have audited more (or fewer)
     // questions than the client tracked via SSE events.
@@ -341,6 +344,7 @@ export default function DatabaseTab() {
             } else if (evt.type === "passed") {
               removeFromQueueMany(evt.questionIds as string[]);
             } else if (evt.type === "finding") {
+              removeFromQueue(evt.questionId as string);
               const finding: AuditFinding = {
                 questionId: evt.questionId,
                 question: evt.question,
