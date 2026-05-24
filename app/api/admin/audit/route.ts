@@ -15,7 +15,7 @@ Check the following:
 5. Internal consistency — ensure the passage, stem, options, and explanation are logically consistent
 6. MCAT alignment — verify content falls within MCAT scope and appropriate difficulty
 7. Figure consistency — the question includes a "hasFigure" field. If hasFigure is true, the stem should explicitly reference a figure (e.g. "Based on Figure 1…"). If hasFigure is false but the stem references a figure, flag it as a missing figure. If hasFigure is true but the stem never references the figure, flag it as an unused figure.
-8. Passage dependency (if passage present) — the question cannot be correctly answered from general MCAT knowledge alone; reading the passage must be required. Flag if the passage is purely descriptive with no data hook or mechanistic detail the question exploits. Flag if the stem or explanation references information absent from the passage.
+8. Passage dependency — ONLY apply this check if the "passage" field in the JSON is a non-null, non-empty string. If passage is null or empty, skip this criterion entirely and do NOT flag anything related to passage dependency, passage context, or experimental data in the stem. If a passage IS present: verify the question cannot be correctly answered from general MCAT knowledge alone without reading it; flag if the passage is purely descriptive with no data hook or mechanistic detail the question exploits; flag if the stem or explanation references information absent from the passage.
 
 If you find NO issues, respond with ONLY this JSON:
 { "pass": true, "issues": [], "corrected_question": null }
