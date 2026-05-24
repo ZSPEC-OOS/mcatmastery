@@ -355,6 +355,7 @@ export default function DatabaseTab() {
                 } else {
                   autoSummaryRef.current.denied++;
                   denyFinding(finding.questionId);
+                }
               } else {
                 setAuditFindings((prev) => [...prev, finding]);
               }
