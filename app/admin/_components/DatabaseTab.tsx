@@ -25,6 +25,9 @@ type AuditFinding = {
   question: FullQ;
   issues: string[];
   correctedQuestion: Record<string, string> | null;
+  // All question IDs in the passage group (including this one). Present only for
+  // passage-level findings; used to propagate passage corrections to sibling questions.
+  passageGroupIds?: string[];
 };
 
 const OPTIONS = ["A", "B", "C", "D"] as const;
@@ -343,6 +346,7 @@ export default function DatabaseTab() {
                 question: evt.question,
                 issues: evt.issues,
                 correctedQuestion: evt.correctedQuestion,
+                passageGroupIds: Array.isArray(evt.passageGroupIds) ? evt.passageGroupIds as string[] : undefined,
               };
               if (auditMode === "auto") {
                 if (finding.correctedQuestion) {
@@ -351,7 +355,6 @@ export default function DatabaseTab() {
                 } else {
                   autoSummaryRef.current.denied++;
                   denyFinding(finding.questionId);
-                }
               } else {
                 setAuditFindings((prev) => [...prev, finding]);
               }
@@ -395,6 +398,24 @@ export default function DatabaseTab() {
         setApplyErrors((prev) => ({ ...prev, [finding.questionId]: data.error ?? `Server error ${res.status}` }));
         return;
       }
+
+      // If this is a passage-level correction, propagate the corrected passage text to
+      // every sibling in the group. They were already marked "audited" but each question
+      // stores its own copy of passage in Firestore — without this, 5 of 6 questions in
+      // a set keep the wrong passage forever.
+      if (finding.correctedQuestion.passage && finding.passageGroupIds && finding.passageGroupIds.length > 1) {
+        const siblingIds = finding.passageGroupIds.filter((id) => id !== finding.questionId);
+        await Promise.all(
+          siblingIds.map((id) =>
+            fetch(`/api/admin/questions/${id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ passage: finding.correctedQuestion!.passage }),
+            })
+          )
+        );
+      }
+
       removeFromQueue(finding.questionId);
       removeFinding(finding.questionId);
     } catch {
@@ -421,7 +442,13 @@ export default function DatabaseTab() {
   function removeFinding(id: string) {
     setAuditFindings((prev) => {
       const next = prev.filter((f) => f.questionId !== id);
-      if (next.length === 0) setAuditState("idle");
+      if (next.length === 0) {
+        setAuditState("idle");
+        // The refreshStats in startAudit runs right when the SSE stream closes, before
+        // the user has reviewed any findings. Re-sync here so the count is accurate
+        // after the last finding is applied or denied.
+        refreshStats();
+      }
       return next;
     });
   }

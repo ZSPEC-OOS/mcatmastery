@@ -195,7 +195,9 @@ export async function POST(req: NextRequest) {
           // Track which question IDs have findings so we know which passed
           const findingIds = new Set<string>();
 
-          // Passage-level finding — attributed to the first question in the group
+          // Passage-level finding — attributed to the first question in the group.
+          // passageGroupIds carries all sibling IDs so the client can propagate the
+          // corrected passage to every question in the set, not just this one.
           if (!result.passagePass && result.passageIssues?.length > 0) {
             const firstQ = groupQs[0];
             findingIds.add(firstQ.id);
@@ -203,6 +205,7 @@ export async function POST(req: NextRequest) {
               type: "finding",
               questionId: firstQ.id,
               question: firstQ,
+              passageGroupIds: groupQs.map((q) => q.id),
               issues: result.passageIssues.map((i) => `[Passage] ${i}`),
               correctedQuestion: result.correctedPassage
                 ? { passage: result.correctedPassage }
