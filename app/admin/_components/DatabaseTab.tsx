@@ -419,16 +419,16 @@ export default function DatabaseTab() {
     <div>
       {/* ── Audit Queue section ── */}
       <div className="mb-6 rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-        <div className="flex items-center justify-between px-5 py-3.5"
+        <div className="flex flex-col gap-3 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between"
           style={{ background: "var(--bg-card)", borderBottom: auditState !== "idle" ? "1px solid var(--border)" : undefined }}>
           <div>
             <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Audit Database</h2>
             <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-              Run a content accuracy check on the {needsAuditCount} question{needsAuditCount !== 1 ? "s" : ""} in the audit queue. Questions that pass are marked as audited. Passage-based sets are audited together as a group.
+              {needsAuditCount} question{needsAuditCount !== 1 ? "s" : ""} in queue. Passage sets audited as a group.
             </p>
           </div>
           {auditState === "idle" && needsAuditCount > 0 && (
-            <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+            <div className="flex items-center gap-2 sm:flex-shrink-0">
               {/* Mode toggle */}
               <div className="flex rounded-lg overflow-hidden text-xs font-semibold"
                 style={{ border: "1px solid var(--border)" }}>
@@ -436,7 +436,7 @@ export default function DatabaseTab() {
                   <button
                     key={m}
                     onClick={() => setAuditMode(m)}
-                    className="px-3 py-1.5 capitalize"
+                    className="px-3 py-2 capitalize"
                     style={{
                       background: auditMode === m ? "var(--accent-blue)" : "var(--bg-card)",
                       color: auditMode === m ? "#fff" : "var(--text-muted)",
@@ -449,11 +449,12 @@ export default function DatabaseTab() {
               {/* Limit input */}
               <input
                 type="number"
+                inputMode="numeric"
                 min={1}
                 placeholder="All"
                 value={auditLimit}
                 onChange={(e) => setAuditLimit(e.target.value)}
-                className="w-16 rounded-lg text-xs text-center px-2 py-1.5"
+                className="w-14 rounded-lg text-xs text-center px-2 py-2"
                 style={{
                   background: "var(--bg-input, var(--bg-card))",
                   border: "1px solid var(--border)",
@@ -463,7 +464,7 @@ export default function DatabaseTab() {
               />
               <button
                 onClick={startAudit}
-                className="px-4 py-2 rounded-lg text-sm font-semibold"
+                className="flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-semibold"
                 style={{ background: "var(--accent-blue)", color: "#fff" }}
               >
                 Start Audit
@@ -471,13 +472,13 @@ export default function DatabaseTab() {
             </div>
           )}
           {auditState === "idle" && needsAuditCount === 0 && (
-            <span className="text-xs font-semibold px-3 py-1.5 rounded-full flex-shrink-0 ml-4"
+            <span className="self-start sm:self-auto text-xs font-semibold px-3 py-1.5 rounded-full"
               style={{ background: "rgba(74,222,128,0.12)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.3)" }}>
               All audited
             </span>
           )}
           {auditState === "running" && (
-            <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+            <div className="flex items-center gap-2 sm:flex-shrink-0">
               <span className="text-xs font-semibold px-3 py-1.5 rounded-full"
                 style={{ background: "rgba(99,102,241,0.12)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)" }}>
                 {stopping ? "Finishing current…" : "Running…"}
