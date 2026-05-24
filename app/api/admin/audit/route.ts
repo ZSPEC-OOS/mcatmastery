@@ -135,8 +135,13 @@ export async function POST(req: NextRequest) {
 
   const stream = new ReadableStream({
     async start(controller) {
+      // Track whether the client is still connected so we can stop between items.
+      // Two sources: req.signal (fires on HTTP disconnect) and enqueue errors.
+      let clientConnected = !req.signal.aborted;
+      req.signal.addEventListener("abort", () => { clientConnected = false; });
+
       const enqueue = (data: unknown) => {
-        try { controller.enqueue(encoder.encode(sseChunk(data))); } catch { /* client disconnected */ }
+        try { controller.enqueue(encoder.encode(sseChunk(data))); } catch { clientConnected = false; }
       };
 
       enqueue({ type: "start", total: totalItems });
@@ -144,8 +149,10 @@ export async function POST(req: NextRequest) {
 
       // ── Passage group audits ────────────────────────────────────────────────
       for (const [, groupQs] of passageGroupEntries) {
+        if (!clientConnected) break;
         processed++;
         enqueue({ type: "progress", current: processed, total: totalItems });
+        if (!clientConnected) break; // Don't start expensive callModel after disconnect
 
         try {
           const userContent = JSON.stringify({
@@ -237,8 +244,10 @@ export async function POST(req: NextRequest) {
 
       // ── Discrete question audits ────────────────────────────────────────────
       for (const q of discreteItems) {
+        if (!clientConnected) break;
         processed++;
         enqueue({ type: "progress", current: processed, total: totalItems });
+        if (!clientConnected) break; // Don't start expensive callModel after disconnect
 
         try {
           const userContent = JSON.stringify({
@@ -296,7 +305,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      enqueue({ type: "done" });
+      if (clientConnected) enqueue({ type: "done" });
       controller.close();
     },
   });
