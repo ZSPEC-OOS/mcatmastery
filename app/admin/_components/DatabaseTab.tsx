@@ -225,6 +225,13 @@ export default function DatabaseTab() {
       .catch(() => setLoading(false));
   }, []);
 
+  function refreshStats() {
+    fetch("/api/admin/stats")
+      .then((r) => r.json())
+      .then((d: Stats) => setStats(d))
+      .catch(() => {});
+  }
+
   async function handleClearAll() {
     if (clearState === "idle") { setClearState("confirm"); return; }
     setClearState("clearing");
@@ -272,6 +279,9 @@ export default function DatabaseTab() {
     setAuditErrors([]);
     setAuditProgress({ current: 0, total: 0 });
     await runAuditBatch();
+    // Re-fetch the true queue count — the server may have audited more (or fewer)
+    // questions than the client tracked via SSE events.
+    refreshStats();
   }
 
   // Runs one SSE batch. Auto-restarts if the stream closes before a "done"
@@ -310,11 +320,12 @@ export default function DatabaseTab() {
           try {
             const evt = JSON.parse(line.slice(6));
             if (evt.type === "start") {
-              // Accumulate total across restarts; current stays cumulative
-              setAuditProgress(p => ({
-                current: cumulativeRef.current,
-                total: cumulativeRef.current + (evt.total as number),
-              }));
+              // Capture the current value synchronously — the functional-updater
+              // form would read cumulativeRef.current at React's deferred execution
+              // time, by which point a progress event in the same SSE chunk may
+              // have already incremented it, inflating total by 1.
+              const base = cumulativeRef.current;
+              setAuditProgress({ current: base, total: base + (evt.total as number) });
             } else if (evt.type === "progress") {
               if (stopRequestedRef.current) {
                 reader.cancel().catch(() => {});
@@ -511,7 +522,7 @@ export default function DatabaseTab() {
                 </span>
               )}
               <button
-                onClick={() => { setAuditState("idle"); setAutoSummary(null); }}
+                onClick={() => { setAuditState("idle"); setAutoSummary(null); refreshStats(); }}
                 className="text-xs px-3 py-1.5 rounded-lg font-semibold"
                 style={{ background: "rgba(74,222,128,0.12)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.3)" }}
               >
