@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     const resolvedRole = isValidRole(role) ? role : "generation,audit";
     const model = await saveModel({
       name: name.trim(), modelId: modelId.trim(), baseUrl: baseUrl?.trim() ?? "", apiKey: apiKey?.trim() ?? "", role: resolvedRole,
-      ...(maxTokens && Number.isFinite(maxTokens) ? { maxTokens: Math.round(maxTokens) } : {}),
+      ...(maxTokens !== undefined && Number.isFinite(maxTokens) ? { maxTokens: Math.round(maxTokens) } : {}),
     });
     return NextResponse.json({ model });
   } catch (e: unknown) {
@@ -50,7 +50,7 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ error: "name and modelId are required" }, { status: 400 });
       }
       const fields: Record<string, unknown> = { name: name.trim(), modelId: modelId.trim(), baseUrl: baseUrl?.trim() ?? "", apiKey: apiKey?.trim() ?? "" };
-      if (maxTokens !== undefined) fields.maxTokens = (maxTokens && Number.isFinite(maxTokens)) ? Math.round(maxTokens) : null;
+      if (maxTokens !== undefined) fields.maxTokens = Number.isFinite(maxTokens) ? Math.round(maxTokens) : null;
       if (role !== undefined) {
         if (!isValidRole(role)) return NextResponse.json({ error: "invalid role" }, { status: 400 });
         fields.role = role;

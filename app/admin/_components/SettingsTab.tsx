@@ -397,6 +397,13 @@ export default function SettingsTab() {
       .catch(() => {});
   }, []);
 
+  function parseMaxTokensInput(s: string): number | undefined {
+    if (!s.trim()) return undefined;
+    if (s.trim().toUpperCase() === "INF") return -1;
+    const n = parseInt(s, 10);
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  }
+
   async function addModel() {
     if (!modelForm.name.trim() || !modelForm.modelId.trim()) {
       setModelError("Name and Model ID are required.");
@@ -405,7 +412,7 @@ export default function SettingsTab() {
     setModelSaving(true);
     setModelError(null);
     try {
-      const payload = { ...modelForm, maxTokens: modelForm.maxTokens ? parseInt(modelForm.maxTokens, 10) : undefined };
+      const payload = { ...modelForm, maxTokens: parseMaxTokensInput(modelForm.maxTokens) };
       const res = await fetch("/api/admin/models", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -452,7 +459,7 @@ export default function SettingsTab() {
 
   function startEdit(m: ModelConfig) {
     setEditingId(m.id);
-    setEditForm({ name: m.name, modelId: m.modelId, baseUrl: m.baseUrl, apiKey: m.apiKey, role: m.role, maxTokens: m.maxTokens ? String(m.maxTokens) : "" });
+    setEditForm({ name: m.name, modelId: m.modelId, baseUrl: m.baseUrl, apiKey: m.apiKey, role: m.role, maxTokens: m.maxTokens === -1 ? "INF" : m.maxTokens ? String(m.maxTokens) : "" });
     setEditError(null);
   }
 
@@ -464,7 +471,7 @@ export default function SettingsTab() {
     setEditSaving(true);
     setEditError(null);
     try {
-      const parsedMaxTokens = editForm.maxTokens ? parseInt(editForm.maxTokens, 10) : undefined;
+      const parsedMaxTokens = parseMaxTokensInput(editForm.maxTokens);
       const res = await fetch("/api/admin/models", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -667,9 +674,9 @@ export default function SettingsTab() {
                             style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }} />
                         </div>
                         <div>
-                          <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Max Tokens <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(reasoning models)</span></label>
-                          <input type="number" value={editForm.maxTokens} onChange={(e) => setEditForm(f => ({ ...f, maxTokens: e.target.value }))}
-                            placeholder="32000"
+                          <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Max Tokens <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(or INF)</span></label>
+                          <input type="text" inputMode="numeric" value={editForm.maxTokens} onChange={(e) => setEditForm(f => ({ ...f, maxTokens: e.target.value }))}
+                            placeholder="32000 or INF"
                             className="w-full px-2 py-1.5 rounded text-xs font-mono"
                             style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }} />
                         </div>
@@ -695,6 +702,11 @@ export default function SettingsTab() {
                         <p className="text-xs font-mono truncate" style={{ color: "var(--text-muted)" }}>{m.modelId}</p>
                         {m.baseUrl && (
                           <p className="text-xs font-mono truncate" style={{ color: "var(--text-muted)" }}>{m.baseUrl}</p>
+                        )}
+                        {m.maxTokens !== undefined && m.maxTokens !== null && (
+                          <p className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>
+                            max tokens: <span style={{ color: "var(--text-primary)" }}>{m.maxTokens === -1 ? "INF" : m.maxTokens.toLocaleString()}</span>
+                          </p>
                         )}
                         {m.apiKey && (
                           <div className="flex items-center gap-1.5">
@@ -849,12 +861,13 @@ export default function SettingsTab() {
                 />
               </div>
               <div>
-                <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Max Tokens <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(optional)</span></label>
+                <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Max Tokens <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(or INF for unlimited)</span></label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   value={modelForm.maxTokens}
                   onChange={(e) => setModelForm((f) => ({ ...f, maxTokens: e.target.value }))}
-                  placeholder="32000 for reasoning models"
+                  placeholder="32000 or INF"
                   className="w-full px-3 py-2 rounded-lg text-sm font-mono"
                   style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
                 />

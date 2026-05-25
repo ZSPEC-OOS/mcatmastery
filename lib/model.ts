@@ -77,7 +77,8 @@ export async function callModel(opts: {
       modelId   = active.modelId;
       baseUrl   = active.baseUrl   || undefined;
       apiKey    = active.apiKey    || undefined;
-      if (active.maxTokens) maxTokens = active.maxTokens;
+      // -1 is the "unlimited" sentinel — include it so the API path can omit max_tokens
+      if (active.maxTokens !== undefined && active.maxTokens !== null) maxTokens = active.maxTokens;
     }
   }
 
@@ -89,6 +90,8 @@ export async function callModel(opts: {
       { role: "user",   content: opts.userContent },
     ];
 
+    // -1 means unlimited — omit the token param so the provider uses its own default
+    const tokenLimit = maxTokens > 0 ? maxTokens : undefined;
     const doFetch = (tokenParam: "max_tokens" | "max_completion_tokens") =>
       fetch(url, {
         method:  "POST",
@@ -96,7 +99,7 @@ export async function callModel(opts: {
           "Content-Type": "application/json",
           ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
         },
-        body: JSON.stringify({ model: modelId, messages, [tokenParam]: maxTokens }),
+        body: JSON.stringify({ model: modelId, messages, ...(tokenLimit !== undefined ? { [tokenParam]: tokenLimit } : {}) }),
       });
 
     let res = await doFetch("max_tokens");
@@ -153,7 +156,7 @@ export async function callModel(opts: {
           },
           body: JSON.stringify({
             model: modelId,
-            max_tokens: maxTokens,
+            ...(tokenLimit !== undefined ? { max_tokens: tokenLimit } : {}),
             messages: [
               { role: "system",    content: opts.system },
               { role: "user",      content: opts.userContent },
@@ -185,9 +188,11 @@ export async function callModel(opts: {
 
   // Anthropic SDK fallback
   try {
+    // Anthropic requires a positive max_tokens; use 16384 when unlimited (-1) is requested
+    const anthropicMaxTokens = maxTokens > 0 ? maxTokens : 16384;
     const msg = await anthropic.messages.create({
       model:      modelId ?? "claude-opus-4-7",
-      max_tokens: maxTokens,
+      max_tokens: anthropicMaxTokens,
       system:     opts.system,
       messages:   [{ role: "user", content: opts.userContent }],
     });
