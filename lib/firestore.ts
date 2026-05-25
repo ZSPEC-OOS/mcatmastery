@@ -55,6 +55,7 @@ export interface ModelConfig {
   baseUrl: string;
   apiKey: string;
   role: ModelRole;
+  maxTokens?: number;
   createdAt: string;
 }
 
