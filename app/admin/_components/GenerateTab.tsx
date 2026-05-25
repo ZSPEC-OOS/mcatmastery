@@ -324,7 +324,7 @@ export default function GenerateTab() {
             {modelsLoading ? (
               <p className="text-xs py-2" style={{ color: "var(--text-muted)" }}>Loading…</p>
             ) : (() => {
-              function hasGenRole(role: string): boolean {
+              function hasGenRole(role: string | undefined): boolean {
                 if (!role || role === "disabled") return false;
                 if (role === "both") return true;
                 return role.split(",").map(r => r.trim()).includes("generation");
