@@ -198,12 +198,15 @@ export default function TopicDetail({ selectionKey }: Props) {
   const [viewQ, setViewQ]           = useState<QuestionDoc | null>(null);
   const [reauditing, setReauditing] = useState(false);
   const [reauditDone, setReauditDone] = useState(false);
+  const [reformatting, setReformatting] = useState(false);
+  const [reformatDone, setReformatDone] = useState(false);
 
   const sel = parseKey(selectionKey);
 
   useEffect(() => {
     setQuestions([]);
     setReauditDone(false);
+    setReformatDone(false);
     if (sel.type === "none") return;
 
     setLoading(true);
@@ -233,6 +236,28 @@ export default function TopicDetail({ selectionKey }: Props) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectionKey]);
+
+  async function handleReformat() {
+    if (questions.length === 0) return;
+    setReformatting(true);
+    try {
+      await Promise.all(
+        questions.map((q) =>
+          fetch(`/api/admin/questions/${q.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ formattingStatus: "needs_format" }),
+          })
+        )
+      );
+      setReformatDone(true);
+      setTimeout(() => setReformatDone(false), 3000);
+    } catch {
+      // best-effort
+    } finally {
+      setReformatting(false);
+    }
+  }
 
   async function handleReaudit() {
     if (questions.length === 0) return;
@@ -314,6 +339,19 @@ export default function TopicDetail({ selectionKey }: Props) {
 
         {/* Action buttons */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleReformat}
+            disabled={reformatting || questions.length === 0}
+            className="px-3 py-2 rounded-lg text-sm font-semibold"
+            style={{
+              background: reformatDone ? "rgba(74,222,128,0.15)" : "rgba(99,102,241,0.1)",
+              color:      reformatDone ? "#4ade80"               : "#6366f1",
+              border: `1px solid ${reformatDone ? "rgba(74,222,128,0.4)" : "rgba(99,102,241,0.35)"}`,
+              opacity: (reformatting || questions.length === 0) ? 0.5 : 1,
+            }}
+          >
+            {reformatDone ? "✓ Queued for Format" : reformatting ? "Queueing…" : "Reformat"}
+          </button>
           <button
             onClick={handleReaudit}
             disabled={reauditing || questions.length === 0}
