@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
           ...modelOpts,
           system:      genPrompt,
           userContent: `Generate one ${body.section} question${body.topic ? ` about ${body.topic}` : ""}.`,
-          maxTokens:   1200,
+          maxTokens:   8000,
         });
 
         let parsed: Record<string, unknown>;
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
           ...modelOpts,
           system:      valPrompt,
           userContent: JSON.stringify(parsed),
-          maxTokens:   512,
+          maxTokens:   4000,
         });
 
         let validation: { pass: boolean; corrected_question: Record<string, unknown> | null };
