@@ -237,6 +237,9 @@ export default function TopicDetail({ selectionKey }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectionKey]);
 
+  const unlockedQuestions = questions.filter((q) => !q.locked);
+  const lockedCount       = questions.length - unlockedQuestions.length;
+
   async function handleReformat() {
     if (questions.length === 0) return;
     setReformatting(true);
@@ -260,11 +263,11 @@ export default function TopicDetail({ selectionKey }: Props) {
   }
 
   async function handleReaudit() {
-    if (questions.length === 0) return;
+    if (unlockedQuestions.length === 0) return;
     setReauditing(true);
     try {
       await Promise.all(
-        questions.map((q) =>
+        unlockedQuestions.map((q) =>
           fetch(`/api/admin/questions/${q.id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -354,16 +357,23 @@ export default function TopicDetail({ selectionKey }: Props) {
           </button>
           <button
             onClick={handleReaudit}
-            disabled={reauditing || questions.length === 0}
+            disabled={reauditing || unlockedQuestions.length === 0}
             className="px-3 py-2 rounded-lg text-sm font-semibold"
             style={{
               background: reauditDone ? "rgba(74,222,128,0.15)" : "rgba(245,158,11,0.1)",
               color:      reauditDone ? "#4ade80"               : "#f59e0b",
               border: `1px solid ${reauditDone ? "rgba(74,222,128,0.4)" : "rgba(245,158,11,0.35)"}`,
-              opacity: (reauditing || questions.length === 0) ? 0.5 : 1,
+              opacity: (reauditing || unlockedQuestions.length === 0) ? 0.5 : 1,
             }}
+            title={lockedCount > 0 ? `${lockedCount} locked question${lockedCount !== 1 ? "s" : ""} will be skipped` : undefined}
           >
-            {reauditDone ? "✓ Queued for Audit" : reauditing ? "Queueing…" : "Reaudit"}
+            {reauditDone
+              ? "✓ Queued for Audit"
+              : reauditing
+              ? "Queueing…"
+              : lockedCount > 0
+              ? `Reaudit (${unlockedQuestions.length})`
+              : "Reaudit"}
           </button>
           <a
             href={`/practice?section=${encodeURIComponent(sel.type === "topic" ? (sel as { topicLabel: string }).topicLabel : "")}`}
@@ -462,6 +472,19 @@ export default function TopicDetail({ selectionKey }: Props) {
                         style={{ background: "rgba(245,158,11,0.1)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.25)" }}
                       >
                         Needs Audit
+                      </span>
+                    )}
+                    {q.locked && (
+                      <span
+                        className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded"
+                        style={{ background: "rgba(245,158,11,0.08)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.2)" }}
+                        title="Locked — excluded from reaudit"
+                      >
+                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="11" width="18" height="11" rx="2" />
+                          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                        </svg>
+                        Locked
                       </span>
                     )}
                   </div>

@@ -80,6 +80,7 @@ export interface QuestionDoc {
   createdAt: string;
   auditStatus?:      "needs_audit" | "audited";
   formattingStatus?: "needs_format" | "formatted";
+  locked?:           boolean;
 }
 
 export interface SessionDoc {

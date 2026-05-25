@@ -79,7 +79,8 @@ export async function callModel(opts: {
       modelId   = active.modelId;
       baseUrl   = active.baseUrl   || undefined;
       apiKey    = active.apiKey    || undefined;
-      if (active.maxTokens)          maxTokens          = active.maxTokens;
+      // -1 is the "unlimited" sentinel — include it so the API path can omit max_tokens
+      if (active.maxTokens !== undefined && active.maxTokens !== null) maxTokens = active.maxTokens;
       if (active.maxReasoningTokens) maxReasoningTokens = active.maxReasoningTokens;
     }
   }
@@ -92,11 +93,14 @@ export async function callModel(opts: {
       { role: "user",   content: opts.userContent },
     ];
 
+    // -1 means unlimited — omit the token param so the provider uses its own default
+    const tokenLimit = maxTokens > 0 ? maxTokens : undefined;
+
     const buildBody = (tokenParam: "max_tokens" | "max_completion_tokens", msgs: typeof messages) =>
       JSON.stringify({
         model: modelId,
         messages: msgs,
-        [tokenParam]: maxTokens,
+        ...(tokenLimit !== undefined ? { [tokenParam]: tokenLimit } : {}),
         ...(maxReasoningTokens ? { max_reasoning_tokens: maxReasoningTokens } : {}),
       });
 
@@ -191,9 +195,11 @@ export async function callModel(opts: {
 
   // Anthropic SDK fallback
   try {
+    // Anthropic requires a positive max_tokens; use 16384 when unlimited (-1) is requested
+    const anthropicMaxTokens = maxTokens > 0 ? maxTokens : 16384;
     const msg = await anthropic.messages.create({
       model:      modelId ?? "claude-opus-4-7",
-      max_tokens: maxTokens,
+      max_tokens: anthropicMaxTokens,
       system:     opts.system,
       messages:   [{ role: "user", content: opts.userContent }],
     });
