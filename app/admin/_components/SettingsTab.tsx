@@ -364,6 +364,11 @@ export default function SettingsTab() {
   const [showKey, setShowKey]         = useState<Record<string, boolean>>({});
   const apiKeyRef                     = useRef<HTMLInputElement>(null);
 
+  const [editingId, setEditingId]     = useState<string | null>(null);
+  const [editForm, setEditForm]       = useState(EMPTY_FORM);
+  const [editSaving, setEditSaving]   = useState(false);
+  const [editError, setEditError]     = useState<string | null>(null);
+
   const [firestoreTest, setFirestoreTest]     = useState<{ ok: boolean; msg: string } | null>(null);
   const [firestoreTesting, setFirestoreTesting] = useState(false);
   const [modelTests, setModelTests]   = useState<Record<string, { ok: boolean; msg: string }>>({});
@@ -440,6 +445,36 @@ export default function SettingsTab() {
       });
     } finally {
       setUpdatingRoleId(null);
+    }
+  }
+
+  function startEdit(m: ModelConfig) {
+    setEditingId(m.id);
+    setEditForm({ name: m.name, modelId: m.modelId, baseUrl: m.baseUrl, apiKey: m.apiKey, role: m.role });
+    setEditError(null);
+  }
+
+  async function saveEdit(id: string) {
+    if (!editForm.name.trim() || !editForm.modelId.trim()) {
+      setEditError("Name and Model ID are required.");
+      return;
+    }
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      const res = await fetch("/api/admin/models", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, name: editForm.name, modelId: editForm.modelId, baseUrl: editForm.baseUrl, apiKey: editForm.apiKey }),
+      });
+      const data = await res.json() as { error?: string };
+      if (!res.ok) { setEditError(data.error ?? "Failed to save"); return; }
+      setModels((prev) => prev.map((m) => m.id === id ? { ...m, name: editForm.name, modelId: editForm.modelId, baseUrl: editForm.baseUrl, apiKey: editForm.apiKey } : m));
+      setEditingId(null);
+    } catch {
+      setEditError("Network error");
+    } finally {
+      setEditSaving(false);
     }
   }
 
@@ -595,95 +630,149 @@ export default function SettingsTab() {
               {models.map((m) => (
                 <div
                   key={m.id}
-                  className="flex items-center justify-between px-3 py-2.5 rounded-lg"
-                  style={{ background: "var(--bg-input)", border: "1px solid var(--border)" }}
+                  className="px-3 py-2.5 rounded-lg"
+                  style={{ background: "var(--bg-input)", border: `1px solid ${editingId === m.id ? "var(--accent-blue)" : "var(--border)"}` }}
                 >
-                  <div className="min-w-0 flex-1 space-y-0.5">
-                    <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>{m.name}</p>
-                    <p className="text-xs font-mono truncate" style={{ color: "var(--text-muted)" }}>{m.modelId}</p>
-                    {m.baseUrl && (
-                      <p className="text-xs font-mono truncate" style={{ color: "var(--text-muted)" }}>{m.baseUrl}</p>
-                    )}
-                    {m.apiKey && (
-                      <div className="flex items-center gap-1.5">
-                        <p className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>
-                          {showKey[m.id] ? m.apiKey : `${"•".repeat(Math.min(16, m.apiKey.length - 4))}${m.apiKey.slice(-4)}`}
-                        </p>
-                        <button
-                          onClick={() => setShowKey((s) => ({ ...s, [m.id]: !s[m.id] }))}
-                          className="text-xs"
-                          style={{ color: "var(--accent-blue)" }}
-                        >
-                          {showKey[m.id] ? "hide" : "show"}
+                  {editingId === m.id ? (
+                    <div className="space-y-2.5">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Name <span style={{ color: "#e05c5c" }}>*</span></label>
+                          <input type="text" value={editForm.name} onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))}
+                            className="w-full px-2 py-1.5 rounded text-xs"
+                            style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }} />
+                        </div>
+                        <div>
+                          <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Model ID <span style={{ color: "#e05c5c" }}>*</span></label>
+                          <input type="text" value={editForm.modelId} onChange={(e) => setEditForm(f => ({ ...f, modelId: e.target.value }))}
+                            className="w-full px-2 py-1.5 rounded text-xs font-mono"
+                            style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }} />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Base URL</label>
+                        <input type="text" value={editForm.baseUrl} onChange={(e) => setEditForm(f => ({ ...f, baseUrl: e.target.value }))}
+                          className="w-full px-2 py-1.5 rounded text-xs font-mono"
+                          style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }} />
+                      </div>
+                      <div>
+                        <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>API Key</label>
+                        <input type="password" value={editForm.apiKey} onChange={(e) => setEditForm(f => ({ ...f, apiKey: e.target.value }))}
+                          placeholder="Leave blank to keep existing key"
+                          className="w-full px-2 py-1.5 rounded text-xs font-mono"
+                          style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }} />
+                      </div>
+                      {editError && <p className="text-xs" style={{ color: "#e05c5c" }}>{editError}</p>}
+                      <div className="flex gap-2">
+                        <button onClick={() => saveEdit(m.id)} disabled={editSaving}
+                          className="px-3 py-1.5 rounded text-xs font-semibold"
+                          style={{ background: "var(--accent-blue)", color: "#fff", opacity: editSaving ? 0.6 : 1 }}>
+                          {editSaving ? "Saving…" : "Save"}
+                        </button>
+                        <button onClick={() => { setEditingId(null); setEditError(null); }}
+                          className="px-3 py-1.5 rounded text-xs font-medium"
+                          style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+                          Cancel
                         </button>
                       </div>
-                    )}
-                    <div className="pt-1">
-                      {(() => {
-                        const roles = parseRoles(m.role);
-                        const takenRoles = new Set<string>(
-                          models
-                            .filter(x => x.id !== m.id)
-                            .flatMap(x => Array.from(parseRoles(x.role)))
-                        );
-                        const isUpdating = updatingRoleId === m.id;
-                        function toggleRole(roleKey: string) {
-                          const next = new Set(roles);
-                          if (next.has(roleKey)) next.delete(roleKey); else next.add(roleKey);
-                          updateRole(m.id, serializeRoles(next));
-                        }
-                        return (
-                          <div className="flex flex-col gap-1">
-                            {ROLE_OPTIONS.map(({ key, label }) => {
-                              const checked = roles.has(key);
-                              const taken   = !checked && takenRoles.has(key);
-                              return (
-                                <label key={key} className="flex items-center gap-2 select-none"
-                                  style={{ cursor: isUpdating || taken ? "not-allowed" : "pointer", opacity: taken ? 0.45 : 1 }}>
-                                  <input type="checkbox" checked={checked} disabled={isUpdating || taken}
-                                    onChange={() => toggleRole(key)} />
-                                  <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                                    {label}{taken ? " (taken)" : ""}
-                                  </span>
-                                </label>
-                              );
-                            })}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0 flex-1 space-y-0.5">
+                        <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>{m.name}</p>
+                        <p className="text-xs font-mono truncate" style={{ color: "var(--text-muted)" }}>{m.modelId}</p>
+                        {m.baseUrl && (
+                          <p className="text-xs font-mono truncate" style={{ color: "var(--text-muted)" }}>{m.baseUrl}</p>
+                        )}
+                        {m.apiKey && (
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>
+                              {showKey[m.id] ? m.apiKey : `${"•".repeat(Math.min(16, m.apiKey.length - 4))}${m.apiKey.slice(-4)}`}
+                            </p>
+                            <button
+                              onClick={() => setShowKey((s) => ({ ...s, [m.id]: !s[m.id] }))}
+                              className="text-xs"
+                              style={{ color: "var(--accent-blue)" }}
+                            >
+                              {showKey[m.id] ? "hide" : "show"}
+                            </button>
                           </div>
-                        );
-                      })()}
+                        )}
+                        <div className="pt-1">
+                          {(() => {
+                            const roles = parseRoles(m.role);
+                            const takenRoles = new Set<string>(
+                              models
+                                .filter(x => x.id !== m.id)
+                                .flatMap(x => Array.from(parseRoles(x.role)))
+                            );
+                            const isUpdating = updatingRoleId === m.id;
+                            function toggleRole(roleKey: string) {
+                              const next = new Set(roles);
+                              if (next.has(roleKey)) next.delete(roleKey); else next.add(roleKey);
+                              updateRole(m.id, serializeRoles(next));
+                            }
+                            return (
+                              <div className="flex flex-col gap-1">
+                                {ROLE_OPTIONS.map(({ key, label }) => {
+                                  const checked = roles.has(key);
+                                  const taken   = !checked && takenRoles.has(key);
+                                  return (
+                                    <label key={key} className="flex items-center gap-2 select-none"
+                                      style={{ cursor: isUpdating || taken ? "not-allowed" : "pointer", opacity: taken ? 0.45 : 1 }}>
+                                      <input type="checkbox" checked={checked} disabled={isUpdating || taken}
+                                        onChange={() => toggleRole(key)} />
+                                      <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                                        {label}{taken ? " (taken)" : ""}
+                                      </span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                      <div className="ml-3 flex flex-col items-end gap-1.5 flex-shrink-0">
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => startEdit(m)}
+                            className="px-2.5 py-1 rounded text-xs font-semibold"
+                            style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => testModel(m)}
+                            disabled={testingId === m.id}
+                            className="px-2.5 py-1 rounded text-xs font-semibold"
+                            style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
+                          >
+                            {testingId === m.id ? "…" : "Test"}
+                          </button>
+                          <button
+                            onClick={() => removeModel(m.id)}
+                            disabled={deletingId === m.id}
+                            className="px-2.5 py-1 rounded text-xs font-semibold"
+                            style={{ background: "rgba(224,92,92,0.12)", color: "#e05c5c", border: "1px solid rgba(224,92,92,0.3)" }}
+                          >
+                            {deletingId === m.id ? "…" : "Remove"}
+                          </button>
+                        </div>
+                        {modelTests[m.id] && (
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                            style={{
+                              background: modelTests[m.id].ok ? "rgba(74,222,128,0.12)" : "rgba(224,92,92,0.12)",
+                              color: modelTests[m.id].ok ? "#4ade80" : "#e05c5c",
+                              border: `1px solid ${modelTests[m.id].ok ? "rgba(74,222,128,0.3)" : "rgba(224,92,92,0.3)"}`,
+                            }}
+                          >
+                            {modelTests[m.id].ok ? "✓ " : "✗ "}{modelTests[m.id].msg}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div className="ml-3 flex flex-col items-end gap-1.5 flex-shrink-0">
-                    <div className="flex gap-1.5">
-                      <button
-                        onClick={() => testModel(m)}
-                        disabled={testingId === m.id}
-                        className="px-2.5 py-1 rounded text-xs font-semibold"
-                        style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
-                      >
-                        {testingId === m.id ? "…" : "Test"}
-                      </button>
-                      <button
-                        onClick={() => removeModel(m.id)}
-                        disabled={deletingId === m.id}
-                        className="px-2.5 py-1 rounded text-xs font-semibold"
-                        style={{ background: "rgba(224,92,92,0.12)", color: "#e05c5c", border: "1px solid rgba(224,92,92,0.3)" }}
-                      >
-                        {deletingId === m.id ? "…" : "Remove"}
-                      </button>
-                    </div>
-                    {modelTests[m.id] && (
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
-                        style={{
-                          background: modelTests[m.id].ok ? "rgba(74,222,128,0.12)" : "rgba(224,92,92,0.12)",
-                          color: modelTests[m.id].ok ? "#4ade80" : "#e05c5c",
-                          border: `1px solid ${modelTests[m.id].ok ? "rgba(74,222,128,0.3)" : "rgba(224,92,92,0.3)"}`,
-                        }}
-                      >
-                        {modelTests[m.id].ok ? "✓ " : "✗ "}{modelTests[m.id].msg}
-                      </span>
-                    )}
-                  </div>
+                  )}
                 </div>
               ))}
             </div>

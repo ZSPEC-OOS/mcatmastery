@@ -127,6 +127,10 @@ export async function updateModelRole(id: string, role: ModelRole): Promise<void
   await fs().collection("models").doc(id).update({ role });
 }
 
+export async function updateModel(id: string, fields: Partial<Omit<ModelConfig, "id" | "createdAt">>): Promise<void> {
+  await fs().collection("models").doc(id).update(fields as Record<string, unknown>);
+}
+
 export async function deleteModel(id: string): Promise<void> {
   await fs().collection("models").doc(id).delete();
 }
