@@ -53,13 +53,14 @@ async function sleep(ms: number) {
 }
 
 export async function callModel(opts: {
-  system:          string;
-  userContent:     string;
-  maxTokens:       number;
-  modelId?:        string;   // explicit override (admin routes)
-  baseUrl?:        string;
-  apiKey?:         string;
-  modelMaxTokens?: number;   // from model config; overrides maxTokens when set
+  system:                 string;
+  userContent:            string;
+  maxTokens:              number;
+  modelId?:               string;   // explicit override (admin routes)
+  baseUrl?:               string;
+  apiKey?:                string;
+  modelMaxTokens?:        number;   // from model config; overrides maxTokens when set
+  modelMaxReasoningTokens?: number; // cap thinking budget; reserves room for actual output
 }, attempt = 0): Promise<string> {
   const retry = async () => {
     await sleep(Math.min(2 ** attempt * 2000, 32000));
@@ -70,14 +71,16 @@ export async function callModel(opts: {
   // modelId is set and we skip the Firestore lookup — but we still need to honour
   // the per-model maxTokens stored in the config (modelMaxTokens).
   let { modelId, baseUrl, apiKey } = opts;
-  let maxTokens = opts.modelMaxTokens ?? opts.maxTokens;
+  let maxTokens           = opts.modelMaxTokens ?? opts.maxTokens;
+  let maxReasoningTokens  = opts.modelMaxReasoningTokens;
   if (!modelId) {
     const active = await getActiveModel();
     if (active) {
       modelId   = active.modelId;
       baseUrl   = active.baseUrl   || undefined;
       apiKey    = active.apiKey    || undefined;
-      if (active.maxTokens) maxTokens = active.maxTokens;
+      if (active.maxTokens)          maxTokens          = active.maxTokens;
+      if (active.maxReasoningTokens) maxReasoningTokens = active.maxReasoningTokens;
     }
   }
 
@@ -96,7 +99,12 @@ export async function callModel(opts: {
           "Content-Type": "application/json",
           ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
         },
-        body: JSON.stringify({ model: modelId, messages, [tokenParam]: maxTokens }),
+        body: JSON.stringify({
+          model: modelId,
+          messages,
+          [tokenParam]: maxTokens,
+          ...(maxReasoningTokens ? { max_reasoning_tokens: maxReasoningTokens } : {}),
+        }),
       });
 
     let res = await doFetch("max_tokens");

@@ -38,10 +38,11 @@ export async function POST(req: NextRequest) {
     ]);
 
     const modelOpts = {
-      modelId:        activeModel?.modelId,
-      baseUrl:        activeModel?.baseUrl        || undefined,
-      apiKey:         activeModel?.apiKey         || undefined,
-      modelMaxTokens: activeModel?.maxTokens      || undefined,
+      modelId:                    activeModel?.modelId,
+      baseUrl:                    activeModel?.baseUrl                    || undefined,
+      apiKey:                     activeModel?.apiKey                     || undefined,
+      modelMaxTokens:             activeModel?.maxTokens                  || undefined,
+      modelMaxReasoningTokens:    activeModel?.maxReasoningTokens         || undefined,
     };
 
     const generated: { stem: string }[] = [];
