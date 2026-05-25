@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db, ensureSchema, getSetting } from "../../../../lib/db";
-import { callModel, getActiveModel } from "../../../../lib/model";
+import { callModel, getModelForRole } from "../../../../lib/model";
 import { GENERATION_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT } from "../../../../lib/anthropic";
 import { extractModelJson } from "../../../../lib/parse";
 
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     const [genPrompt, valPrompt, activeModel, existing] = await Promise.all([
       getSetting("generation_prompt").then((v) => v ?? GENERATION_SYSTEM_PROMPT),
       getSetting("validation_prompt").then((v) => v ?? VALIDATION_SYSTEM_PROMPT),
-      getActiveModel(),
+      getModelForRole("generation"),
       db.question.findMany({
         where:   { section: body.section },
         select:  { stem: true },
