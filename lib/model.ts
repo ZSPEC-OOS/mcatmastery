@@ -53,21 +53,24 @@ async function sleep(ms: number) {
 }
 
 export async function callModel(opts: {
-  system:      string;
-  userContent: string;
-  maxTokens:   number;
-  modelId?:    string;   // explicit override (admin routes)
-  baseUrl?:    string;
-  apiKey?:     string;
+  system:          string;
+  userContent:     string;
+  maxTokens:       number;
+  modelId?:        string;   // explicit override (admin routes)
+  baseUrl?:        string;
+  apiKey?:         string;
+  modelMaxTokens?: number;   // from model config; overrides maxTokens when set
 }, attempt = 0): Promise<string> {
   const retry = async () => {
     await sleep(Math.min(2 ** attempt * 2000, 32000));
     return callModel(opts, attempt + 1);
   };
 
-  // If no explicit config was passed, resolve the active model from Firestore
+  // Resolve credentials. If the caller already knows the model (generate routes),
+  // modelId is set and we skip the Firestore lookup — but we still need to honour
+  // the per-model maxTokens stored in the config (modelMaxTokens).
   let { modelId, baseUrl, apiKey } = opts;
-  let maxTokens = opts.maxTokens;
+  let maxTokens = opts.modelMaxTokens ?? opts.maxTokens;
   if (!modelId) {
     const active = await getActiveModel();
     if (active) {
@@ -114,33 +117,68 @@ export async function callModel(opts: {
       throw new Error(`Model API error ${res.status}: ${text.slice(0, 200)}`);
     }
     const data = await res.json() as {
-      choices?: Array<{ message?: { content?: string | Array<{ type: string; text?: string }> | null; reasoning_content?: string | null } }>;
+      choices?: Array<{
+        finish_reason?: string;
+        message?: { content?: string | Array<{ type: string; text?: string }> | null; reasoning_content?: string | null };
+      }>;
       error?: unknown;
     };
-    const msg = data.choices?.[0]?.message;
-    const raw = msg?.content;
+    const choice     = data.choices?.[0];
+    const msg        = choice?.message;
+    const finishReason = choice?.finish_reason;
+    const raw        = msg?.content;
     let content: string | null = null;
     if (typeof raw === "string") {
       content = raw || null;
     } else if (Array.isArray(raw)) {
-      // Some newer models return content as an array of typed blocks
       content = raw.filter((b) => b?.type === "text" && b?.text).map((b) => b.text).join("") || null;
     }
-    // DeepSeek reasoning models (R1, V4 Pro, etc.) put the chain-of-thought in
-    // reasoning_content and may leave content empty when max_tokens is low.
-    // Only fall back to reasoning_content if it looks like JSON — never use
-    // raw prose thinking text as a substitute for structured output.
+    // DeepSeek reasoning models put chain-of-thought in reasoning_content; fall
+    // back to it only when it looks like JSON (not raw thinking prose).
     if (!content && typeof msg?.reasoning_content === "string" && msg.reasoning_content) {
       const rc = msg.reasoning_content.trim();
       if (rc.startsWith("{") || rc.startsWith("[")) content = rc;
     }
+
+    // When the API cuts the response short (finish_reason: length), the content
+    // will be valid JSON up to the truncation point. Try one continuation call so
+    // the model can finish the object it started.
+    if (content && finishReason === "length") {
+      try {
+        const continuation = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+          },
+          body: JSON.stringify({
+            model: modelId,
+            max_tokens: maxTokens,
+            messages: [
+              { role: "system",    content: opts.system },
+              { role: "user",      content: opts.userContent },
+              { role: "assistant", content },
+              { role: "user",      content: "Continue your JSON exactly from where you stopped. Output ONLY the remaining JSON — no commentary, no markdown." },
+            ],
+          }),
+        });
+        if (continuation.ok) {
+          const contData = await continuation.json() as typeof data;
+          const contRaw  = contData.choices?.[0]?.message?.content;
+          const contText = typeof contRaw === "string" ? contRaw : (Array.isArray(contRaw) ? contRaw.map((b) => b?.text ?? "").join("") : "");
+          if (contText) content = content + contText;
+        }
+      } catch { /* if continuation fails, fall through and try to parse what we have */ }
+    }
+
     if (!content) {
       const hint = data.error
         ? ` API error: ${JSON.stringify(data.error).slice(0, 200)}`
         : ` Response: ${JSON.stringify(data).slice(0, 200)}`;
       const isReasoning = typeof msg?.reasoning_content === "string" && !!msg.reasoning_content;
-      const reasoningHint = isReasoning ? " (reasoning model exhausted token budget before writing output — increase maxTokens)" : "";
-      throw new Error(`Model returned empty content.${reasoningHint}${hint}`);
+      const reasoningHint = isReasoning ? " (reasoning model exhausted token budget before writing output — increase Max Tokens on the model in Settings)" : "";
+      const truncatedHint = finishReason === "length" ? " (API truncated output — provider may cap output below the requested limit; set a lower Max Tokens on the model or contact the provider)" : "";
+      throw new Error(`Model returned empty content.${reasoningHint}${truncatedHint}${hint}`);
     }
     return content;
   }
