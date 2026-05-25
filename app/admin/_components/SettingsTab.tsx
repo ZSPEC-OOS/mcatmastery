@@ -481,7 +481,8 @@ export default function SettingsTab() {
     setEditError(null);
     try {
       const parsedMaxTokens          = parseMaxTokensInput(editForm.maxTokens);
-      const parsedMaxReasoningTokens = editForm.maxReasoningTokens ? parseInt(editForm.maxReasoningTokens, 10) : undefined;
+      // null (not undefined) so JSON.stringify includes the key and the server clears the field
+      const parsedMaxReasoningTokens = editForm.maxReasoningTokens ? parseInt(editForm.maxReasoningTokens, 10) : null;
       const res = await fetch("/api/admin/models", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -489,7 +490,7 @@ export default function SettingsTab() {
       });
       const data = await res.json() as { error?: string };
       if (!res.ok) { setEditError(data.error ?? "Failed to save"); return; }
-      setModels((prev) => prev.map((m) => m.id === id ? { ...m, name: editForm.name, modelId: editForm.modelId, baseUrl: editForm.baseUrl, apiKey: editForm.apiKey, maxTokens: parsedMaxTokens, maxReasoningTokens: parsedMaxReasoningTokens } : m));
+      setModels((prev) => prev.map((m) => m.id === id ? { ...m, name: editForm.name, modelId: editForm.modelId, baseUrl: editForm.baseUrl, apiKey: editForm.apiKey, maxTokens: parsedMaxTokens, maxReasoningTokens: parsedMaxReasoningTokens ?? undefined } : m));
       setEditingId(null);
     } catch {
       setEditError("Network error");
