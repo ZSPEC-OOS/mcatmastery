@@ -241,11 +241,11 @@ export default function TopicDetail({ selectionKey }: Props) {
   const lockedCount       = questions.length - unlockedQuestions.length;
 
   async function handleReformat() {
-    if (questions.length === 0) return;
+    if (unlockedQuestions.length === 0) return;
     setReformatting(true);
     try {
-      await Promise.all(
-        questions.map((q) =>
+      const results = await Promise.all(
+        unlockedQuestions.map((q) =>
           fetch(`/api/admin/questions/${q.id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -253,8 +253,10 @@ export default function TopicDetail({ selectionKey }: Props) {
           })
         )
       );
-      setReformatDone(true);
-      setTimeout(() => setReformatDone(false), 3000);
+      if (results.every((r) => r.ok)) {
+        setReformatDone(true);
+        setTimeout(() => setReformatDone(false), 3000);
+      }
     } catch {
       // best-effort
     } finally {
@@ -266,7 +268,7 @@ export default function TopicDetail({ selectionKey }: Props) {
     if (unlockedQuestions.length === 0) return;
     setReauditing(true);
     try {
-      await Promise.all(
+      const results = await Promise.all(
         unlockedQuestions.map((q) =>
           fetch(`/api/admin/questions/${q.id}`, {
             method: "PATCH",
@@ -275,8 +277,10 @@ export default function TopicDetail({ selectionKey }: Props) {
           })
         )
       );
-      setReauditDone(true);
-      setTimeout(() => setReauditDone(false), 3000);
+      if (results.every((r) => r.ok)) {
+        setReauditDone(true);
+        setTimeout(() => setReauditDone(false), 3000);
+      }
     } catch {
       // best-effort
     } finally {
@@ -344,16 +348,23 @@ export default function TopicDetail({ selectionKey }: Props) {
         <div className="flex items-center gap-2">
           <button
             onClick={handleReformat}
-            disabled={reformatting || questions.length === 0}
+            disabled={reformatting || unlockedQuestions.length === 0}
             className="px-3 py-2 rounded-lg text-sm font-semibold"
             style={{
               background: reformatDone ? "rgba(74,222,128,0.15)" : "rgba(99,102,241,0.1)",
               color:      reformatDone ? "#4ade80"               : "#6366f1",
               border: `1px solid ${reformatDone ? "rgba(74,222,128,0.4)" : "rgba(99,102,241,0.35)"}`,
-              opacity: (reformatting || questions.length === 0) ? 0.5 : 1,
+              opacity: (reformatting || unlockedQuestions.length === 0) ? 0.5 : 1,
             }}
+            title={lockedCount > 0 ? `${lockedCount} locked question${lockedCount !== 1 ? "s" : ""} will be skipped` : undefined}
           >
-            {reformatDone ? "✓ Queued for Format" : reformatting ? "Queueing…" : "Reformat"}
+            {reformatDone
+              ? "✓ Queued for Format"
+              : reformatting
+              ? "Queueing…"
+              : lockedCount > 0
+              ? `Reformat (${unlockedQuestions.length})`
+              : "Reformat"}
           </button>
           <button
             onClick={handleReaudit}

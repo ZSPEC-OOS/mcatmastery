@@ -273,13 +273,14 @@ export async function POST(req: NextRequest) {
               ].filter(Boolean).join(" ");
 
               const raw = await callModel({
-                modelId:      genModel?.modelId,
-                baseUrl:      genModel?.baseUrl,
-                apiKey:       genModel?.apiKey,
-                modelMaxTokens: genModel?.maxTokens,
-                system:       passageSetPrompt,
-                userContent:  userMsg,
-                maxTokens:    6000,
+                modelId:                 genModel?.modelId,
+                baseUrl:                 genModel?.baseUrl,
+                apiKey:                  genModel?.apiKey,
+                modelMaxTokens:          genModel?.maxTokens,
+                modelMaxReasoningTokens: genModel?.maxReasoningTokens || undefined,
+                system:                  passageSetPrompt,
+                userContent:             userMsg,
+                maxTokens:               6000,
               });
 
               type PassageSet = { section: string; topic: string; passage: string; questions: Record<string, unknown>[] };
@@ -347,13 +348,14 @@ export async function POST(req: NextRequest) {
               ].filter(Boolean).join(" ");
 
               const raw = await callModel({
-                modelId:      genModel?.modelId,
-                baseUrl:      genModel?.baseUrl,
-                apiKey:       genModel?.apiKey,
-                modelMaxTokens: genModel?.maxTokens,
-                system:       genPrompt,
-                userContent:  userMsg,
-                maxTokens:    3000,
+                modelId:                 genModel?.modelId,
+                baseUrl:                 genModel?.baseUrl,
+                apiKey:                  genModel?.apiKey,
+                modelMaxTokens:          genModel?.maxTokens,
+                modelMaxReasoningTokens: genModel?.maxReasoningTokens || undefined,
+                system:                  genPrompt,
+                userContent:             userMsg,
+                maxTokens:               3000,
               });
 
               let parsed: Record<string, unknown> | null = null;
@@ -371,13 +373,14 @@ export async function POST(req: NextRequest) {
                   enqueue({ type: "skip", reason: "duplicate" });
                 } else {
                   const valRaw = await callModel({
-                    modelId:      genModel?.modelId,
-                    baseUrl:      genModel?.baseUrl,
-                    apiKey:       genModel?.apiKey,
-                    modelMaxTokens: genModel?.maxTokens,
-                    system:       valPrompt,
-                    userContent:  JSON.stringify({ question: parsed, requestedSubType: subTypeDef?.label ?? "general" }),
-                    maxTokens:    2000,
+                    modelId:                 genModel?.modelId,
+                    baseUrl:                 genModel?.baseUrl,
+                    apiKey:                  genModel?.apiKey,
+                    modelMaxTokens:          genModel?.maxTokens,
+                    modelMaxReasoningTokens: genModel?.maxReasoningTokens || undefined,
+                    system:                  valPrompt,
+                    userContent:             JSON.stringify({ question: parsed, requestedSubType: subTypeDef?.label ?? "general" }),
+                    maxTokens:               2000,
                   });
 
                   type Validation = { pass: boolean; flags: string[]; corrected_question: Record<string, unknown> | null };

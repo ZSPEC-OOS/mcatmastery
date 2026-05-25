@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
 
     const formatModel = await getModelForRole("formatting");
     const modelOpts = formatModel
-      ? { modelId: formatModel.modelId, baseUrl: formatModel.baseUrl || undefined, apiKey: formatModel.apiKey || undefined }
+      ? { modelId: formatModel.modelId, baseUrl: formatModel.baseUrl || undefined, apiKey: formatModel.apiKey || undefined, modelMaxTokens: formatModel.maxTokens || undefined, modelMaxReasoningTokens: formatModel.maxReasoningTokens || undefined }
       : {};
 
     const formatted = await callModel({

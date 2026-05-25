@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
   const passageSetAuditPrompt = customPassageSetAuditPrompt || DEFAULT_PASSAGE_SET_AUDIT_PROMPT;
 
   const modelOpts = auditModel
-    ? { modelId: auditModel.modelId, baseUrl: auditModel.baseUrl || undefined, apiKey: auditModel.apiKey || undefined }
+    ? { modelId: auditModel.modelId, baseUrl: auditModel.baseUrl || undefined, apiKey: auditModel.apiKey || undefined, modelMaxTokens: auditModel.maxTokens || undefined, modelMaxReasoningTokens: auditModel.maxReasoningTokens || undefined }
     : {};
 
   const allQuestions = await getQuestions({});
