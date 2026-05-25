@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getModels, saveModel, updateModelRole, deleteModel } from "../../../../lib/firestore";
+import { getModels, saveModel, updateModelRole, updateModel, deleteModel } from "../../../../lib/firestore";
 
 const KNOWN_ROLES = new Set(["generation", "audit", "formatting", "both", "disabled"]);
 
@@ -36,12 +36,29 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const { id, role } = await req.json() as { id: string; role: string };
+    const body = await req.json() as { id: string; role?: string; name?: string; modelId?: string; baseUrl?: string; apiKey?: string };
+    const { id, role, name, modelId, baseUrl, apiKey } = body;
     if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
-    if (!isValidRole(role)) {
+
+    // Full model update when name/modelId are provided
+    if (name !== undefined || modelId !== undefined || baseUrl !== undefined || apiKey !== undefined) {
+      if (!name?.trim() || !modelId?.trim()) {
+        return NextResponse.json({ error: "name and modelId are required" }, { status: 400 });
+      }
+      const fields: Record<string, string> = { name: name.trim(), modelId: modelId.trim(), baseUrl: baseUrl?.trim() ?? "", apiKey: apiKey?.trim() ?? "" };
+      if (role !== undefined) {
+        if (!isValidRole(role)) return NextResponse.json({ error: "invalid role" }, { status: 400 });
+        fields.role = role;
+      }
+      await updateModel(id, fields);
+      return NextResponse.json({ success: true });
+    }
+
+    // Role-only update
+    if (!isValidRole(role ?? "")) {
       return NextResponse.json({ error: "invalid role" }, { status: 400 });
     }
-    await updateModelRole(id, role);
+    await updateModelRole(id, role!);
     return NextResponse.json({ success: true });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Failed";
