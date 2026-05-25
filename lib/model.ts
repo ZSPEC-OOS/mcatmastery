@@ -67,12 +67,14 @@ export async function callModel(opts: {
 
   // If no explicit config was passed, resolve the active model from Firestore
   let { modelId, baseUrl, apiKey } = opts;
+  let maxTokens = opts.maxTokens;
   if (!modelId) {
     const active = await getActiveModel();
     if (active) {
-      modelId = active.modelId;
-      baseUrl  = active.baseUrl  || undefined;
-      apiKey   = active.apiKey   || undefined;
+      modelId   = active.modelId;
+      baseUrl   = active.baseUrl   || undefined;
+      apiKey    = active.apiKey    || undefined;
+      if (active.maxTokens) maxTokens = active.maxTokens;
     }
   }
 
@@ -91,7 +93,7 @@ export async function callModel(opts: {
           "Content-Type": "application/json",
           ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
         },
-        body: JSON.stringify({ model: modelId, messages, [tokenParam]: opts.maxTokens }),
+        body: JSON.stringify({ model: modelId, messages, [tokenParam]: maxTokens }),
       });
 
     let res = await doFetch("max_tokens");
@@ -147,7 +149,7 @@ export async function callModel(opts: {
   try {
     const msg = await anthropic.messages.create({
       model:      modelId ?? "claude-opus-4-7",
-      max_tokens: opts.maxTokens,
+      max_tokens: maxTokens,
       system:     opts.system,
       messages:   [{ role: "user", content: opts.userContent }],
     });

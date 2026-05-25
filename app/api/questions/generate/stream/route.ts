@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
               ...modelOpts,
               system:      genPrompt,
               userContent: `Generate one ${body.section} question.${subTypeClause}`,
-              maxTokens:   8000,
+              maxTokens:   32000,
             });
 
             let parsed: Record<string, unknown>;
@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
                 question: parsed,
                 requestedSubType: subTypeDef?.label ?? "general",
               }),
-              maxTokens:   4000,
+              maxTokens:   16000,
             });
 
             let validation: { pass: boolean; flags?: string[]; corrected_question: Record<string, unknown> | null };

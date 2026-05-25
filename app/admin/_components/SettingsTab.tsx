@@ -10,6 +10,7 @@ interface ModelConfig {
   baseUrl: string;
   apiKey: string;
   role: ModelRole;
+  maxTokens?: number;
   createdAt: string;
 }
 
@@ -30,7 +31,7 @@ function serializeRoles(roles: Set<string>): string {
   return Array.from(roles).sort().join(",");
 }
 
-const EMPTY_FORM = { name: "", modelId: "", baseUrl: "", apiKey: "", role: "disabled" as ModelRole };
+const EMPTY_FORM = { name: "", modelId: "", baseUrl: "", apiKey: "", role: "disabled" as ModelRole, maxTokens: "" };
 
 const DEFAULT_GEN_PROMPT = `You are an expert MCAT question writer trained on AAMC content specifications.
 
@@ -404,10 +405,11 @@ export default function SettingsTab() {
     setModelSaving(true);
     setModelError(null);
     try {
+      const payload = { ...modelForm, maxTokens: modelForm.maxTokens ? parseInt(modelForm.maxTokens, 10) : undefined };
       const res = await fetch("/api/admin/models", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(modelForm),
+        body: JSON.stringify(payload),
       });
       const data = await res.json() as { model?: ModelConfig; error?: string };
       if (!res.ok) { setModelError(data.error ?? "Failed to save"); return; }
@@ -450,7 +452,7 @@ export default function SettingsTab() {
 
   function startEdit(m: ModelConfig) {
     setEditingId(m.id);
-    setEditForm({ name: m.name, modelId: m.modelId, baseUrl: m.baseUrl, apiKey: m.apiKey, role: m.role });
+    setEditForm({ name: m.name, modelId: m.modelId, baseUrl: m.baseUrl, apiKey: m.apiKey, role: m.role, maxTokens: m.maxTokens ? String(m.maxTokens) : "" });
     setEditError(null);
   }
 
@@ -462,14 +464,15 @@ export default function SettingsTab() {
     setEditSaving(true);
     setEditError(null);
     try {
+      const parsedMaxTokens = editForm.maxTokens ? parseInt(editForm.maxTokens, 10) : undefined;
       const res = await fetch("/api/admin/models", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, name: editForm.name, modelId: editForm.modelId, baseUrl: editForm.baseUrl, apiKey: editForm.apiKey }),
+        body: JSON.stringify({ id, name: editForm.name, modelId: editForm.modelId, baseUrl: editForm.baseUrl, apiKey: editForm.apiKey, maxTokens: parsedMaxTokens }),
       });
       const data = await res.json() as { error?: string };
       if (!res.ok) { setEditError(data.error ?? "Failed to save"); return; }
-      setModels((prev) => prev.map((m) => m.id === id ? { ...m, name: editForm.name, modelId: editForm.modelId, baseUrl: editForm.baseUrl, apiKey: editForm.apiKey } : m));
+      setModels((prev) => prev.map((m) => m.id === id ? { ...m, name: editForm.name, modelId: editForm.modelId, baseUrl: editForm.baseUrl, apiKey: editForm.apiKey, maxTokens: parsedMaxTokens } : m));
       setEditingId(null);
     } catch {
       setEditError("Network error");
@@ -655,12 +658,21 @@ export default function SettingsTab() {
                           className="w-full px-2 py-1.5 rounded text-xs font-mono"
                           style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }} />
                       </div>
-                      <div>
-                        <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>API Key</label>
-                        <input type="password" value={editForm.apiKey} onChange={(e) => setEditForm(f => ({ ...f, apiKey: e.target.value }))}
-                          placeholder="Leave blank to keep existing key"
-                          className="w-full px-2 py-1.5 rounded text-xs font-mono"
-                          style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }} />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>API Key</label>
+                          <input type="password" value={editForm.apiKey} onChange={(e) => setEditForm(f => ({ ...f, apiKey: e.target.value }))}
+                            placeholder="Leave blank to keep existing"
+                            className="w-full px-2 py-1.5 rounded text-xs font-mono"
+                            style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }} />
+                        </div>
+                        <div>
+                          <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Max Tokens <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(reasoning models)</span></label>
+                          <input type="number" value={editForm.maxTokens} onChange={(e) => setEditForm(f => ({ ...f, maxTokens: e.target.value }))}
+                            placeholder="32000"
+                            className="w-full px-2 py-1.5 rounded text-xs font-mono"
+                            style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }} />
+                        </div>
                       </div>
                       {editError && <p className="text-xs" style={{ color: "#e05c5c" }}>{editError}</p>}
                       <div className="flex gap-2">
@@ -837,35 +849,42 @@ export default function SettingsTab() {
                 />
               </div>
               <div>
-                <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Roles</label>
-                {(() => {
+                <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Max Tokens <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(optional)</span></label>
+                <input
+                  type="number"
+                  value={modelForm.maxTokens}
+                  onChange={(e) => setModelForm((f) => ({ ...f, maxTokens: e.target.value }))}
+                  placeholder="32000 for reasoning models"
+                  className="w-full px-3 py-2 rounded-lg text-sm font-mono"
+                  style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Roles</label>
+              <div className="flex flex-col gap-2 px-3 py-2.5 rounded-lg"
+                style={{ background: "var(--bg-input)", border: "1px solid var(--border)" }}>
+                {ROLE_OPTIONS.map(({ key, label }) => {
                   const formRoles  = parseRoles(modelForm.role);
                   const takenRoles = new Set<string>(models.flatMap(x => Array.from(parseRoles(x.role))));
-                  function toggleFormRole(roleKey: string) {
-                    const next = new Set(formRoles);
-                    if (next.has(roleKey)) next.delete(roleKey); else next.add(roleKey);
-                    setModelForm(f => ({ ...f, role: serializeRoles(next) }));
-                  }
+                  const checked = formRoles.has(key);
+                  const taken   = !checked && takenRoles.has(key);
                   return (
-                    <div className="flex flex-col gap-2 px-3 py-2.5 rounded-lg"
-                      style={{ background: "var(--bg-input)", border: "1px solid var(--border)" }}>
-                      {ROLE_OPTIONS.map(({ key, label }) => {
-                        const checked = formRoles.has(key);
-                        const taken   = !checked && takenRoles.has(key);
-                        return (
-                          <label key={key} className="flex items-center gap-2 select-none"
-                            style={{ cursor: taken ? "not-allowed" : "pointer", opacity: taken ? 0.45 : 1 }}>
-                            <input type="checkbox" checked={checked} disabled={taken}
-                              onChange={() => toggleFormRole(key)} />
-                            <span className="text-sm" style={{ color: "var(--text-primary)" }}>
-                              {label}{taken ? " (taken)" : ""}
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
+                    <label key={key} className="flex items-center gap-2 select-none"
+                      style={{ cursor: taken ? "not-allowed" : "pointer", opacity: taken ? 0.45 : 1 }}>
+                      <input type="checkbox" checked={checked} disabled={taken}
+                        onChange={() => {
+                          const next = new Set(formRoles);
+                          if (next.has(key)) next.delete(key); else next.add(key);
+                          setModelForm(f => ({ ...f, role: serializeRoles(next) }));
+                        }} />
+                      <span className="text-sm" style={{ color: "var(--text-primary)" }}>
+                        {label}{taken ? " (taken)" : ""}
+                      </span>
+                    </label>
                   );
-                })()}
+                })}
               </div>
             </div>
 
