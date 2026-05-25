@@ -22,7 +22,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as Record<string, unknown>;
-    const { name, modelId, baseUrl, apiKey, role, maxTokens } = body as { name?: string; modelId?: string; baseUrl?: string; apiKey?: string; role?: string; maxTokens?: number };
+    const { name, modelId, baseUrl, apiKey, role, maxTokens, maxReasoningTokens } = body as { name?: string; modelId?: string; baseUrl?: string; apiKey?: string; role?: string; maxTokens?: number; maxReasoningTokens?: number };
     if (!name?.trim() || !modelId?.trim()) {
       return NextResponse.json({ error: "name and modelId are required" }, { status: 400 });
     }
@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
     const model = await saveModel({
       name: name.trim(), modelId: modelId.trim(), baseUrl: baseUrl?.trim() ?? "", apiKey: apiKey?.trim() ?? "", role: resolvedRole,
       ...(maxTokens !== undefined && Number.isFinite(maxTokens) ? { maxTokens: Math.round(maxTokens) } : {}),
+      ...(maxReasoningTokens && Number.isFinite(maxReasoningTokens) ? { maxReasoningTokens: Math.round(maxReasoningTokens) } : {}),
     });
     return NextResponse.json({ model });
   } catch (e: unknown) {
@@ -40,8 +41,8 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const body = await req.json() as { id: string; role?: string; name?: string; modelId?: string; baseUrl?: string; apiKey?: string; maxTokens?: number };
-    const { id, role, name, modelId, baseUrl, apiKey, maxTokens } = body;
+    const body = await req.json() as { id: string; role?: string; name?: string; modelId?: string; baseUrl?: string; apiKey?: string; maxTokens?: number; maxReasoningTokens?: number };
+    const { id, role, name, modelId, baseUrl, apiKey, maxTokens, maxReasoningTokens } = body;
     if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
     // Full model update when name/modelId are provided
@@ -51,6 +52,7 @@ export async function PATCH(req: NextRequest) {
       }
       const fields: Record<string, unknown> = { name: name.trim(), modelId: modelId.trim(), baseUrl: baseUrl?.trim() ?? "", apiKey: apiKey?.trim() ?? "" };
       if (maxTokens !== undefined) fields.maxTokens = Number.isFinite(maxTokens) ? Math.round(maxTokens) : null;
+      if (maxReasoningTokens !== undefined) fields.maxReasoningTokens = (maxReasoningTokens && Number.isFinite(maxReasoningTokens)) ? Math.round(maxReasoningTokens) : null;
       if (role !== undefined) {
         if (!isValidRole(role)) return NextResponse.json({ error: "invalid role" }, { status: 400 });
         fields.role = role;

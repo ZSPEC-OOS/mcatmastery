@@ -11,6 +11,7 @@ interface ModelConfig {
   apiKey: string;
   role: ModelRole;
   maxTokens?: number;
+  maxReasoningTokens?: number;
   createdAt: string;
 }
 
@@ -31,7 +32,7 @@ function serializeRoles(roles: Set<string>): string {
   return Array.from(roles).sort().join(",");
 }
 
-const EMPTY_FORM = { name: "", modelId: "", baseUrl: "", apiKey: "", role: "disabled" as ModelRole, maxTokens: "" };
+const EMPTY_FORM = { name: "", modelId: "", baseUrl: "", apiKey: "", role: "disabled" as ModelRole, maxTokens: "", maxReasoningTokens: "" };
 
 const DEFAULT_GEN_PROMPT = `You are an expert MCAT question writer trained on AAMC content specifications.
 
@@ -412,7 +413,11 @@ export default function SettingsTab() {
     setModelSaving(true);
     setModelError(null);
     try {
-      const payload = { ...modelForm, maxTokens: parseMaxTokensInput(modelForm.maxTokens) };
+      const payload = {
+        ...modelForm,
+        maxTokens:          parseMaxTokensInput(modelForm.maxTokens),
+        maxReasoningTokens: modelForm.maxReasoningTokens ? parseInt(modelForm.maxReasoningTokens, 10) : undefined,
+      };
       const res = await fetch("/api/admin/models", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -459,7 +464,11 @@ export default function SettingsTab() {
 
   function startEdit(m: ModelConfig) {
     setEditingId(m.id);
-    setEditForm({ name: m.name, modelId: m.modelId, baseUrl: m.baseUrl, apiKey: m.apiKey, role: m.role, maxTokens: m.maxTokens === -1 ? "INF" : m.maxTokens ? String(m.maxTokens) : "" });
+    setEditForm({
+      name: m.name, modelId: m.modelId, baseUrl: m.baseUrl, apiKey: m.apiKey, role: m.role,
+      maxTokens: m.maxTokens === -1 ? "INF" : m.maxTokens ? String(m.maxTokens) : "",
+      maxReasoningTokens: m.maxReasoningTokens ? String(m.maxReasoningTokens) : "",
+    });
     setEditError(null);
   }
 
@@ -471,15 +480,16 @@ export default function SettingsTab() {
     setEditSaving(true);
     setEditError(null);
     try {
-      const parsedMaxTokens = parseMaxTokensInput(editForm.maxTokens);
+      const parsedMaxTokens          = parseMaxTokensInput(editForm.maxTokens);
+      const parsedMaxReasoningTokens = editForm.maxReasoningTokens ? parseInt(editForm.maxReasoningTokens, 10) : undefined;
       const res = await fetch("/api/admin/models", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, name: editForm.name, modelId: editForm.modelId, baseUrl: editForm.baseUrl, apiKey: editForm.apiKey, maxTokens: parsedMaxTokens }),
+        body: JSON.stringify({ id, name: editForm.name, modelId: editForm.modelId, baseUrl: editForm.baseUrl, apiKey: editForm.apiKey, maxTokens: parsedMaxTokens, maxReasoningTokens: parsedMaxReasoningTokens }),
       });
       const data = await res.json() as { error?: string };
       if (!res.ok) { setEditError(data.error ?? "Failed to save"); return; }
-      setModels((prev) => prev.map((m) => m.id === id ? { ...m, name: editForm.name, modelId: editForm.modelId, baseUrl: editForm.baseUrl, apiKey: editForm.apiKey, maxTokens: parsedMaxTokens } : m));
+      setModels((prev) => prev.map((m) => m.id === id ? { ...m, name: editForm.name, modelId: editForm.modelId, baseUrl: editForm.baseUrl, apiKey: editForm.apiKey, maxTokens: parsedMaxTokens, maxReasoningTokens: parsedMaxReasoningTokens } : m));
       setEditingId(null);
     } catch {
       setEditError("Network error");
@@ -681,6 +691,13 @@ export default function SettingsTab() {
                             style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }} />
                         </div>
                       </div>
+                      <div>
+                        <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Max Reasoning Tokens <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(caps thinking budget — leave blank for non-reasoning models)</span></label>
+                        <input type="number" value={editForm.maxReasoningTokens} onChange={(e) => setEditForm(f => ({ ...f, maxReasoningTokens: e.target.value }))}
+                          placeholder="e.g. 8000 for DeepSeek Flash / V4 Pro"
+                          className="w-full px-2 py-1.5 rounded text-xs font-mono"
+                          style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }} />
+                      </div>
                       {editError && <p className="text-xs" style={{ color: "#e05c5c" }}>{editError}</p>}
                       <div className="flex gap-2">
                         <button onClick={() => saveEdit(m.id)} disabled={editSaving}
@@ -872,6 +889,18 @@ export default function SettingsTab() {
                   style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>Max Reasoning Tokens <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(optional — caps thinking budget for reasoning models like DeepSeek Flash/V4 Pro)</span></label>
+              <input
+                type="number"
+                value={modelForm.maxReasoningTokens}
+                onChange={(e) => setModelForm((f) => ({ ...f, maxReasoningTokens: e.target.value }))}
+                placeholder="e.g. 8000"
+                className="w-full px-3 py-2 rounded-lg text-sm font-mono"
+                style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
+              />
             </div>
 
             <div>

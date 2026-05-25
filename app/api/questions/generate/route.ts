@@ -38,10 +38,11 @@ export async function POST(req: NextRequest) {
     ]);
 
     const modelOpts = {
-      modelId:        activeModel?.modelId,
-      baseUrl:        activeModel?.baseUrl        || undefined,
-      apiKey:         activeModel?.apiKey         || undefined,
-      modelMaxTokens: activeModel?.maxTokens      || undefined,
+      modelId:                    activeModel?.modelId,
+      baseUrl:                    activeModel?.baseUrl                    || undefined,
+      apiKey:                     activeModel?.apiKey                     || undefined,
+      modelMaxTokens:             activeModel?.maxTokens                  || undefined,
+      modelMaxReasoningTokens:    activeModel?.maxReasoningTokens         || undefined,
     };
 
     const generated: { stem: string }[] = [];
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
           ...modelOpts,
           system:      genPrompt,
           userContent: `Generate one ${body.section} question${body.topic ? ` about ${body.topic}` : ""}.`,
-          maxTokens:   32000,
+          maxTokens:   8000,
         });
 
         let parsed: Record<string, unknown>;
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
           ...modelOpts,
           system:      valPrompt,
           userContent: JSON.stringify(parsed),
-          maxTokens:   16000,
+          maxTokens:   4000,
         });
 
         let validation: { pass: boolean; corrected_question: Record<string, unknown> | null };

@@ -39,10 +39,11 @@ export async function POST(req: NextRequest) {
     ]);
 
     const modelOpts = {
-      modelId:        activeModel?.modelId,
-      baseUrl:        activeModel?.baseUrl        || undefined,
-      apiKey:         activeModel?.apiKey         || undefined,
-      modelMaxTokens: activeModel?.maxTokens      || undefined,
+      modelId:                    activeModel?.modelId,
+      baseUrl:                    activeModel?.baseUrl                    || undefined,
+      apiKey:                     activeModel?.apiKey                     || undefined,
+      modelMaxTokens:             activeModel?.maxTokens                  || undefined,
+      modelMaxReasoningTokens:    activeModel?.maxReasoningTokens         || undefined,
     };
 
     const subTypeDef = body.subType ? getSubTypeById(body.subType) : undefined;
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest) {
               ...modelOpts,
               system:      genPrompt,
               userContent: `Generate one ${body.section} question.${subTypeClause}`,
-              maxTokens:   32000,
+              maxTokens:   8000,
             });
 
             let parsed: Record<string, unknown>;
@@ -97,7 +98,7 @@ export async function POST(req: NextRequest) {
                 question: parsed,
                 requestedSubType: subTypeDef?.label ?? "general",
               }),
-              maxTokens:   16000,
+              maxTokens:   4000,
             });
 
             let validation: { pass: boolean; flags?: string[]; corrected_question: Record<string, unknown> | null };

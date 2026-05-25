@@ -53,13 +53,14 @@ async function sleep(ms: number) {
 }
 
 export async function callModel(opts: {
-  system:          string;
-  userContent:     string;
-  maxTokens:       number;
-  modelId?:        string;   // explicit override (admin routes)
-  baseUrl?:        string;
-  apiKey?:         string;
-  modelMaxTokens?: number;   // from model config; overrides maxTokens when set
+  system:                 string;
+  userContent:            string;
+  maxTokens:              number;
+  modelId?:               string;   // explicit override (admin routes)
+  baseUrl?:               string;
+  apiKey?:                string;
+  modelMaxTokens?:        number;   // from model config; overrides maxTokens when set
+  modelMaxReasoningTokens?: number; // cap thinking budget; reserves room for actual output
 }, attempt = 0): Promise<string> {
   const retry = async () => {
     await sleep(Math.min(2 ** attempt * 2000, 32000));
@@ -70,7 +71,8 @@ export async function callModel(opts: {
   // modelId is set and we skip the Firestore lookup — but we still need to honour
   // the per-model maxTokens stored in the config (modelMaxTokens).
   let { modelId, baseUrl, apiKey } = opts;
-  let maxTokens = opts.modelMaxTokens ?? opts.maxTokens;
+  let maxTokens           = opts.modelMaxTokens ?? opts.maxTokens;
+  let maxReasoningTokens  = opts.modelMaxReasoningTokens;
   if (!modelId) {
     const active = await getActiveModel();
     if (active) {
@@ -79,6 +81,7 @@ export async function callModel(opts: {
       apiKey    = active.apiKey    || undefined;
       // -1 is the "unlimited" sentinel — include it so the API path can omit max_tokens
       if (active.maxTokens !== undefined && active.maxTokens !== null) maxTokens = active.maxTokens;
+      if (active.maxReasoningTokens) maxReasoningTokens = active.maxReasoningTokens;
     }
   }
 
@@ -92,23 +95,33 @@ export async function callModel(opts: {
 
     // -1 means unlimited — omit the token param so the provider uses its own default
     const tokenLimit = maxTokens > 0 ? maxTokens : undefined;
-    const doFetch = (tokenParam: "max_tokens" | "max_completion_tokens") =>
+
+    const buildBody = (tokenParam: "max_tokens" | "max_completion_tokens", msgs: typeof messages) =>
+      JSON.stringify({
+        model: modelId,
+        messages: msgs,
+        ...(tokenLimit !== undefined ? { [tokenParam]: tokenLimit } : {}),
+        ...(maxReasoningTokens ? { max_reasoning_tokens: maxReasoningTokens } : {}),
+      });
+
+    const doFetch = (tokenParam: "max_tokens" | "max_completion_tokens", msgs = messages) =>
       fetch(url, {
         method:  "POST",
         headers: {
           "Content-Type": "application/json",
           ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
         },
-        body: JSON.stringify({ model: modelId, messages, ...(tokenLimit !== undefined ? { [tokenParam]: tokenLimit } : {}) }),
+        body: buildBody(tokenParam, msgs),
       });
 
+    // Try max_tokens first; fall back to max_completion_tokens on 400 (o1/o3/gpt-5+)
     let res = await doFetch("max_tokens");
-
-    // Newer OpenAI models (o1, o3, gpt-5+) require max_completion_tokens
+    let tokenParam: "max_tokens" | "max_completion_tokens" = "max_tokens";
     if (res.status === 400) {
       const errText = await res.text().catch(() => "");
       if (errText.includes("max_tokens")) {
-        res = await doFetch("max_completion_tokens");
+        tokenParam = "max_completion_tokens";
+        res = await doFetch(tokenParam);
       } else {
         throw new Error(`Model API error 400: ${errText.slice(0, 200)}`);
       }
@@ -126,10 +139,10 @@ export async function callModel(opts: {
       }>;
       error?: unknown;
     };
-    const choice     = data.choices?.[0];
-    const msg        = choice?.message;
+    const choice       = data.choices?.[0];
+    const msg          = choice?.message;
     const finishReason = choice?.finish_reason;
-    const raw        = msg?.content;
+    const raw          = msg?.content;
     let content: string | null = null;
     if (typeof raw === "string") {
       content = raw || null;
@@ -143,45 +156,39 @@ export async function callModel(opts: {
       if (rc.startsWith("{") || rc.startsWith("[")) content = rc;
     }
 
-    // When the API cuts the response short (finish_reason: length), the content
-    // will be valid JSON up to the truncation point. Try one continuation call so
-    // the model can finish the object it started.
+    // When the API cuts the response short (finish_reason: length) and we got
+    // partial content, try one continuation using the same tokenParam that worked.
     if (content && finishReason === "length") {
       try {
-        const continuation = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
-          },
-          body: JSON.stringify({
-            model: modelId,
-            ...(tokenLimit !== undefined ? { max_tokens: tokenLimit } : {}),
-            messages: [
-              { role: "system",    content: opts.system },
-              { role: "user",      content: opts.userContent },
-              { role: "assistant", content },
-              { role: "user",      content: "Continue your JSON exactly from where you stopped. Output ONLY the remaining JSON — no commentary, no markdown." },
-            ],
-          }),
-        });
-        if (continuation.ok) {
-          const contData = await continuation.json() as typeof data;
+        const contMessages = [
+          { role: "system",    content: opts.system },
+          { role: "user",      content: opts.userContent },
+          { role: "assistant", content },
+          { role: "user",      content: "Continue your JSON exactly from where you stopped. Output ONLY the remaining JSON — no commentary, no markdown." },
+        ] as typeof messages;
+        const contRes = await doFetch(tokenParam, contMessages);
+        if (contRes.ok) {
+          const contData = await contRes.json() as typeof data;
           const contRaw  = contData.choices?.[0]?.message?.content;
           const contText = typeof contRaw === "string" ? contRaw : (Array.isArray(contRaw) ? contRaw.map((b) => b?.text ?? "").join("") : "");
           if (contText) content = content + contText;
         }
-      } catch { /* if continuation fails, fall through and try to parse what we have */ }
+      } catch { /* fall through and try to parse what we have */ }
     }
 
     if (!content) {
       const hint = data.error
         ? ` API error: ${JSON.stringify(data.error).slice(0, 200)}`
         : ` Response: ${JSON.stringify(data).slice(0, 200)}`;
-      const isReasoning = typeof msg?.reasoning_content === "string" && !!msg.reasoning_content;
-      const reasoningHint = isReasoning ? " (reasoning model exhausted token budget before writing output — increase Max Tokens on the model in Settings)" : "";
-      const truncatedHint = finishReason === "length" ? " (API truncated output — provider may cap output below the requested limit; set a lower Max Tokens on the model or contact the provider)" : "";
-      throw new Error(`Model returned empty content.${reasoningHint}${truncatedHint}${hint}`);
+      const isReasoning  = typeof msg?.reasoning_content === "string" && !!msg.reasoning_content;
+      const isExhausted  = isReasoning && finishReason === "length";
+      if (isExhausted) {
+        throw new Error(`Reasoning model exhausted its token budget on thinking before writing output. Edit this model in Settings and set "Max Reasoning Tokens" (e.g. 8000) to cap the thinking budget.`);
+      }
+      if (isReasoning) {
+        throw new Error(`Reasoning model returned empty content — thinking was present but no output was written. Try setting Max Reasoning Tokens in Settings.`);
+      }
+      throw new Error(`Model returned empty content.${hint}`);
     }
     return content;
   }
