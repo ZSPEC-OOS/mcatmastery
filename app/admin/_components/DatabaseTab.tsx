@@ -203,6 +203,8 @@ export default function DatabaseTab() {
   const [stats, setStats]         = useState<Stats | null>(null);
   const [loading, setLoading]     = useState(true);
   const [deleting, setDeleting]   = useState<string | null>(null);
+  const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ ids: string[]; label: string; groupId?: string } | null>(null);
   const [expandedId, setExpanded] = useState<string | null>(null);
   const [clearState, setClearState] = useState<"idle" | "confirm" | "clearing">("idle");
 
@@ -244,13 +246,33 @@ export default function DatabaseTab() {
   }
 
   function handleDelete(id: string) {
-    setDeleting(id);
-    fetch(`/api/admin/questions/${id}`, { method: "DELETE" }).then(() => {
+    setDeleteConfirm({ ids: [id], label: "this question" });
+  }
+
+  async function confirmDelete() {
+    if (!deleteConfirm) return;
+    const { ids, groupId } = deleteConfirm;
+    setDeleteConfirm(null);
+
+    if (ids.length === 1) {
+      const [id] = ids;
+      setDeleting(id);
+      await fetch(`/api/admin/questions/${id}`, { method: "DELETE" });
       setStats((prev) =>
         prev ? { ...prev, total: prev.total - 1, needsAudit: prev.needsAudit.filter((q) => q.id !== id) } : prev
       );
       setDeleting(null);
-    });
+    } else {
+      if (groupId) setDeletingGroupId(groupId);
+      await Promise.allSettled(ids.map((id) => fetch(`/api/admin/questions/${id}`, { method: "DELETE" })));
+      const idSet = new Set(ids);
+      setStats((prev) =>
+        prev
+          ? { ...prev, total: prev.total - ids.length, needsAudit: prev.needsAudit.filter((q) => !idSet.has(q.id)) }
+          : prev
+      );
+      if (groupId) setDeletingGroupId(null);
+    }
   }
 
   function removeFromQueue(id: string) {
@@ -749,6 +771,45 @@ export default function DatabaseTab() {
         )}
       </div>
 
+      {/* Delete confirmation modal */}
+      {deleteConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(3px)" }}
+          onClick={(e) => e.target === e.currentTarget && setDeleteConfirm(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl overflow-hidden"
+            style={{ background: "var(--bg-card)", border: "1px solid rgba(224,92,92,0.4)" }}
+          >
+            <div className="px-6 pt-6 pb-4">
+              <p className="text-sm font-semibold mb-1.5" style={{ color: "var(--text-primary)" }}>
+                Permanently delete {deleteConfirm.label}?
+              </p>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                This cannot be undone.
+              </p>
+            </div>
+            <div className="px-6 pb-6 flex gap-2">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 py-2 rounded-lg text-sm font-semibold"
+                style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border)" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="flex-1 py-2 rounded-lg text-sm font-semibold"
+                style={{ background: "rgba(224,92,92,0.9)", color: "#fff", border: "none" }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {expandedId && (
         <QuestionModal
           id={expandedId}
@@ -926,6 +987,14 @@ export default function DatabaseTab() {
                 <span className="text-xs" style={{ color: "var(--text-muted)" }}>
                   {qs.length} question{qs.length !== 1 ? "s" : ""}
                 </span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ ids: qs.map((q) => q.id), label: `this passage set (${qs.length} questions)`, groupId }); }}
+                  disabled={deletingGroupId === groupId}
+                  className="ml-auto text-xs px-2 py-1 rounded"
+                  style={{ background: "rgba(224,92,92,0.1)", color: "#e05c5c", border: "1px solid rgba(224,92,92,0.25)", opacity: deletingGroupId === groupId ? 0.5 : 1 }}
+                >
+                  {deletingGroupId === groupId ? "Deleting…" : "Delete Set"}
+                </button>
               </div>
               {qs.map((q) => (
                 <div key={q.id}>
