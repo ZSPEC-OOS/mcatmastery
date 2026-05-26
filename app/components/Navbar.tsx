@@ -11,7 +11,6 @@ const navLinks = [
   { label: "Practice",   href: "/practice" },
   { label: "Review",     href: "/review" },
   { label: "Analytics",  href: "/analytics" },
-  { label: "Curriculum", href: "/curriculum" },
 ];
 
 export default function Navbar() {
