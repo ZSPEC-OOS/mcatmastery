@@ -515,28 +515,63 @@ export default function TopicDetail({ selectionKey }: Props) {
             // Passage group
             const { id: groupId, qs } = row;
             const isOpen = expandedGroups.has(groupId);
+            const firstQ = qs[0]?.q;
+            const passagePreview = firstQ?.passage
+              ? firstQ.passage.replace(/\s+/g, " ").trim().slice(0, 140)
+              : null;
+            const diffCounts = qs.reduce<Record<string, number>>((acc, { q }) => {
+              acc[q.difficulty] = (acc[q.difficulty] ?? 0) + 1;
+              return acc;
+            }, {});
             return (
               <div key={groupId} className="rounded-xl overflow-hidden"
                 style={{ border: "1px solid rgba(167,139,250,0.35)" }}>
                 {/* Group header — click to expand/collapse */}
                 <button
                   onClick={() => toggleGroup(groupId)}
-                  className="w-full flex items-center gap-2 px-4 py-2.5 text-left"
+                  className="w-full flex items-start gap-3 px-4 py-3 text-left"
                   style={{ background: "rgba(167,139,250,0.06)", borderBottom: isOpen ? "1px solid rgba(167,139,250,0.2)" : undefined }}
                 >
+                  {/* Chevron */}
                   <svg
                     width="12" height="12" viewBox="0 0 12 12" fill="none"
-                    style={{ color: "#a78bfa", flexShrink: 0, transition: "transform 0.15s", transform: isOpen ? "rotate(90deg)" : "rotate(0deg)" }}
+                    style={{ color: "#a78bfa", flexShrink: 0, marginTop: 3, transition: "transform 0.15s", transform: isOpen ? "rotate(90deg)" : "rotate(0deg)" }}
                   >
                     <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
-                  <span className="px-1.5 py-0.5 rounded text-xs font-semibold"
-                    style={{ background: "rgba(167,139,250,0.15)", color: "#a78bfa", border: "1px solid rgba(167,139,250,0.35)" }}>
-                    Passage Set
-                  </span>
-                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                    {qs.length} question{qs.length !== 1 ? "s" : ""}
-                  </span>
+                  <div className="flex-1 min-w-0">
+                    {/* Top row: badge + count + topic + difficulties */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="px-1.5 py-0.5 rounded text-xs font-semibold flex-shrink-0"
+                        style={{ background: "rgba(167,139,250,0.15)", color: "#a78bfa", border: "1px solid rgba(167,139,250,0.35)" }}>
+                        Passage Set
+                      </span>
+                      <span className="text-xs flex-shrink-0" style={{ color: "var(--text-muted)" }}>
+                        {qs.length} question{qs.length !== 1 ? "s" : ""}
+                      </span>
+                      {firstQ && (
+                        <span className="text-xs font-semibold truncate" style={{ color: sectionColor }}>
+                          {firstQ.topic}
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1 ml-auto flex-shrink-0">
+                        {(["easy", "medium", "hard"] as const).filter((d) => diffCounts[d]).map((d) => (
+                          <span key={d} className="px-1.5 py-0.5 rounded text-xs font-semibold capitalize"
+                            style={{ background: `${DIFF_COLORS[d]}18`, color: DIFF_COLORS[d] }}>
+                            {diffCounts[d]}{d[0].toUpperCase()}
+                          </span>
+                        ))}
+                      </span>
+                    </div>
+                    {/* Passage preview — only when collapsed */}
+                    {!isOpen && passagePreview && (
+                      <p className="text-xs mt-1.5 leading-relaxed line-clamp-2"
+                        style={{ color: "var(--text-muted)" }}>
+                        {passagePreview}{firstQ!.passage!.length > 140 ? "…" : ""}
+                      </p>
+                    )}
+                  </div>
+                </button>
                 </button>
                 {/* Questions — only shown when expanded */}
                 {isOpen && qs.map(({ q, idx }, qPos) => (
