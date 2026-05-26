@@ -6,11 +6,10 @@ import Footer from "../components/Footer";
 import GenerateTab from "./_components/GenerateTab";
 import SettingsTab from "./_components/SettingsTab";
 import DatabaseTab from "./_components/DatabaseTab";
-import PipelinesTab from "./_components/PipelinesTab";
 import FormattingTab from "./_components/FormattingTab";
 import LockedTab from "./_components/LockedTab";
 
-type Tab = "generate" | "pipelines" | "settings" | "database" | "formatting" | "locked";
+type Tab = "generate" | "settings" | "database" | "formatting" | "locked";
 
 const ADMIN_USER = "admin";
 const ADMIN_PASS = "MCATadmin";
@@ -158,8 +157,8 @@ export default function AdminPage() {
           </button>
         </div>
 
-        <div className="flex gap-0 mb-6 overflow-x-auto" style={{ borderBottom: "1px solid var(--border)" }}>
-          {(["generate", "pipelines", "settings", "database", "formatting", "locked"] as Tab[]).map((t) => (
+        <div className="flex gap-0 mb-6" style={{ borderBottom: "1px solid var(--border)" }}>
+          {(["generate", "database", "formatting", "locked", "settings"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -170,22 +169,20 @@ export default function AdminPage() {
                 marginBottom: -1,
               }}
             >
-              {t === "generate" ? "Question Generation"
-                : t === "pipelines"  ? "Pipelines"
-                : t === "settings"   ? "Settings"
+              {t === "generate"   ? "Question Generation"
                 : t === "database"   ? "Database"
                 : t === "formatting" ? "Formatting"
-                : "Locked"}
+                : t === "locked"     ? "Locked"
+                : "Settings"}
             </button>
           ))}
         </div>
 
         {tab === "generate"  && <GenerateTab />}
-        {tab === "pipelines" && <PipelinesTab />}
         {tab === "settings"  && <SettingsTab />}
-        {tab === "database"   && <DatabaseTab />}
+        {tab === "database"  && <DatabaseTab />}
         {tab === "formatting" && <FormattingTab />}
-        {tab === "locked"     && <LockedTab />}
+        {tab === "locked"    && <LockedTab />}
       </div>
 
       <Footer />
