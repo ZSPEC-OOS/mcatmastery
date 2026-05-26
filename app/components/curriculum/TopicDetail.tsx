@@ -572,7 +572,6 @@ export default function TopicDetail({ selectionKey }: Props) {
                     )}
                   </div>
                 </button>
-                </button>
                 {/* Questions — only shown when expanded */}
                 {isOpen && qs.map(({ q, idx }, qPos) => (
                   <button key={q.id} onClick={() => setViewQ(q)} className="w-full text-left px-4 py-3 transition-colors"
