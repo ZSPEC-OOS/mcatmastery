@@ -447,7 +447,9 @@ export default function DatabaseTab() {
   function removeFinding(id: string) {
     setAuditFindings((prev) => {
       const next = prev.filter((f) => f.questionId !== id);
-      if (next.length === 0) {
+      // Only reset to idle when the audit has actually finished — if the stream is still
+      // running, new findings may arrive, so we must not flip the state back to idle yet.
+      if (next.length === 0 && auditState !== "running") {
         setAuditState("idle");
         // The refreshStats in startAudit runs right when the SSE stream closes, before
         // the user has reviewed any findings. Re-sync here so the count is accurate
