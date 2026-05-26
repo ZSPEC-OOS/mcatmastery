@@ -188,11 +188,12 @@ function UnmatchedModal({
 }
 
 export default function CurriculumTab() {
-  const [activeKey, setActiveKey]       = useState("");
-  const [reconcileState, setRecState]   = useState<ReconcileState>("idle");
-  const [reconcileResult, setRecResult] = useState<ReconcileResult | null>(null);
-  const [showModal, setShowModal]       = useState(false);
-  const resetTimer                      = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [activeKey, setActiveKey]         = useState("");
+  const [mobileSidebarOpen, setMobileOpen] = useState(false);
+  const [reconcileState, setRecState]     = useState<ReconcileState>("idle");
+  const [reconcileResult, setRecResult]   = useState<ReconcileResult | null>(null);
+  const [showModal, setShowModal]         = useState(false);
+  const resetTimer                        = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function handleResolved(id: string) {
     setRecResult((prev) =>
@@ -221,8 +222,20 @@ export default function CurriculumTab() {
     <div className="flex flex-col" style={{ height: "calc(100vh - 240px)", minHeight: 520 }}>
 
       {/* Toolbar */}
-      <div className="flex items-center gap-3 mb-3 flex-shrink-0">
-        <div>
+      <div className="flex items-center gap-2 mb-3 flex-shrink-0 flex-wrap">
+        {/* Mobile: open sidebar overlay */}
+        <button
+          className="md:hidden flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg flex-shrink-0"
+          style={{ border: "1px solid var(--border)", color: "var(--text-secondary)", background: "var(--bg-card)" }}
+          onClick={() => setMobileOpen(true)}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+          Topics
+        </button>
+
+        <div className="hidden md:block">
           <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Question Bank</p>
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
             Browse questions by section, group, or topic
@@ -279,15 +292,50 @@ export default function CurriculumTab() {
 
       {/* Two-panel browser */}
       <div
-        className="flex flex-1 rounded-xl overflow-hidden"
+        className="flex flex-1 rounded-xl overflow-hidden relative"
         style={{ border: "1px solid var(--border)", minHeight: 0 }}
       >
-        {/* Sidebar — always visible; TopicSidebar owns its own width/border */}
-        <div className="flex-shrink-0">
+        {/* Mobile: sidebar overlay (slides in from left) */}
+        {mobileSidebarOpen && (
+          <div className="md:hidden absolute inset-0 z-40 flex">
+            <div className="flex-shrink-0 flex flex-col overflow-hidden" style={{ background: "var(--bg-card)", maxWidth: "82%" }}>
+              <div className="flex items-center justify-between px-4 py-3 flex-shrink-0"
+                style={{ borderBottom: "1px solid var(--border)" }}>
+                <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                  Sections
+                </span>
+                <button
+                  onClick={() => setMobileOpen(false)}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg"
+                  style={{ background: "var(--bg-elevated)", color: "var(--text-muted)" }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+              <div className="overflow-y-auto flex-1">
+                <TopicSidebar
+                  activeKey={activeKey}
+                  onSelect={(key) => { setActiveKey(key); setMobileOpen(false); }}
+                />
+              </div>
+            </div>
+            {/* Dim backdrop — tap to close */}
+            <div
+              className="flex-1"
+              style={{ background: "rgba(0,0,0,0.45)" }}
+              onClick={() => setMobileOpen(false)}
+            />
+          </div>
+        )}
+
+        {/* Desktop sidebar — hidden on mobile */}
+        <div className="hidden md:block flex-shrink-0">
           <TopicSidebar activeKey={activeKey} onSelect={setActiveKey} />
         </div>
 
-        {/* Main content */}
+        {/* Main content — full width on mobile */}
         <div className="flex-1 overflow-y-auto min-w-0">
           <TopicDetail selectionKey={activeKey} />
         </div>
