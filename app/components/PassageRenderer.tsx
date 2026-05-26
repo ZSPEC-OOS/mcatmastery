@@ -36,6 +36,68 @@ function listType(lines: string[]): "ul" | "ol" | null {
   return null;
 }
 
+// Detect markdown table: lines where every line starts and ends with |
+function isTableBlock(lines: string[]): boolean {
+  if (lines.length < 2) return false;
+  return lines.every(l => /^\|.*\|$/.test(l.trim()));
+}
+
+function parseTableRow(line: string): string[] {
+  return line.trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim());
+}
+
+function isSeparatorRow(cols: string[]): boolean {
+  return cols.every(c => /^:?-+:?$/.test(c));
+}
+
+function renderTable(lines: string[], key: number, mb: string | number) {
+  const rows = lines.map(parseTableRow);
+  const headerRow = rows[0];
+  const dataRows = rows.filter((_, i) => i > 0 && !isSeparatorRow(rows[i]));
+
+  return (
+    <div key={key} style={{ overflowX: "auto", marginBottom: mb }}>
+      <table style={{
+        borderCollapse: "collapse",
+        width: "100%",
+        fontSize: "0.82rem",
+        lineHeight: 1.5,
+      }}>
+        <thead>
+          <tr>
+            {headerRow.map((cell, ci) => (
+              <th key={ci} style={{
+                padding: "6px 12px",
+                textAlign: "left",
+                borderBottom: "2px solid var(--border)",
+                fontWeight: 600,
+                color: "var(--text-primary)",
+                whiteSpace: "nowrap",
+              }}>
+                {renderInline(cell, `th-${key}-${ci}`)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {dataRows.map((row, ri) => (
+            <tr key={ri} style={{ borderBottom: "1px solid var(--border)" }}>
+              {row.map((cell, ci) => (
+                <td key={ci} style={{
+                  padding: "5px 12px",
+                  color: "var(--text-secondary)",
+                }}>
+                  {renderInline(cell, `td-${key}-${ri}-${ci}`)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 interface PassageRendererProps {
   text: string;
   style?: React.CSSProperties;
@@ -49,7 +111,7 @@ export function PassageRenderer({ text, style, className }: PassageRendererProps
     <div
       className={className}
       style={{
-        fontFamily: 'var(--font-playfair), Georgia, "Times New Roman", serif',
+        fontFamily: 'var(--font-roboto), system-ui, sans-serif',
         fontSize: "0.875rem",
         lineHeight: 1.78,
         ...style,
@@ -57,8 +119,13 @@ export function PassageRenderer({ text, style, className }: PassageRendererProps
     >
       {paragraphs.map((para, pi) => {
         const lines = para.split("\n");
-        const kind = listType(lines);
         const mb = pi < paragraphs.length - 1 ? "0.9em" : 0;
+
+        if (isTableBlock(lines)) {
+          return renderTable(lines, pi, mb);
+        }
+
+        const kind = listType(lines);
 
         if (kind === "ul") {
           return (
