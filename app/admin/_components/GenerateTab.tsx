@@ -12,17 +12,6 @@ type GenEvent =
 
 interface CustomModel { id: string; name: string; modelId: string; baseUrl: string; apiKey: string; role?: string }
 
-const PIPELINE_STEPS = [
-  { n: 1, title: "Input Config",       desc: "Section, subtypes, count, and duplicate filter threshold. Model is set by role in Custom Models." },
-  { n: 2, title: "Load Existing",      desc: "Last 100 questions from the same section fetched for dedup." },
-  { n: 3, title: "Generate (Claude)",  desc: "Passage-based subtypes → one call produces a shared passage + 4–7 questions. Discrete subtypes → one call per question." },
-  { n: 4, title: "Parse JSON",         desc: "Output parsed; regex extracts JSON block from model response." },
-  { n: 5, title: "Jaccard Dedup",      desc: "Word-overlap similarity vs existing stems. Skip if > threshold." },
-  { n: 6, title: "Quality Validation", desc: "Second Claude call checks accuracy, answer key, MCAT alignment." },
-  { n: 7, title: "Apply Corrections",  desc: "Pass → keep original. Fail + corrected → use fix. Fail only → discard." },
-  { n: 8, title: "Save to Database",   desc: "Persisted with all metadata: section, topic, subtype, and options." },
-  { n: 9, title: "Stream via SSE",     desc: "Server-Sent Events push progress/question/skip/done to client." },
-];
 
 export default function GenerateTab() {
   const [section, setSection]           = useState<Section>("Bio/Biochem");
@@ -34,7 +23,6 @@ export default function GenerateTab() {
   const [running, setRunning]           = useState(false);
   const [events, setEvents]             = useState<GenEvent[]>([]);
   const [progress, setProgress]         = useState<{ current: number; total: number; topic?: string }>({ current: 0, total: 0 });
-  const [pipelineOpen, setPipelineOpen] = useState(false);
   const [customModels, setCustomModels] = useState<CustomModel[]>([]);
   const [modelsLoading, setModelsLoading] = useState(true);
   const [imageGenEnabled, setImageGen]  = useState(false);
@@ -125,46 +113,6 @@ export default function GenerateTab() {
 
   return (
     <div>
-      {/* Pipeline explanation */}
-      <div className="rounded-xl mb-6" style={{ border: "1px solid var(--border)" }}>
-        <button
-          onClick={() => setPipelineOpen((v) => !v)}
-          className="w-full flex items-center justify-between px-5 py-3.5 text-left"
-        >
-          <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-            Generation Pipeline — how it works
-          </span>
-          <svg
-            width="14" height="14" viewBox="0 0 24 24" fill="none"
-            stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round"
-            style={{ transform: pipelineOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}
-          >
-            <path d="M6 9l6 6 6-6" />
-          </svg>
-        </button>
-
-        {pipelineOpen && (
-          <div
-            className="px-5 pb-5 grid grid-cols-1 sm:grid-cols-3 gap-3"
-            style={{ borderTop: "1px solid var(--border)" }}
-          >
-            {PIPELINE_STEPS.map((s) => (
-              <div key={s.n} className="rounded-lg px-4 py-3" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                <div className="flex items-center gap-2 mb-1">
-                  <span
-                    className="w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0"
-                    style={{ background: "rgba(27,58,107,0.18)", color: "var(--accent-blue)" }}
-                  >
-                    {s.n}
-                  </span>
-                  <span className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>{s.title}</span>
-                </div>
-                <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>{s.desc}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
       {/* Form + output */}
       <div className="flex flex-col lg:flex-row gap-6">
