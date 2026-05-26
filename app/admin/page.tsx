@@ -157,12 +157,20 @@ export default function AdminPage() {
           </button>
         </div>
 
-        <div className="flex gap-0 mb-6" style={{ borderBottom: "1px solid var(--border)" }}>
+        <div
+          className="flex gap-0 mb-6 overflow-x-auto sm:overflow-x-visible"
+          style={{
+            borderBottom: "1px solid var(--border)",
+            WebkitOverflowScrolling: "touch",
+            scrollbarWidth: "none",
+            msOverflowStyle: "none",
+          }}
+        >
           {(["generate", "database", "formatting", "locked", "settings"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className="px-5 pb-2.5 text-sm font-medium whitespace-nowrap"
+              className="px-3 sm:px-5 pb-2.5 text-sm font-medium whitespace-nowrap flex-shrink-0"
               style={{
                 color: tab === t ? "var(--text-primary)" : "var(--text-secondary)",
                 borderBottom: tab === t ? "2px solid var(--accent-blue)" : "2px solid transparent",
