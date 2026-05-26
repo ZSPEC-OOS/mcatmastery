@@ -11,6 +11,7 @@ type Q = {
   explanation: string;
   difficulty: string;
   formattingStatus?: string;
+  passageGroupId?: string | null;
 };
 
 type CardState =
@@ -98,6 +99,24 @@ export default function FormattingTab() {
 
   const pending = questions.filter((q) => getState(q.id).status !== "done");
 
+  // Group passage siblings together
+  const passageMapFmt: Record<string, Q[]> = {};
+  for (const q of questions) {
+    if (q.passageGroupId) (passageMapFmt[q.passageGroupId] ??= []).push(q);
+  }
+  const fmtRows: Array<{ kind: "q"; q: Q } | { kind: "pg"; id: string; qs: Q[] }> = [];
+  {
+    const seen = new Set<string>();
+    for (const q of questions) {
+      if (!q.passageGroupId) {
+        fmtRows.push({ kind: "q", q });
+      } else if (!seen.has(q.passageGroupId)) {
+        seen.add(q.passageGroupId);
+        fmtRows.push({ kind: "pg", id: q.passageGroupId, qs: passageMapFmt[q.passageGroupId] });
+      }
+    }
+  }
+
   if (loading) {
     return <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading…</p>;
   }
@@ -141,121 +160,189 @@ export default function FormattingTab() {
       )}
 
       <div className="space-y-4">
-        {questions.map((q) => {
-          const s = getState(q.id);
-          if (s.status === "done") return null;
-
-          return (
-            <div key={q.id} className="rounded-xl overflow-hidden"
-              style={{ border: "1px solid var(--border)", background: "var(--bg-card)" }}>
-
-              {/* Question header */}
-              <div className="px-5 py-3.5 flex items-start justify-between gap-4"
-                style={{ borderBottom: "1px solid var(--border)" }}>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="flex items-center gap-1.5 text-xs font-semibold"
-                      style={{ color: SECTION_COLORS[q.section] }}>
-                      <span className="w-2 h-2 rounded-full flex-shrink-0"
-                        style={{ background: SECTION_COLORS[q.section] }} />
-                      {q.section}
-                    </span>
-                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>· {q.topic}</span>
-                    <span className="px-2 py-0.5 rounded text-xs font-semibold capitalize"
-                      style={{ background: `${DIFF_COLORS[q.difficulty]}18`, color: DIFF_COLORS[q.difficulty] }}>
-                      {q.difficulty}
-                    </span>
+        {fmtRows.map((row) => {
+          if (row.kind === "q") {
+            const q = row.q;
+            const s = getState(q.id);
+            if (s.status === "done") return null;
+            return (
+              <div key={q.id} className="rounded-xl overflow-hidden"
+                style={{ border: "1px solid var(--border)", background: "var(--bg-card)" }}>
+                <div className="px-5 py-3.5 flex items-start justify-between gap-4"
+                  style={{ borderBottom: "1px solid var(--border)" }}>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: SECTION_COLORS[q.section] }}>
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: SECTION_COLORS[q.section] }} />
+                        {q.section}
+                      </span>
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>· {q.topic}</span>
+                      <span className="px-2 py-0.5 rounded text-xs font-semibold capitalize"
+                        style={{ background: `${DIFF_COLORS[q.difficulty]}18`, color: DIFF_COLORS[q.difficulty] }}>
+                        {q.difficulty}
+                      </span>
+                      <span className="px-1.5 py-0.5 rounded text-xs font-semibold"
+                        style={{ background: "rgba(100,116,139,0.12)", color: "#94a3b8", border: "1px solid rgba(100,116,139,0.25)" }}>
+                        Discrete
+                      </span>
+                    </div>
+                    <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                      {q.stem.length > 120 ? q.stem.slice(0, 120) + "…" : q.stem}
+                    </p>
                   </div>
-                  <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                    {q.stem.length > 120 ? q.stem.slice(0, 120) + "…" : q.stem}
-                  </p>
+                  {s.status === "idle" && (
+                    <button onClick={() => formatQuestion(q.id)} className="px-3 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0"
+                      style={{ background: "rgba(99,102,241,0.12)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)" }}>
+                      Format
+                    </button>
+                  )}
+                  {s.status === "loading" && (
+                    <span className="px-3 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0"
+                      style={{ background: "rgba(99,102,241,0.08)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.2)" }}>
+                      Formatting…
+                    </span>
+                  )}
+                  {s.status === "saving" && (
+                    <span className="px-3 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0" style={{ color: "var(--text-muted)" }}>
+                      Saving…
+                    </span>
+                  )}
                 </div>
-
-                {s.status === "idle" && (
-                  <button
-                    onClick={() => formatQuestion(q.id)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0"
-                    style={{ background: "rgba(99,102,241,0.12)", color: "#818cf8",
-                      border: "1px solid rgba(99,102,241,0.3)" }}
-                  >
-                    Format
-                  </button>
+                {(s.status === "idle" || s.status === "loading") && (
+                  <div className="px-5 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--text-muted)" }}>
+                      Current Explanation
+                    </p>
+                    <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>{q.explanation}</p>
+                  </div>
                 )}
-                {s.status === "loading" && (
-                  <span className="px-3 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0"
-                    style={{ background: "rgba(99,102,241,0.08)", color: "#818cf8",
-                      border: "1px solid rgba(99,102,241,0.2)" }}>
-                    Formatting…
-                  </span>
-                )}
-                {s.status === "saving" && (
-                  <span className="px-3 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0"
-                    style={{ color: "var(--text-muted)" }}>
-                    Saving…
-                  </span>
+                {s.status === "preview" && (
+                  <>
+                    <div className="grid grid-cols-2 divide-x" style={{ borderBottom: "1px solid var(--border)", borderColor: "var(--border)" }}>
+                      <div className="px-5 py-4">
+                        <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--text-muted)" }}>Before</p>
+                        <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>{q.explanation}</p>
+                      </div>
+                      <div className="px-5 py-4">
+                        <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#818cf8" }}>After</p>
+                        <PassageRenderer text={s.formatted} style={{ fontSize: "0.75rem", lineHeight: 1.65, color: "var(--text-primary)", fontFamily: "inherit" }} />
+                      </div>
+                    </div>
+                    <div className="px-5 py-3 flex items-center gap-2">
+                      <button onClick={() => applyFormat(q.id, s.formatted)} className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                        style={{ background: "rgba(74,222,128,0.12)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.3)" }}>
+                        Apply
+                      </button>
+                      <button onClick={() => setState(q.id, { status: "idle" })} className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                        style={{ background: "rgba(224,92,92,0.1)", color: "#e05c5c", border: "1px solid rgba(224,92,92,0.25)" }}>
+                        Discard
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
+            );
+          }
 
-              {/* Current explanation */}
-              {(s.status === "idle" || s.status === "loading") && (
-                <div className="px-5 py-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider mb-2"
-                    style={{ color: "var(--text-muted)" }}>
-                    Current Explanation
-                  </p>
-                  <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                    {q.explanation}
-                  </p>
-                </div>
-              )}
-
-              {/* Preview */}
-              {s.status === "preview" && (
-                <>
-                  <div className="grid grid-cols-2 divide-x" style={{ borderBottom: "1px solid var(--border)", borderColor: "var(--border)" }}>
-                    {/* Before */}
-                    <div className="px-5 py-4">
-                      <p className="text-xs font-semibold uppercase tracking-wider mb-2"
-                        style={{ color: "var(--text-muted)" }}>
-                        Before
-                      </p>
-                      <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                        {q.explanation}
-                      </p>
+          // Passage group
+          const { id: groupId, qs } = row;
+          const visibleQs = qs.filter((q) => getState(q.id).status !== "done");
+          if (visibleQs.length === 0) return null;
+          return (
+            <div key={groupId} className="rounded-xl overflow-hidden"
+              style={{ border: "1px solid rgba(167,139,250,0.4)", background: "var(--bg-card)" }}>
+              {/* Group header */}
+              <div className="px-5 py-3 flex items-center gap-2"
+                style={{ background: "rgba(167,139,250,0.06)", borderBottom: "1px solid rgba(167,139,250,0.2)" }}>
+                <span className="px-1.5 py-0.5 rounded text-xs font-semibold"
+                  style={{ background: "rgba(167,139,250,0.15)", color: "#a78bfa", border: "1px solid rgba(167,139,250,0.35)" }}>
+                  Passage Set
+                </span>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  {visibleQs.length} question{visibleQs.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+              {/* Individual question cards within the group */}
+              {qs.map((q) => {
+                const s = getState(q.id);
+                if (s.status === "done") return null;
+                return (
+                  <div key={q.id} style={{ borderTop: "1px solid rgba(167,139,250,0.15)" }}>
+                    <div className="px-5 py-3.5 flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: SECTION_COLORS[q.section] }}>
+                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: SECTION_COLORS[q.section] }} />
+                            {q.section}
+                          </span>
+                          <span className="text-xs" style={{ color: "var(--text-muted)" }}>· {q.topic}</span>
+                          <span className="px-2 py-0.5 rounded text-xs font-semibold capitalize"
+                            style={{ background: `${DIFF_COLORS[q.difficulty]}18`, color: DIFF_COLORS[q.difficulty] }}>
+                            {q.difficulty}
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded text-xs font-semibold"
+                            style={{ background: "rgba(167,139,250,0.12)", color: "#a78bfa", border: "1px solid rgba(167,139,250,0.25)" }}>
+                            Passage
+                          </span>
+                        </div>
+                        <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                          {q.stem.length > 120 ? q.stem.slice(0, 120) + "…" : q.stem}
+                        </p>
+                      </div>
+                      {s.status === "idle" && (
+                        <button onClick={() => formatQuestion(q.id)} className="px-3 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0"
+                          style={{ background: "rgba(99,102,241,0.12)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)" }}>
+                          Format
+                        </button>
+                      )}
+                      {s.status === "loading" && (
+                        <span className="px-3 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0"
+                          style={{ background: "rgba(99,102,241,0.08)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.2)" }}>
+                          Formatting…
+                        </span>
+                      )}
+                      {s.status === "saving" && (
+                        <span className="px-3 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0" style={{ color: "var(--text-muted)" }}>
+                          Saving…
+                        </span>
+                      )}
                     </div>
-                    {/* After */}
-                    <div className="px-5 py-4">
-                      <p className="text-xs font-semibold uppercase tracking-wider mb-2"
-                        style={{ color: "#818cf8" }}>
-                        After
-                      </p>
-                      <PassageRenderer
-                        text={s.formatted}
-                        style={{ fontSize: "0.75rem", lineHeight: 1.65, color: "var(--text-primary)",
-                          fontFamily: "inherit" }}
-                      />
-                    </div>
+                    {(s.status === "idle" || s.status === "loading") && (
+                      <div className="px-5 py-4" style={{ borderTop: "1px solid rgba(167,139,250,0.1)" }}>
+                        <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--text-muted)" }}>
+                          Current Explanation
+                        </p>
+                        <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>{q.explanation}</p>
+                      </div>
+                    )}
+                    {s.status === "preview" && (
+                      <>
+                        <div className="grid grid-cols-2 divide-x"
+                          style={{ borderTop: "1px solid rgba(167,139,250,0.1)", borderBottom: "1px solid rgba(167,139,250,0.15)", borderColor: "var(--border)" }}>
+                          <div className="px-5 py-4">
+                            <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--text-muted)" }}>Before</p>
+                            <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>{q.explanation}</p>
+                          </div>
+                          <div className="px-5 py-4">
+                            <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#818cf8" }}>After</p>
+                            <PassageRenderer text={s.formatted} style={{ fontSize: "0.75rem", lineHeight: 1.65, color: "var(--text-primary)", fontFamily: "inherit" }} />
+                          </div>
+                        </div>
+                        <div className="px-5 py-3 flex items-center gap-2" style={{ borderTop: "1px solid rgba(167,139,250,0.1)" }}>
+                          <button onClick={() => applyFormat(q.id, s.formatted)} className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                            style={{ background: "rgba(74,222,128,0.12)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.3)" }}>
+                            Apply
+                          </button>
+                          <button onClick={() => setState(q.id, { status: "idle" })} className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                            style={{ background: "rgba(224,92,92,0.1)", color: "#e05c5c", border: "1px solid rgba(224,92,92,0.25)" }}>
+                            Discard
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <div className="px-5 py-3 flex items-center gap-2">
-                    <button
-                      onClick={() => applyFormat(q.id, s.formatted)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold"
-                      style={{ background: "rgba(74,222,128,0.12)", color: "#4ade80",
-                        border: "1px solid rgba(74,222,128,0.3)" }}
-                    >
-                      Apply
-                    </button>
-                    <button
-                      onClick={() => setState(q.id, { status: "idle" })}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold"
-                      style={{ background: "rgba(224,92,92,0.1)", color: "#e05c5c",
-                        border: "1px solid rgba(224,92,92,0.25)" }}
-                    >
-                      Discard
-                    </button>
-                  </div>
-                </>
-              )}
+                );
+              })}
             </div>
           );
         })}

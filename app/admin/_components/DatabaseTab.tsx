@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { SECTION_COLORS, DIFF_COLORS } from "./shared";
 import { PassageRenderer } from "../../components/PassageRenderer";
 
-type RecentQ = { id: string; section: string; topic: string; stem: string; difficulty: string; createdAt: string };
+type RecentQ = { id: string; section: string; topic: string; stem: string; difficulty: string; createdAt: string; passageGroupId?: string | null };
 type FullQ = RecentQ & {
   passage: string | null;
   optionA: string; optionB: string; optionC: string; optionD: string;
@@ -466,6 +466,24 @@ export default function DatabaseTab() {
 
   const needsAuditCount = stats.needsAudit.length;
 
+  // Group passage siblings so they appear together in the audit queue
+  const passageMapAudit: Record<string, RecentQ[]> = {};
+  for (const q of stats.needsAudit) {
+    if (q.passageGroupId) (passageMapAudit[q.passageGroupId] ??= []).push(q);
+  }
+  const auditRows: Array<{ kind: "q"; q: RecentQ } | { kind: "pg"; id: string; qs: RecentQ[] }> = [];
+  {
+    const seen = new Set<string>();
+    for (const q of stats.needsAudit) {
+      if (!q.passageGroupId) {
+        auditRows.push({ kind: "q", q });
+      } else if (!seen.has(q.passageGroupId)) {
+        seen.add(q.passageGroupId);
+        auditRows.push({ kind: "pg", id: q.passageGroupId, qs: passageMapAudit[q.passageGroupId] });
+      }
+    }
+  }
+
   return (
     <div>
       {/* ── Audit Queue section ── */}
@@ -821,79 +839,160 @@ export default function DatabaseTab() {
           </div>
         )}
 
-        {stats.needsAudit.map((q) => (
-          <div key={q.id}>
-            {/* Desktop row */}
-            <div
-              onClick={() => setExpanded(q.id)}
-              className="hidden md:grid items-center cursor-pointer transition-colors"
-              style={{
-                gridTemplateColumns: "110px 1fr 80px 110px 60px",
-                borderTop: "1px solid var(--border)",
-                background: "var(--bg-card)",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-card-hover)")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "var(--bg-card)")}
-            >
-              <span className="px-4 py-3 text-xs flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: SECTION_COLORS[q.section] }} />
-                <span style={{ color: "var(--text-secondary)" }}>{q.section}</span>
-              </span>
-              <span className="px-4 py-3 text-xs" style={{ color: "var(--text-primary)" }}>
-                {q.stem.length > 90 ? q.stem.slice(0, 90) + "…" : q.stem}
-              </span>
-              <span className="px-4 py-3">
-                <span className="px-2 py-0.5 rounded text-xs font-semibold capitalize"
-                  style={{ background: `${DIFF_COLORS[q.difficulty]}18`, color: DIFF_COLORS[q.difficulty] }}>
-                  {q.difficulty}
-                </span>
-              </span>
-              <span className="px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>{fmtDate(q.createdAt)}</span>
-              <span className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                <button
-                  onClick={() => handleDelete(q.id)}
-                  disabled={deleting === q.id}
-                  className="text-xs px-2 py-1 rounded"
-                  style={{ background: "rgba(224,92,92,0.1)", color: "#e05c5c",
-                    border: "1px solid rgba(224,92,92,0.25)", opacity: deleting === q.id ? 0.5 : 1 }}
+        {auditRows.map((row) => {
+          if (row.kind === "q") {
+            const q = row.q;
+            return (
+              <div key={q.id}>
+                {/* Desktop row */}
+                <div
+                  onClick={() => setExpanded(q.id)}
+                  className="hidden md:grid items-center cursor-pointer transition-colors"
+                  style={{ gridTemplateColumns: "110px 1fr 80px 110px 60px", borderTop: "1px solid var(--border)", background: "var(--bg-card)" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-card-hover)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "var(--bg-card)")}
                 >
-                  {deleting === q.id ? "…" : "Delete"}
-                </button>
-              </span>
-            </div>
-
-            {/* Mobile card */}
-            <div
-              onClick={() => setExpanded(q.id)}
-              className="md:hidden p-4 cursor-pointer"
-              style={{ borderTop: "1px solid var(--border)", background: "var(--bg-card)" }}
-              onTouchStart={(e) => (e.currentTarget.style.background = "var(--bg-card-hover)")}
-              onTouchEnd={(e) => (e.currentTarget.style.background = "var(--bg-card)")}
-            >
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="flex items-center gap-1.5 text-xs">
-                  <span className="w-2 h-2 rounded-full" style={{ background: SECTION_COLORS[q.section] }} />
-                  <span style={{ color: "var(--text-secondary)" }}>{q.section}</span>
-                  <span style={{ color: "var(--text-muted)" }}>· {q.topic}</span>
+                  <span className="px-4 py-3 text-xs">
+                    <span className="flex items-center gap-1.5 mb-1">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: SECTION_COLORS[q.section] }} />
+                      <span style={{ color: "var(--text-secondary)" }}>{q.section}</span>
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded text-xs font-semibold"
+                      style={{ background: "rgba(100,116,139,0.12)", color: "#94a3b8", border: "1px solid rgba(100,116,139,0.25)" }}>
+                      Discrete
+                    </span>
+                  </span>
+                  <span className="px-4 py-3 text-xs" style={{ color: "var(--text-primary)" }}>
+                    {q.stem.length > 90 ? q.stem.slice(0, 90) + "…" : q.stem}
+                  </span>
+                  <span className="px-4 py-3">
+                    <span className="px-2 py-0.5 rounded text-xs font-semibold capitalize"
+                      style={{ background: `${DIFF_COLORS[q.difficulty]}18`, color: DIFF_COLORS[q.difficulty] }}>
+                      {q.difficulty}
+                    </span>
+                  </span>
+                  <span className="px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>{fmtDate(q.createdAt)}</span>
+                  <span className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    <button onClick={() => handleDelete(q.id)} disabled={deleting === q.id} className="text-xs px-2 py-1 rounded"
+                      style={{ background: "rgba(224,92,92,0.1)", color: "#e05c5c", border: "1px solid rgba(224,92,92,0.25)", opacity: deleting === q.id ? 0.5 : 1 }}>
+                      {deleting === q.id ? "…" : "Delete"}
+                    </button>
+                  </span>
+                </div>
+                {/* Mobile card */}
+                <div onClick={() => setExpanded(q.id)} className="md:hidden p-4 cursor-pointer"
+                  style={{ borderTop: "1px solid var(--border)", background: "var(--bg-card)" }}
+                  onTouchStart={(e) => (e.currentTarget.style.background = "var(--bg-card-hover)")}
+                  onTouchEnd={(e) => (e.currentTarget.style.background = "var(--bg-card)")}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="flex items-center gap-1.5 text-xs flex-wrap">
+                      <span className="w-2 h-2 rounded-full" style={{ background: SECTION_COLORS[q.section] }} />
+                      <span style={{ color: "var(--text-secondary)" }}>{q.section}</span>
+                      <span style={{ color: "var(--text-muted)" }}>· {q.topic}</span>
+                      <span className="px-1.5 py-0.5 rounded text-xs font-semibold"
+                        style={{ background: "rgba(100,116,139,0.12)", color: "#94a3b8", border: "1px solid rgba(100,116,139,0.25)" }}>
+                        Discrete
+                      </span>
+                    </span>
+                    <span onClick={(e) => e.stopPropagation()}>
+                      <button onClick={() => handleDelete(q.id)} disabled={deleting === q.id} className="text-xs px-2 py-1 rounded"
+                        style={{ background: "rgba(224,92,92,0.1)", color: "#e05c5c", border: "1px solid rgba(224,92,92,0.25)" }}>
+                        {deleting === q.id ? "…" : "Delete"}
+                      </button>
+                    </span>
+                  </div>
+                  <p className="text-xs leading-relaxed" style={{ color: "var(--text-primary)" }}>
+                    {q.stem.length > 100 ? q.stem.slice(0, 100) + "…" : q.stem}
+                  </p>
+                  <p className="text-xs mt-1.5" style={{ color: "var(--accent-blue)" }}>Tap to view full question →</p>
+                </div>
+              </div>
+            );
+          }
+          // Passage group
+          const { id: groupId, qs } = row;
+          return (
+            <div key={groupId} style={{ borderTop: "1px solid var(--border)" }}>
+              {/* Group header */}
+              <div className="flex items-center gap-2 px-4 py-2"
+                style={{ background: "rgba(167,139,250,0.06)", borderBottom: "1px solid rgba(167,139,250,0.2)" }}>
+                <span className="px-1.5 py-0.5 rounded text-xs font-semibold"
+                  style={{ background: "rgba(167,139,250,0.15)", color: "#a78bfa", border: "1px solid rgba(167,139,250,0.35)" }}>
+                  Passage Set
                 </span>
-                <span onClick={(e) => e.stopPropagation()}>
-                  <button
-                    onClick={() => handleDelete(q.id)}
-                    disabled={deleting === q.id}
-                    className="text-xs px-2 py-1 rounded"
-                    style={{ background: "rgba(224,92,92,0.1)", color: "#e05c5c", border: "1px solid rgba(224,92,92,0.25)" }}
-                  >
-                    {deleting === q.id ? "…" : "Delete"}
-                  </button>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  {qs.length} question{qs.length !== 1 ? "s" : ""}
                 </span>
               </div>
-              <p className="text-xs leading-relaxed" style={{ color: "var(--text-primary)" }}>
-                {q.stem.length > 100 ? q.stem.slice(0, 100) + "…" : q.stem}
-              </p>
-              <p className="text-xs mt-1.5" style={{ color: "var(--accent-blue)" }}>Tap to view full question →</p>
+              {qs.map((q) => (
+                <div key={q.id}>
+                  {/* Desktop row */}
+                  <div onClick={() => setExpanded(q.id)} className="hidden md:grid items-center cursor-pointer transition-colors"
+                    style={{ gridTemplateColumns: "110px 1fr 80px 110px 60px", borderTop: "1px solid rgba(167,139,250,0.15)", background: "rgba(167,139,250,0.02)" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(167,139,250,0.07)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(167,139,250,0.02)")}
+                  >
+                    <span className="px-4 py-3 text-xs">
+                      <span className="flex items-center gap-1.5 mb-1">
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: SECTION_COLORS[q.section] }} />
+                        <span style={{ color: "var(--text-secondary)" }}>{q.section}</span>
+                      </span>
+                      <span className="px-1.5 py-0.5 rounded text-xs font-semibold"
+                        style={{ background: "rgba(167,139,250,0.12)", color: "#a78bfa", border: "1px solid rgba(167,139,250,0.25)" }}>
+                        Passage
+                      </span>
+                    </span>
+                    <span className="px-4 py-3 text-xs" style={{ color: "var(--text-primary)" }}>
+                      {q.stem.length > 90 ? q.stem.slice(0, 90) + "…" : q.stem}
+                    </span>
+                    <span className="px-4 py-3">
+                      <span className="px-2 py-0.5 rounded text-xs font-semibold capitalize"
+                        style={{ background: `${DIFF_COLORS[q.difficulty]}18`, color: DIFF_COLORS[q.difficulty] }}>
+                        {q.difficulty}
+                      </span>
+                    </span>
+                    <span className="px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>{fmtDate(q.createdAt)}</span>
+                    <span className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <button onClick={() => handleDelete(q.id)} disabled={deleting === q.id} className="text-xs px-2 py-1 rounded"
+                        style={{ background: "rgba(224,92,92,0.1)", color: "#e05c5c", border: "1px solid rgba(224,92,92,0.25)", opacity: deleting === q.id ? 0.5 : 1 }}>
+                        {deleting === q.id ? "…" : "Delete"}
+                      </button>
+                    </span>
+                  </div>
+                  {/* Mobile card */}
+                  <div onClick={() => setExpanded(q.id)} className="md:hidden p-4 cursor-pointer"
+                    style={{ borderTop: "1px solid rgba(167,139,250,0.15)", background: "rgba(167,139,250,0.02)" }}
+                    onTouchStart={(e) => (e.currentTarget.style.background = "rgba(167,139,250,0.07)")}
+                    onTouchEnd={(e) => (e.currentTarget.style.background = "rgba(167,139,250,0.02)")}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="flex items-center gap-1.5 text-xs flex-wrap">
+                        <span className="w-2 h-2 rounded-full" style={{ background: SECTION_COLORS[q.section] }} />
+                        <span style={{ color: "var(--text-secondary)" }}>{q.section}</span>
+                        <span style={{ color: "var(--text-muted)" }}>· {q.topic}</span>
+                        <span className="px-1.5 py-0.5 rounded text-xs font-semibold"
+                          style={{ background: "rgba(167,139,250,0.12)", color: "#a78bfa", border: "1px solid rgba(167,139,250,0.25)" }}>
+                          Passage
+                        </span>
+                      </span>
+                      <span onClick={(e) => e.stopPropagation()}>
+                        <button onClick={() => handleDelete(q.id)} disabled={deleting === q.id} className="text-xs px-2 py-1 rounded"
+                          style={{ background: "rgba(224,92,92,0.1)", color: "#e05c5c", border: "1px solid rgba(224,92,92,0.25)" }}>
+                          {deleting === q.id ? "…" : "Delete"}
+                        </button>
+                      </span>
+                    </div>
+                    <p className="text-xs leading-relaxed" style={{ color: "var(--text-primary)" }}>
+                      {q.stem.length > 100 ? q.stem.slice(0, 100) + "…" : q.stem}
+                    </p>
+                    <p className="text-xs mt-1.5" style={{ color: "var(--accent-blue)" }}>Tap to view full question →</p>
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
