@@ -215,14 +215,6 @@ If you find any issues, respond with ONLY this JSON (include only changed fields
 
 Output ONLY valid JSON. No markdown, no preamble.`;
 
-type EnvStatus = {
-  anthropic: boolean;
-  database: boolean;
-  clerkPublishable: boolean;
-  clerkSecret: boolean;
-  firebaseServiceAccount: boolean;
-};
-
 type PromptKey = "generation_prompt" | "validation_prompt" | "image_generation_prompt" | "image_validation_prompt" | "audit_prompt";
 
 const PROMPT_LABELS: Record<PromptKey, string> = {
@@ -319,26 +311,7 @@ function PinModal({
   );
 }
 
-function EnvRow({ label, ok }: { label: string; ok: boolean }) {
-  return (
-    <div className="flex items-center justify-between py-2.5" style={{ borderBottom: "1px solid var(--border)" }}>
-      <span className="text-sm font-mono" style={{ color: "var(--text-secondary)" }}>{label}</span>
-      <span
-        className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full"
-        style={{
-          background: ok ? "rgba(74,222,128,0.12)" : "rgba(224,92,92,0.12)",
-          color: ok ? "#4ade80" : "#e05c5c",
-          border: `1px solid ${ok ? "rgba(74,222,128,0.3)" : "rgba(224,92,92,0.3)"}`,
-        }}
-      >
-        {ok ? "✓ Set" : "✗ Missing"}
-      </span>
-    </div>
-  );
-}
-
 export default function SettingsTab() {
-  const [env, setEnv]           = useState<EnvStatus | null>(null);
   const [prompts, setPrompts]   = useState<Record<PromptKey, string>>({
     generation_prompt:       DEFAULT_GEN_PROMPT,
     validation_prompt:       DEFAULT_VAL_PROMPT,
@@ -379,8 +352,7 @@ export default function SettingsTab() {
   useEffect(() => {
     fetch("/api/admin/settings")
       .then((r) => r.json())
-      .then((d: { env: EnvStatus; settings: Record<string, string> }) => {
-        setEnv(d.env);
+      .then((d: { settings: Record<string, string> }) => {
         setPrompts((prev) => {
           const next = { ...prev };
           (Object.keys(PROMPT_DEFAULTS) as PromptKey[]).forEach((k) => {
@@ -565,29 +537,6 @@ export default function SettingsTab() {
 
   return (
     <div className="space-y-6">
-
-      {/* Card 1: Environment Variables */}
-      <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-        <div className="px-5 py-3.5" style={{ background: "var(--bg-card)", borderBottom: "1px solid var(--border)" }}>
-          <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Environment Variables</h2>
-          <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-            Set these in your <strong>Vercel dashboard → Settings → Environment Variables</strong>. Never commit keys to git.
-          </p>
-        </div>
-        <div className="px-5 pb-1">
-          {env ? (
-            <>
-              <EnvRow label="ANTHROPIC_API_KEY" ok={env.anthropic} />
-              <EnvRow label="DATABASE_URL" ok={env.database} />
-              <EnvRow label="NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" ok={env.clerkPublishable} />
-              <EnvRow label="CLERK_SECRET_KEY" ok={env.clerkSecret} />
-              <EnvRow label="FIREBASE_SERVICE_ACCOUNT" ok={env.firebaseServiceAccount} />
-            </>
-          ) : (
-            <p className="text-xs py-4 text-center" style={{ color: "var(--text-muted)" }}>Loading…</p>
-          )}
-        </div>
-      </div>
 
       {/* Card 2: Firestore Integration */}
       <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
