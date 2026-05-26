@@ -200,6 +200,15 @@ export default function TopicDetail({ selectionKey }: Props) {
   const [reauditDone, setReauditDone] = useState(false);
   const [reformatting, setReformatting] = useState(false);
   const [reformatDone, setReformatDone] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  function toggleGroup(id: string) {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
 
   const sel = parseKey(selectionKey);
 
@@ -207,6 +216,7 @@ export default function TopicDetail({ selectionKey }: Props) {
     setQuestions([]);
     setReauditDone(false);
     setReformatDone(false);
+    setExpandedGroups(new Set());
     if (sel.type === "none") return;
 
     setLoading(true);
@@ -504,12 +514,22 @@ export default function TopicDetail({ selectionKey }: Props) {
             }
             // Passage group
             const { id: groupId, qs } = row;
+            const isOpen = expandedGroups.has(groupId);
             return (
               <div key={groupId} className="rounded-xl overflow-hidden"
                 style={{ border: "1px solid rgba(167,139,250,0.35)" }}>
-                {/* Group header */}
-                <div className="px-4 py-2 flex items-center gap-2"
-                  style={{ background: "rgba(167,139,250,0.06)", borderBottom: "1px solid rgba(167,139,250,0.2)" }}>
+                {/* Group header — click to expand/collapse */}
+                <button
+                  onClick={() => toggleGroup(groupId)}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-left"
+                  style={{ background: "rgba(167,139,250,0.06)", borderBottom: isOpen ? "1px solid rgba(167,139,250,0.2)" : undefined }}
+                >
+                  <svg
+                    width="12" height="12" viewBox="0 0 12 12" fill="none"
+                    style={{ color: "#a78bfa", flexShrink: 0, transition: "transform 0.15s", transform: isOpen ? "rotate(90deg)" : "rotate(0deg)" }}
+                  >
+                    <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
                   <span className="px-1.5 py-0.5 rounded text-xs font-semibold"
                     style={{ background: "rgba(167,139,250,0.15)", color: "#a78bfa", border: "1px solid rgba(167,139,250,0.35)" }}>
                     Passage Set
@@ -517,9 +537,9 @@ export default function TopicDetail({ selectionKey }: Props) {
                   <span className="text-xs" style={{ color: "var(--text-muted)" }}>
                     {qs.length} question{qs.length !== 1 ? "s" : ""}
                   </span>
-                </div>
-                {/* Questions */}
-                {qs.map(({ q, idx }, qPos) => (
+                </button>
+                {/* Questions — only shown when expanded */}
+                {isOpen && qs.map(({ q, idx }, qPos) => (
                   <button key={q.id} onClick={() => setViewQ(q)} className="w-full text-left px-4 py-3 transition-colors"
                     style={{ background: "rgba(167,139,250,0.02)", borderTop: qPos > 0 ? "1px solid rgba(167,139,250,0.15)" : undefined }}
                     onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(167,139,250,0.07)")}
