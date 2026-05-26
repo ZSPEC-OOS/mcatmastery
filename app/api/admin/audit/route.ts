@@ -26,7 +26,6 @@ If you find any issues, respond with ONLY this JSON (include only changed fields
   "issues": ["<specific concise description of issue 1>", "<specific concise description of issue 2>"],
   "corrected_question": {
     "stem": "<corrected stem, only if changed>",
-    "passage": "<corrected passage, only if changed>",
     "optionA": "<corrected A, only if changed>",
     "optionB": "<corrected B, only if changed>",
     "optionC": "<corrected C, only if changed>",
@@ -38,37 +37,21 @@ If you find any issues, respond with ONLY this JSON (include only changed fields
 
 Output ONLY valid JSON. No markdown, no preamble.`;
 
-const DEFAULT_PASSAGE_SET_AUDIT_PROMPT = `You are an expert MCAT content auditor. You will receive a JSON object with one shared passage and N questions forming a cohesive passage-based question set. Audit everything together.
+const DEFAULT_PASSAGE_AUDIT_PROMPT = `You are an expert MCAT content auditor. You will receive a passage in JSON format. Audit only the passage itself — do not audit any questions.
 
-Audit the PASSAGE for:
+Audit the passage for:
 1. Factual accuracy — all scientific claims, numbers, and processes are correct at MCAT level
 2. MCAT passage structure — passage includes at least one interpretable dataset (a table or numerically described result), integrates 2+ concepts across domains, and has sufficient mechanistic depth to support reasoning questions
 3. Internal consistency — passage content is self-consistent throughout; no contradictions
 
-Audit each QUESTION for:
-4. Passage dependency — the question cannot be correctly answered without reading the passage; not free-standing factual recall
-5. Answer key correctness — the marked correct answer is genuinely correct given the passage
-6. Distractor quality — wrong answers are plausible but clearly incorrect; no distractor is also a defensible correct interpretation
-7. Explanation accuracy — explanation correctly cites passage evidence and contains no scientific errors
-8. Stem quality — stem uses AAMC precision language ("most likely", "best supported", "most consistent with", etc.) and requires multi-step reasoning
+If you find NO issues, respond with ONLY this JSON:
+{ "pass": true, "issues": [], "correctedPassage": null }
 
-Audit the SET as a whole for:
-9. Coverage diversity — no two questions test the same passage sentence or the same cognitive move
-10. Difficulty distribution — set includes a reasonable spread across easy, medium, and hard
-
-Output ONLY valid JSON in this exact shape:
+If you find any issues, respond with ONLY this JSON (provide the full corrected passage text):
 {
-  "passagePass": true | false,
-  "passageIssues": ["<passage-level issue description>"],
-  "correctedPassage": "<full corrected passage text, or null if passagePass is true>",
-  "questions": [
-    {
-      "id": "<question id from input>",
-      "pass": true | false,
-      "issues": ["<specific issue>"],
-      "corrected_question": { "<only changed fields: stem, optionA-D, correctAnswer, explanation>" } | null
-    }
-  ]
+  "pass": false,
+  "issues": ["<specific concise description of issue 1>", "<specific concise description of issue 2>"],
+  "correctedPassage": "<full corrected passage text>"
 }
 
 Output ONLY valid JSON. No markdown, no preamble.`;
@@ -85,13 +68,13 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({})) as { limit?: number };
   const limit = typeof body.limit === "number" && body.limit > 0 ? body.limit : null;
 
-  const [customAuditPrompt, customPassageSetAuditPrompt, auditModel] = await Promise.all([
+  const [customAuditPrompt, customPassageAuditPrompt, auditModel] = await Promise.all([
     getSetting("audit_prompt").catch(() => null),
-    getSetting("passage_set_audit_prompt").catch(() => null),
+    getSetting("passage_audit_prompt").catch(() => null),
     getModelForRole("audit"),
   ]);
-  const auditSystemPrompt     = customAuditPrompt        || DEFAULT_AUDIT_PROMPT;
-  const passageSetAuditPrompt = customPassageSetAuditPrompt || DEFAULT_PASSAGE_SET_AUDIT_PROMPT;
+  const auditSystemPrompt  = customAuditPrompt        || DEFAULT_AUDIT_PROMPT;
+  const passageAuditPrompt = customPassageAuditPrompt || DEFAULT_PASSAGE_AUDIT_PROMPT;
 
   const modelOpts = auditModel
     ? { modelId: auditModel.modelId, baseUrl: auditModel.baseUrl || undefined, apiKey: auditModel.apiKey || undefined, modelMaxTokens: auditModel.maxTokens || undefined, modelMaxReasoningTokens: auditModel.maxReasoningTokens || undefined }
@@ -128,15 +111,15 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Total audit items: one per passage group + one per discrete question
-  const totalItems = passageGroupEntries.length + discreteItems.length;
+  // Each passage group = 1 passage audit + N question audits; each discrete = 1 audit
+  const totalItems =
+    passageGroupEntries.reduce((sum, [, qs]) => sum + 1 + qs.length, 0) +
+    discreteItems.length;
 
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
     async start(controller) {
-      // Track whether the client is still connected so we can stop between items.
-      // Two sources: req.signal (fires on HTTP disconnect) and enqueue errors.
       let clientConnected = !req.signal.aborted;
       req.signal.addEventListener("abort", () => { clientConnected = false; });
 
@@ -150,98 +133,53 @@ export async function POST(req: NextRequest) {
       // ── Passage group audits ────────────────────────────────────────────────
       for (const [, groupQs] of passageGroupEntries) {
         if (!clientConnected) break;
+
+        const findingIds = new Set<string>();
+
+        // ── Phase 1: audit the passage once ──────────────────────────────────
         processed++;
         enqueue({ type: "progress", current: processed, total: totalItems });
-        if (!clientConnected) break; // Don't start expensive callModel after disconnect
+        if (!clientConnected) break;
+
+        let activePassage = groupQs[0].passage ?? "";
 
         try {
-          const userContent = JSON.stringify({
-            passage: groupQs[0].passage ?? "",
-            questions: groupQs.map((q) => ({
-              id: q.id,
-              section: q.section,
-              topic: q.topic,
-              subType: q.subType ?? null,
-              stem: q.stem,
-              optionA: q.optionA,
-              optionB: q.optionB,
-              optionC: q.optionC,
-              optionD: q.optionD,
-              correctAnswer: q.correctAnswer,
-              explanation: q.explanation,
-              difficulty: q.difficulty,
-            })),
+          const passageContent = JSON.stringify({
+            section: groupQs[0].section,
+            topic: groupQs[0].topic,
+            passage: activePassage,
           });
 
-          const raw = await callModel({
+          const passageRaw = await callModel({
             ...modelOpts,
-            system: passageSetAuditPrompt,
-            userContent,
-            maxTokens: 16000,
+            system: passageAuditPrompt,
+            userContent: passageContent,
+            maxTokens: 8000,
           });
 
-          const result = extractModelJson(raw) as {
-            passagePass: boolean;
-            passageIssues: string[];
+          const passageResult = extractModelJson(passageRaw) as {
+            pass: boolean;
+            issues: string[];
             correctedPassage: string | null;
-            questions: Array<{
-              id: string;
-              pass: boolean;
-              issues: string[];
-              corrected_question: Record<string, string> | null;
-            }>;
           };
 
-          // Track which question IDs have findings so we know which passed
-          const findingIds = new Set<string>();
-
-          // Passage-level finding — attributed to the first question in the group.
-          // passageGroupIds carries all sibling IDs so the client can propagate the
-          // corrected passage to every question in the set, not just this one.
-          if (!result.passagePass && result.passageIssues?.length > 0) {
+          if (!passageResult.pass && passageResult.issues?.length > 0) {
             const firstQ = groupQs[0];
             findingIds.add(firstQ.id);
             enqueue({
               type: "finding",
               questionId: firstQ.id,
               question: firstQ,
+              // passageGroupIds lets the client propagate the corrected passage to all siblings
               passageGroupIds: groupQs.map((q) => q.id),
-              issues: result.passageIssues.map((i) => `[Passage] ${i}`),
-              correctedQuestion: result.correctedPassage
-                ? { passage: result.correctedPassage }
+              issues: passageResult.issues.map((i) => `[Passage] ${i}`),
+              correctedQuestion: passageResult.correctedPassage
+                ? { passage: passageResult.correctedPassage }
                 : null,
             });
-          }
-
-          // Per-question findings
-          for (const qResult of result.questions ?? []) {
-            if (!qResult.pass && qResult.issues?.length > 0) {
-              const q = groupQs.find((gq) => gq.id === qResult.id);
-              if (q) {
-                findingIds.add(q.id);
-                enqueue({
-                  type: "finding",
-                  questionId: q.id,
-                  question: q,
-                  issues: qResult.issues,
-                  correctedQuestion: qResult.corrected_question ?? null,
-                });
-              }
+            if (passageResult.correctedPassage) {
+              activePassage = passageResult.correctedPassage;
             }
-          }
-
-          // Mark questions that had no findings as audited
-          const passedIds = groupQs.filter((q) => !findingIds.has(q.id)).map((q) => q.id);
-          if (passedIds.length > 0) {
-            await Promise.all(passedIds.map((id) => updateQuestion(id, { auditStatus: "audited" })));
-            enqueue({ type: "passed", questionIds: passedIds });
-          }
-          // Also mark finding questions as audited so they leave the queue.
-          // The finding data was already sent to the client for human review above;
-          // keeping them as "needs_audit" would cause them to be re-audited every run.
-          const findingQIds = [...findingIds];
-          if (findingQIds.length > 0) {
-            await Promise.all(findingQIds.map((id) => updateQuestion(id, { auditStatus: "audited" })));
           }
         } catch (err) {
           enqueue({
@@ -250,6 +188,78 @@ export async function POST(req: NextRequest) {
             message: err instanceof Error ? err.message : "unknown",
           });
         }
+
+        // ── Phase 2: audit each question against the (possibly corrected) passage
+        for (const q of groupQs) {
+          if (!clientConnected) break;
+          processed++;
+          enqueue({ type: "progress", current: processed, total: totalItems });
+          if (!clientConnected) break;
+
+          try {
+            const userContent = JSON.stringify({
+              id: q.id,
+              section: q.section,
+              topic: q.topic,
+              subType: q.subType ?? null,
+              passage: activePassage,
+              stem: q.stem,
+              optionA: q.optionA,
+              optionB: q.optionB,
+              optionC: q.optionC,
+              optionD: q.optionD,
+              correctAnswer: q.correctAnswer,
+              explanation: q.explanation,
+              difficulty: q.difficulty,
+              hasFigure: !!q.figureUrl,
+            });
+
+            const raw = await callModel({
+              ...modelOpts,
+              system: auditSystemPrompt,
+              userContent,
+              maxTokens: 12000,
+            });
+
+            const result = extractModelJson(raw) as {
+              pass: boolean;
+              issues: string[];
+              corrected_question: Record<string, string> | null;
+            };
+
+            const hasIssues = Array.isArray(result.issues) && result.issues.length > 0;
+            const hasFix    = !!result.corrected_question && Object.keys(result.corrected_question).length > 0;
+
+            if (!result.pass && (hasIssues || hasFix)) {
+              findingIds.add(q.id);
+              enqueue({
+                type: "finding",
+                questionId: q.id,
+                question: q,
+                issues: result.issues ?? [],
+                correctedQuestion: result.corrected_question ?? null,
+              });
+            }
+          } catch (err) {
+            enqueue({
+              type: "error",
+              questionId: q.id,
+              message: err instanceof Error ? err.message : "unknown",
+            });
+          }
+        }
+
+        // Mark questions with no findings as audited + passed
+        const passedIds = groupQs.filter((q) => !findingIds.has(q.id)).map((q) => q.id);
+        if (passedIds.length > 0) {
+          await Promise.all(passedIds.map((id) => updateQuestion(id, { auditStatus: "audited" })));
+          enqueue({ type: "passed", questionIds: passedIds });
+        }
+        // Mark finding questions as audited so they leave the queue
+        const findingQIds = [...findingIds];
+        if (findingQIds.length > 0) {
+          await Promise.all(findingQIds.map((id) => updateQuestion(id, { auditStatus: "audited" })));
+        }
       }
 
       // ── Discrete question audits ────────────────────────────────────────────
@@ -257,7 +267,7 @@ export async function POST(req: NextRequest) {
         if (!clientConnected) break;
         processed++;
         enqueue({ type: "progress", current: processed, total: totalItems });
-        if (!clientConnected) break; // Don't start expensive callModel after disconnect
+        if (!clientConnected) break;
 
         try {
           const userContent = JSON.stringify({
@@ -294,11 +304,9 @@ export async function POST(req: NextRequest) {
           const hasFix    = !!result.corrected_question && Object.keys(result.corrected_question).length > 0;
 
           if (result.pass || (!hasIssues && !hasFix)) {
-            // Pass — or model said fail but couldn't articulate anything (treat as pass)
             await updateQuestion(q.id, { auditStatus: "audited" });
             enqueue({ type: "passed", questionIds: [q.id] });
           } else {
-            // Mark audited so it leaves the queue; finding data is sent to client for review.
             await updateQuestion(q.id, { auditStatus: "audited" });
             enqueue({
               type: "finding",
