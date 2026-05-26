@@ -26,6 +26,7 @@ export default function FormattingTab() {
   const [loading, setLoading]     = useState(true);
   const [cardState, setCardState] = useState<Record<string, CardState>>({});
   const [formatAll, setFormatAll] = useState(false);
+  const [reauditing, setReauditing] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetch("/api/admin/questions?auditedOnly=true")
@@ -81,6 +82,40 @@ export default function FormattingTab() {
       setState(id, { status: "done" });
     } catch {
       setState(id, { status: "preview", formatted });
+    }
+  }
+
+  async function reauditQuestion(id: string) {
+    if (reauditing.has(id)) return;
+    setReauditing((r) => new Set([...r, id]));
+    try {
+      await fetch(`/api/admin/questions/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ auditStatus: "needs_audit" }),
+      });
+      setQuestions((prev) => prev.filter((q) => q.id !== id));
+    } finally {
+      setReauditing((r) => { const n = new Set(r); n.delete(id); return n; });
+    }
+  }
+
+  async function reauditGroup(ids: string[]) {
+    if (ids.some((id) => reauditing.has(id))) return;
+    setReauditing((r) => new Set([...r, ...ids]));
+    try {
+      await Promise.allSettled(
+        ids.map((id) =>
+          fetch(`/api/admin/questions/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ auditStatus: "needs_audit" }),
+          })
+        )
+      );
+      setQuestions((prev) => prev.filter((q) => !ids.includes(q.id)));
+    } finally {
+      setReauditing((r) => { const n = new Set(r); ids.forEach((id) => n.delete(id)); return n; });
     }
   }
 
@@ -190,23 +225,35 @@ export default function FormattingTab() {
                       {q.stem.length > 120 ? q.stem.slice(0, 120) + "…" : q.stem}
                     </p>
                   </div>
-                  {s.status === "idle" && (
-                    <button onClick={() => formatQuestion(q.id)} className="px-3 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0"
-                      style={{ background: "rgba(99,102,241,0.12)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)" }}>
-                      Format
-                    </button>
-                  )}
-                  {s.status === "loading" && (
-                    <span className="px-3 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0"
-                      style={{ background: "rgba(99,102,241,0.08)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.2)" }}>
-                      Formatting…
-                    </span>
-                  )}
-                  {s.status === "saving" && (
-                    <span className="px-3 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0" style={{ color: "var(--text-muted)" }}>
-                      Saving…
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {s.status === "idle" && (
+                      <button onClick={() => formatQuestion(q.id)} className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                        style={{ background: "rgba(99,102,241,0.12)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)" }}>
+                        Format
+                      </button>
+                    )}
+                    {s.status === "loading" && (
+                      <span className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                        style={{ background: "rgba(99,102,241,0.08)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.2)" }}>
+                        Formatting…
+                      </span>
+                    )}
+                    {s.status === "saving" && (
+                      <span className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
+                        Saving…
+                      </span>
+                    )}
+                    {(s.status === "idle" || s.status === "preview") && (
+                      <button
+                        onClick={() => reauditQuestion(q.id)}
+                        disabled={reauditing.has(q.id)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                        style={{ background: "rgba(245,158,11,0.08)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.25)", opacity: reauditing.has(q.id) ? 0.5 : 1 }}
+                      >
+                        {reauditing.has(q.id) ? "Sending…" : "Reaudit"}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {(s.status === "idle" || s.status === "loading") && (
                   <div className="px-5 py-4">
@@ -252,15 +299,25 @@ export default function FormattingTab() {
             <div key={groupId} className="rounded-xl overflow-hidden"
               style={{ border: "1px solid rgba(167,139,250,0.4)", background: "var(--bg-card)" }}>
               {/* Group header */}
-              <div className="px-5 py-3 flex items-center gap-2"
+              <div className="px-5 py-3 flex items-center justify-between gap-2"
                 style={{ background: "rgba(167,139,250,0.06)", borderBottom: "1px solid rgba(167,139,250,0.2)" }}>
-                <span className="px-1.5 py-0.5 rounded text-xs font-semibold"
-                  style={{ background: "rgba(167,139,250,0.15)", color: "#a78bfa", border: "1px solid rgba(167,139,250,0.35)" }}>
-                  Passage Set
-                </span>
-                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  {visibleQs.length} question{visibleQs.length !== 1 ? "s" : ""}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="px-1.5 py-0.5 rounded text-xs font-semibold"
+                    style={{ background: "rgba(167,139,250,0.15)", color: "#a78bfa", border: "1px solid rgba(167,139,250,0.35)" }}>
+                    Passage Set
+                  </span>
+                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                    {visibleQs.length} question{visibleQs.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+                <button
+                  onClick={() => reauditGroup(qs.map((q) => q.id))}
+                  disabled={qs.some((q) => reauditing.has(q.id))}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0"
+                  style={{ background: "rgba(245,158,11,0.08)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.25)", opacity: qs.some((q) => reauditing.has(q.id)) ? 0.5 : 1 }}
+                >
+                  {qs.some((q) => reauditing.has(q.id)) ? "Sending…" : "Reaudit Set"}
+                </button>
               </div>
               {/* Individual question cards within the group */}
               {qs.map((q) => {
@@ -289,23 +346,35 @@ export default function FormattingTab() {
                           {q.stem.length > 120 ? q.stem.slice(0, 120) + "…" : q.stem}
                         </p>
                       </div>
-                      {s.status === "idle" && (
-                        <button onClick={() => formatQuestion(q.id)} className="px-3 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0"
-                          style={{ background: "rgba(99,102,241,0.12)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)" }}>
-                          Format
-                        </button>
-                      )}
-                      {s.status === "loading" && (
-                        <span className="px-3 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0"
-                          style={{ background: "rgba(99,102,241,0.08)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.2)" }}>
-                          Formatting…
-                        </span>
-                      )}
-                      {s.status === "saving" && (
-                        <span className="px-3 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0" style={{ color: "var(--text-muted)" }}>
-                          Saving…
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {s.status === "idle" && (
+                          <button onClick={() => formatQuestion(q.id)} className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                            style={{ background: "rgba(99,102,241,0.12)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.3)" }}>
+                            Format
+                          </button>
+                        )}
+                        {s.status === "loading" && (
+                          <span className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                            style={{ background: "rgba(99,102,241,0.08)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.2)" }}>
+                            Formatting…
+                          </span>
+                        )}
+                        {s.status === "saving" && (
+                          <span className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
+                            Saving…
+                          </span>
+                        )}
+                        {(s.status === "idle" || s.status === "preview") && (
+                          <button
+                            onClick={() => reauditQuestion(q.id)}
+                            disabled={reauditing.has(q.id)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                            style={{ background: "rgba(245,158,11,0.08)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.25)", opacity: reauditing.has(q.id) ? 0.5 : 1 }}
+                          >
+                            {reauditing.has(q.id) ? "Sending…" : "Reaudit"}
+                          </button>
+                        )}
+                      </div>
                     </div>
                     {(s.status === "idle" || s.status === "loading") && (
                       <div className="px-5 py-4" style={{ borderTop: "1px solid rgba(167,139,250,0.1)" }}>
