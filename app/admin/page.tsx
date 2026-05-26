@@ -179,7 +179,7 @@ export default function AdminPage() {
               }}
             >
               {t === "generate"    ? "Question Generation"
-                : t === "database"    ? "Database"
+                : t === "database"    ? "Audit"
                 : t === "formatting"  ? "Formatting"
                 : t === "locked"      ? "Locked"
                 : t === "curriculum"  ? "Curriculum"
