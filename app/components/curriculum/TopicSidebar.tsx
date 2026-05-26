@@ -23,15 +23,18 @@ export default function TopicSidebar({ activeKey, onSelect }: Props) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>(
     { chem: true, cars: true, bio: true, psych: true }
   );
-  const [countMap, setCountMap] = useState<Record<string, number>>({});
+  type TopicCount = { total: number; discrete: number; sets: number; passageQs: number };
+  const [countMap, setCountMap] = useState<Record<string, TopicCount>>({});
 
   useEffect(() => {
     fetch("/api/curriculum")
       .then((r) => r.json())
-      .then((data: { topicCounts: { topic: string; count: number }[] }) => {
+      .then((data: { topicCounts: { topic: string; count: number; discrete: number; sets: number; passageQs: number }[] }) => {
         if (data.topicCounts?.length > 0) {
-          const m: Record<string, number> = {};
-          for (const t of data.topicCounts) m[t.topic] = t.count;
+          const m: Record<string, TopicCount> = {};
+          for (const t of data.topicCounts) {
+            m[t.topic] = { total: t.count, discrete: t.discrete ?? t.count, sets: t.sets ?? 0, passageQs: t.passageQs ?? 0 };
+          }
           setCountMap(m);
         }
       })
@@ -90,7 +93,7 @@ export default function TopicSidebar({ activeKey, onSelect }: Props) {
               {/* total count for section */}
               {(() => {
                 const sectionTopics = sec.groups.flatMap((g) => g.topics);
-                const total = sectionTopics.reduce((s, t) => s + (countMap[t] ?? 0), 0);
+                const total = sectionTopics.reduce((s, t) => s + (countMap[t]?.total ?? 0), 0);
                 return total > 0 ? (
                   <span className="text-xs font-semibold tabular-nums" style={{ color: isSectionActive(sec.id) ? "var(--accent-blue)" : countColor(total) }}>
                     {total}
@@ -104,7 +107,7 @@ export default function TopicSidebar({ activeKey, onSelect }: Props) {
             <div className="mb-1">
               {sec.groups.map((grp) => {
                 const grpActive = isGroupActive(sec.id, grp.group);
-                const grpTotal  = grp.topics.reduce((s, t) => s + (countMap[t] ?? 0), 0);
+                const grpTotal  = grp.topics.reduce((s, t) => s + (countMap[t]?.total ?? 0), 0);
                 return (
                   <div key={grp.group}>
                     {/* Group header — clickable */}
@@ -131,15 +134,20 @@ export default function TopicSidebar({ activeKey, onSelect }: Props) {
                     {/* Individual topics */}
                     {grp.topics.map((label) => {
                       const isActive = isTopicActive(sec.id, label);
-                      const count    = countMap[label] ?? 0;
+                      const tc = countMap[label];
+                      const total     = tc?.total     ?? 0;
+                      const discrete  = tc?.discrete  ?? 0;
+                      const sets      = tc?.sets      ?? 0;
+                      const passageQs = tc?.passageQs ?? 0;
+                      const accentColor = isActive ? "var(--accent-blue)" : undefined;
                       return (
                         <button
                           key={label}
                           onClick={() => onSelect(`topic:${sec.id}:${label}`)}
                           className="w-full flex items-center px-4 py-1.5 text-left"
                           style={{
-                            background:   isActive ? "rgba(27,58,107,0.12)" : "transparent",
-                            borderLeft:   isActive ? "2px solid var(--accent-blue)" : "2px solid transparent",
+                            background: isActive ? "rgba(27,58,107,0.12)" : "transparent",
+                            borderLeft: isActive ? "2px solid var(--accent-blue)" : "2px solid transparent",
                           }}
                         >
                           <span
@@ -152,12 +160,27 @@ export default function TopicSidebar({ activeKey, onSelect }: Props) {
                           >
                             {label}
                           </span>
-                          <span
-                            className="text-xs font-semibold ml-2 tabular-nums"
-                            style={{ color: isActive ? "var(--accent-blue)" : countColor(count) }}
-                          >
-                            {count > 0 ? count : "—"}
-                          </span>
+                          {/* Split count: discrete + passage sets */}
+                          <div className="flex flex-col items-end ml-2 gap-0.5 flex-shrink-0">
+                            {total === 0 ? (
+                              <span className="text-xs font-semibold tabular-nums" style={{ color: "var(--text-muted)" }}>—</span>
+                            ) : (
+                              <>
+                                {discrete > 0 && (
+                                  <span className="text-xs font-semibold tabular-nums leading-none"
+                                    style={{ color: accentColor ?? countColor(discrete) }}>
+                                    {discrete}
+                                  </span>
+                                )}
+                                {sets > 0 && (
+                                  <span className="text-xs font-semibold tabular-nums leading-none"
+                                    style={{ color: accentColor ?? "#a78bfa" }}>
+                                    {sets}P·{passageQs}
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </div>
                         </button>
                       );
                     })}
