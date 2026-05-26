@@ -2,7 +2,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import TopicSidebar from "../../components/curriculum/TopicSidebar";
 import TopicDetail from "../../components/curriculum/TopicDetail";
-import RightPanel from "../../components/curriculum/RightPanel";
 import { CURRICULUM_SECTIONS } from "../../../lib/curriculum-sections";
 
 type UnmatchedItem = { id: string; topic: string; section: string; stem: string };
@@ -104,11 +103,8 @@ function UnmatchedModal({
             </p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-lg"
-            style={{ background: "var(--bg-elevated)", color: "var(--text-muted)" }}>
-            ×
-          </button>
+            style={{ background: "var(--bg-elevated)", color: "var(--text-muted)" }}>×</button>
         </div>
-
         <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
           {visible.length === 0 && (
             <div className="py-12 text-center">
@@ -162,13 +158,11 @@ function UnmatchedModal({
                   </div>
                   {card.status !== "loadingSuggestion" && (
                     <div className="flex items-center gap-2 flex-wrap">
-                      <select
-                        value={pickerValue}
+                      <select value={pickerValue}
                         onChange={(e) => setTopicPicker((prev) => ({ ...prev, [item.id]: e.target.value }))}
                         disabled={busy}
                         className="flex-1 min-w-0 px-2 py-1.5 rounded-lg text-xs"
-                        style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}
-                      >
+                        style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }}>
                         {sectionTopics.map((t) => <option key={t} value={t}>{t}</option>)}
                       </select>
                       <button onClick={() => assignTopic(item.id, pickerValue)} disabled={busy || !pickerValue}
@@ -194,11 +188,11 @@ function UnmatchedModal({
 }
 
 export default function CurriculumTab() {
-  const [activeKey, setActiveKey]     = useState("");
-  const [reconcileState, setRecState] = useState<ReconcileState>("idle");
+  const [activeKey, setActiveKey]       = useState("");
+  const [reconcileState, setRecState]   = useState<ReconcileState>("idle");
   const [reconcileResult, setRecResult] = useState<ReconcileResult | null>(null);
-  const [showModal, setShowModal]     = useState(false);
-  const resetTimer                    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showModal, setShowModal]       = useState(false);
+  const resetTimer                      = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function handleResolved(id: string) {
     setRecResult((prev) =>
@@ -224,17 +218,17 @@ export default function CurriculumTab() {
   }
 
   return (
-    <div className="flex flex-col" style={{ height: "calc(100vh - 220px)", minHeight: 520 }}>
-      {/* Sub-header */}
-      <div
-        className="flex items-center gap-3 px-1 pb-3 mb-0 flex-shrink-0"
-        style={{ borderBottom: "1px solid var(--border)" }}
-      >
-        <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Question Bank</p>
-        <p className="text-xs hidden sm:block" style={{ color: "var(--text-muted)" }}>
-          Browse and review all questions by section, group, or topic
-        </p>
-        <div className="ml-auto flex items-center gap-2">
+    <div className="flex flex-col" style={{ height: "calc(100vh - 240px)", minHeight: 520 }}>
+
+      {/* Toolbar */}
+      <div className="flex items-center gap-3 mb-3 flex-shrink-0">
+        <div>
+          <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Question Bank</p>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            Browse questions by section, group, or topic
+          </p>
+        </div>
+        <div className="ml-auto flex items-center gap-2 flex-shrink-0">
           {reconcileState === "done" && reconcileResult && (
             <div className="flex items-center gap-1.5">
               {reconcileResult.fixed > 0 && (
@@ -246,7 +240,7 @@ export default function CurriculumTab() {
               {reconcileResult.unmatched.length > 0 ? (
                 <button onClick={() => setShowModal(true)}
                   className="text-xs font-semibold px-2.5 py-1 rounded-full"
-                  style={{ background: "rgba(245,158,11,0.12)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.3)", cursor: "pointer" }}>
+                  style={{ background: "rgba(245,158,11,0.12)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.3)" }}>
                   {reconcileResult.unmatched.length} unmatched →
                 </button>
               ) : (
@@ -262,7 +256,7 @@ export default function CurriculumTab() {
           <button
             onClick={handleReconcile}
             disabled={reconcileState === "running"}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg flex-shrink-0"
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg"
             style={{ border: "1px solid var(--border)", color: "var(--text-secondary)", opacity: reconcileState === "running" ? 0.5 : 1 }}
             title="Find questions whose topic name doesn't match any known topic and auto-fix them"
           >
@@ -283,14 +277,19 @@ export default function CurriculumTab() {
         </div>
       </div>
 
-      {/* 3-column browser */}
-      <div className="flex flex-1 overflow-hidden relative -mx-4 md:-mx-6">
-        <div className="hidden md:flex flex-shrink-0">
+      {/* Two-panel browser */}
+      <div
+        className="flex flex-1 rounded-xl overflow-hidden"
+        style={{ border: "1px solid var(--border)", minHeight: 0 }}
+      >
+        {/* Sidebar — always visible; TopicSidebar owns its own width/border */}
+        <div className="flex-shrink-0">
           <TopicSidebar activeKey={activeKey} onSelect={setActiveKey} />
         </div>
-        <TopicDetail selectionKey={activeKey} />
-        <div className="hidden lg:flex flex-shrink-0">
-          <RightPanel selectionKey={activeKey} />
+
+        {/* Main content */}
+        <div className="flex-1 overflow-y-auto min-w-0">
+          <TopicDetail selectionKey={activeKey} />
         </div>
       </div>
 
