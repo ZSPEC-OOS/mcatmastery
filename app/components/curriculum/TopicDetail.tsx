@@ -300,7 +300,7 @@ export default function TopicDetail({ selectionKey }: Props) {
 
   if (sel.type === "none") {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center">
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center pt-16">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--border)" strokeWidth="1.4" strokeLinecap="round">
           <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
           <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
