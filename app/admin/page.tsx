@@ -8,8 +8,9 @@ import SettingsTab from "./_components/SettingsTab";
 import DatabaseTab from "./_components/DatabaseTab";
 import FormattingTab from "./_components/FormattingTab";
 import LockedTab from "./_components/LockedTab";
+import CurriculumTab from "./_components/CurriculumTab";
 
-type Tab = "generate" | "settings" | "database" | "formatting" | "locked";
+type Tab = "generate" | "settings" | "database" | "formatting" | "locked" | "curriculum";
 
 const ADMIN_USER = "admin";
 const ADMIN_PASS = "MCATadmin";
@@ -166,7 +167,7 @@ export default function AdminPage() {
             msOverflowStyle: "none",
           }}
         >
-          {(["generate", "database", "formatting", "locked", "settings"] as Tab[]).map((t) => (
+          {(["generate", "database", "formatting", "locked", "curriculum", "settings"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -177,20 +178,22 @@ export default function AdminPage() {
                 marginBottom: -1,
               }}
             >
-              {t === "generate"   ? "Question Generation"
-                : t === "database"   ? "Database"
-                : t === "formatting" ? "Formatting"
-                : t === "locked"     ? "Locked"
+              {t === "generate"    ? "Question Generation"
+                : t === "database"    ? "Database"
+                : t === "formatting"  ? "Formatting"
+                : t === "locked"      ? "Locked"
+                : t === "curriculum"  ? "Curriculum"
                 : "Settings"}
             </button>
           ))}
         </div>
 
-        {tab === "generate"  && <GenerateTab />}
-        {tab === "settings"  && <SettingsTab />}
-        {tab === "database"  && <DatabaseTab />}
-        {tab === "formatting" && <FormattingTab />}
-        {tab === "locked"    && <LockedTab />}
+        {tab === "generate"    && <GenerateTab />}
+        {tab === "settings"    && <SettingsTab />}
+        {tab === "database"    && <DatabaseTab />}
+        {tab === "formatting"  && <FormattingTab />}
+        {tab === "locked"      && <LockedTab />}
+        {tab === "curriculum"  && <CurriculumTab />}
       </div>
 
       <Footer />
