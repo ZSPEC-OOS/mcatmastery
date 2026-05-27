@@ -200,6 +200,14 @@ export async function POST(req: NextRequest) {
           })()
         : null;
 
+    // Build difficulty coverage tracker for even distribution
+    type DiffKey = "easy" | "medium" | "hard";
+    const diffCounts: Record<DiffKey, number> = { easy: 0, medium: 0, hard: 0 };
+    for (const q of existing) {
+      const d = (q.difficulty ?? "medium") as DiffKey;
+      if (d in diffCounts) diffCounts[d]++;
+    }
+
     const encoder    = new TextEncoder();
     const savedStems = existing.map((q) => q.stem);
 
@@ -246,6 +254,11 @@ export async function POST(req: NextRequest) {
               : undefined;
           }
 
+          // Pick the difficulty with the lowest count for even distribution
+          const targetDifficulty = (["easy", "medium", "hard"] as const).reduce(
+            (best, d) => diffCounts[d] < diffCounts[best] ? d : best, "easy" as DiffKey,
+          );
+
           const subTypeDef   = targetSubTypeId ? getSubTypeById(targetSubTypeId) : undefined;
           const passageBased = passageSetsMode || (!body.imageGeneration && (subTypeDef?.passageBased ?? false));
 
@@ -261,7 +274,8 @@ export async function POST(req: NextRequest) {
           const subTypeClause = subTypeDef
             ? ` Subtype: "${subTypeDef.label}" — ${subTypeDef.description}`
             : "";
-          const topicClause = targetTopic ? ` Topic: ${targetTopic}.` : "";
+          const topicClause      = targetTopic ? ` Topic: ${targetTopic}.` : "";
+          const difficultyClause = ` Difficulty: ${targetDifficulty}.`;
 
           try {
             if (passageBased) {
@@ -270,6 +284,8 @@ export async function POST(req: NextRequest) {
                 `Generate one ${body.section} passage with ${setSize} questions.`,
                 topicClause,
                 subTypeClause,
+                difficultyClause,
+                `Distribute difficulties evenly across the questions (mix of easy, medium, and hard).`,
               ].filter(Boolean).join(" ");
 
               const raw = await callModel({
@@ -328,6 +344,8 @@ export async function POST(req: NextRequest) {
                   savedStems.push(stem);
                   setCount++;
                   totalSaved++;
+                  const savedDiff = ((q.difficulty as string) ?? "medium") as DiffKey;
+                  if (savedDiff in diffCounts) diffCounts[savedDiff]++;
                   enqueue({ type: "question", question: saved });
                 }
 
@@ -344,6 +362,7 @@ export async function POST(req: NextRequest) {
                 `Generate one ${body.section} question.`,
                 topicClause,
                 subTypeClause,
+                difficultyClause,
                 body.imageGeneration ? "The question MUST require a figure to answer." : "",
               ].filter(Boolean).join(" ");
 
@@ -440,6 +459,8 @@ export async function POST(req: NextRequest) {
 
                       savedStems.push(final.stem as string);
                       totalSaved++;
+                      const actualDiff = ((final.difficulty as string) ?? "medium") as DiffKey;
+                      if (actualDiff in diffCounts) diffCounts[actualDiff]++;
                       if (counts2D && targetTopic && targetSubTypeId) {
                         counts2D[targetTopic][targetSubTypeId] = (counts2D[targetTopic][targetSubTypeId] ?? 0) + 1;
                       } else if (counts1D && targetTopic) {
