@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { z } from "zod";
 import { db, ensureSchema } from "../../../../lib/db";
+import { saveUser } from "../../../../lib/firestore";
 
 const Schema = z.object({
   pin: z.string().min(4).max(6).regex(/^\d+$/, "PIN must be digits only"),
@@ -31,7 +32,11 @@ export async function POST(req: NextRequest) {
 
     const { userId, firstName, lastName, email } = rows[0];
     const user = { firstName, lastName, email };
-    const res  = NextResponse.json({ ok: true, user });
+
+    // Keep Firestore copy fresh on every sign-in
+    saveUser({ userId, firstName, lastName, email, createdAt: new Date().toISOString() }).catch(() => {});
+
+    const res = NextResponse.json({ ok: true, user });
     res.cookies.set("pin_uid", userId, { path: "/", sameSite: "lax", httpOnly: true, maxAge: 60 * 60 * 24 * 30 });
     return res;
   } catch (err) {

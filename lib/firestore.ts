@@ -108,6 +108,26 @@ export interface SessionAnswerDoc {
   questionTopic?: string;
 }
 
+// ── Users ─────────────────────────────────────────────────────────────────────
+
+export interface UserDoc {
+  userId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  createdAt: string;
+}
+
+export async function saveUser(data: UserDoc): Promise<void> {
+  await fs().collection("users").doc(data.userId).set(data, { merge: true });
+}
+
+export async function getUserById(userId: string): Promise<UserDoc | null> {
+  const doc = await fs().collection("users").doc(userId).get();
+  if (!doc.exists) return null;
+  return doc.data() as UserDoc;
+}
+
 // ── Models ────────────────────────────────────────────────────────────────────
 
 export async function getModels(): Promise<ModelConfig[]> {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { z } from "zod";
 import { db, ensureSchema } from "../../../../lib/db";
+import { saveUser } from "../../../../lib/firestore";
 
 const Schema = z.object({
   firstName: z.string().min(1).max(50),
@@ -46,7 +47,11 @@ export async function POST(req: NextRequest) {
     `;
 
     const user = { firstName: firstName.trim(), lastName: lastName.trim(), email: userId };
-    const res  = NextResponse.json({ ok: true, user });
+
+    // Mirror user to Firestore so the identity is never lost even if local state is cleared
+    saveUser({ userId, firstName: user.firstName, lastName: user.lastName, email: userId, createdAt: new Date().toISOString() }).catch(() => {});
+
+    const res = NextResponse.json({ ok: true, user });
     res.cookies.set("pin_uid", userId, { path: "/", sameSite: "lax", httpOnly: true, maxAge: 60 * 60 * 24 * 30 });
     return res;
   } catch (err) {
