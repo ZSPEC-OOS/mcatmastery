@@ -9,7 +9,7 @@ const withClerk = clerkMiddleware(async (auth, req) => {
   if (!isPublic(req)) await auth.protect();
 });
 
-export default function proxy(req: NextRequest, event: NextFetchEvent) {
+export default function middleware(req: NextRequest, event: NextFetchEvent) {
   if (!hasClerkSecret) {
     return NextResponse.next();
   }

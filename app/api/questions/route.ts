@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "../../../lib/auth";
-import { getSessionAnswers } from "../../../lib/firestore";
+import { getSessionAnswers, getQuestionById } from "../../../lib/firestore";
 
 export async function GET(req: Request) {
   try {
@@ -16,7 +16,12 @@ export async function GET(req: Request) {
     if (section)   answers = answers.filter((a) => a.questionSection === section);
 
     const items = answers.slice(0, limit);
-    const nextCursor = answers.length > limit ? answers[limit - 1].questionId : null;
+    const nextCursor = answers.length > limit ? answers[limit].questionId : null;
+
+    // Enrich with full question docs from Firestore
+    const uniqueQIds = [...new Set(items.map((a) => a.questionId))];
+    const questionDocs = await Promise.all(uniqueQIds.map((id) => getQuestionById(id).catch(() => null)));
+    const qMap = new Map(questionDocs.filter(Boolean).map((q) => [q!.id, q!]));
 
     // Shape to match SessionQuestion format the review page expects
     const questions = items.map((a) => ({
@@ -30,7 +35,7 @@ export async function GET(req: Request) {
       confidence:   a.confidence,
       reviewStatus: a.reviewStatus,
       answeredAt:   a.answeredAt,
-      question: {
+      question: qMap.get(a.questionId) ?? {
         section: a.questionSection ?? "",
         topic:   a.questionTopic   ?? "",
       },

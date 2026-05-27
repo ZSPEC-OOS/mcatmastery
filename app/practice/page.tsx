@@ -163,7 +163,8 @@ export default function PracticePage() {
 
       setFoundInfo({ found: result.found, returned: result.returned });
 
-      const sess = await createSession(sections[0], timed).catch(() => null);
+      const sectionLabel = sections.length === 1 ? sections[0] : sections.join(",");
+      const sess = await createSession(sectionLabel, timed).catch(() => null);
       setSessionId(sess?.id ?? null);
 
       setQuestions(result.questions as Question[]);
