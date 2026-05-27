@@ -52,7 +52,7 @@ export default function TopicSidebar({ activeKey, onSelect }: Props) {
   return (
     <div
       className="overflow-y-auto py-4"
-      style={{ width: 220, minWidth: 220, borderRight: "1px solid var(--border)", background: "var(--bg-card)" }}
+      style={{ width: 280, minWidth: 280, borderRight: "1px solid var(--border)", background: "var(--bg-card)" }}
     >
       <p className="px-4 mb-3 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
         Sections
