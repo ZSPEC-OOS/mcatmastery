@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     saveUser({ userId, firstName: user.firstName, lastName: user.lastName, email: userId, createdAt: new Date().toISOString() }).catch(() => {});
 
     const res = NextResponse.json({ ok: true, user });
-    res.cookies.set("pin_uid", userId, { path: "/", sameSite: "lax", httpOnly: true, maxAge: 60 * 60 * 24 * 30 });
+    res.cookies.set("pin_uid", userId, { path: "/", sameSite: "lax", httpOnly: true, maxAge: 60 * 60 * 24 * 365 * 10 });
     return res;
   } catch (err) {
     if (err instanceof z.ZodError)
