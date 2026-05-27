@@ -48,8 +48,8 @@ export async function POST(req: NextRequest) {
 
     const user = { firstName: firstName.trim(), lastName: lastName.trim(), email: userId };
 
-    // Mirror user to Firestore so the identity is never lost even if local state is cleared
-    saveUser({ userId, firstName: user.firstName, lastName: user.lastName, email: userId, createdAt: new Date().toISOString() }).catch(() => {});
+    // Mirror full account to Firestore (including pinHash) so credentials are never lost
+    saveUser({ userId, firstName: user.firstName, lastName: user.lastName, email: userId, pinHash, createdAt: new Date().toISOString() }).catch(() => {});
 
     const res = NextResponse.json({ ok: true, user });
     res.cookies.set("pin_uid", userId, { path: "/", sameSite: "lax", httpOnly: true, maxAge: 60 * 60 * 24 * 365 * 10 });

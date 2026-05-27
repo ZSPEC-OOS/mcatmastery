@@ -115,6 +115,7 @@ export interface UserDoc {
   firstName: string;
   lastName: string;
   email: string;
+  pinHash: string;
   createdAt: string;
 }
 
@@ -126,6 +127,12 @@ export async function getUserById(userId: string): Promise<UserDoc | null> {
   const doc = await fs().collection("users").doc(userId).get();
   if (!doc.exists) return null;
   return doc.data() as UserDoc;
+}
+
+export async function getUserByPinHash(pinHash: string): Promise<UserDoc | null> {
+  const snap = await fs().collection("users").where("pinHash", "==", pinHash).limit(1).get();
+  if (snap.empty) return null;
+  return snap.docs[0].data() as UserDoc;
 }
 
 // ── Models ────────────────────────────────────────────────────────────────────
