@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "../../../lib/auth";
 import { getSessionAnswers } from "../../../lib/firestore";
+import { db } from "../../../lib/db";
+
+const ALL_SECTIONS = ["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"] as const;
 
 export async function GET() {
   try {
@@ -41,12 +44,39 @@ export async function GET() {
       }))
       .slice(0, 5);
 
+    // Always include all four sections so the UI never drops a card
+    const sections = Object.fromEntries(
+      ALL_SECTIONS.map((s) => [s, sectionMap[s] ?? { correct: 0, total: 0 }])
+    );
+
+    // Fetch FL scores from Prisma (best-effort — gracefully empty if DB unavailable)
+    let flScores: Array<{
+      id: string; testName: string; chemPhys: number; cars: number;
+      bioBiochem: number; psychSoc: number; total: number; takenAt: string;
+    }> = [];
+    try {
+      const rows = await db.fullLengthScore.findMany({
+        where:   { userId: user.id },
+        orderBy: { takenAt: "asc" },
+      });
+      flScores = rows.map((r) => ({
+        id:         r.id,
+        testName:   r.testName,
+        chemPhys:   r.chemPhys,
+        cars:       r.cars,
+        bioBiochem: r.bioBiochem,
+        psychSoc:   r.psychSoc,
+        total:      r.total,
+        takenAt:    r.takenAt instanceof Date ? r.takenAt.toISOString() : String(r.takenAt),
+      }));
+    } catch { /* Prisma unavailable */ }
+
     return NextResponse.json({
       overall:    { accuracy, correct, total },
-      sections:   sectionMap,
+      sections,
       errorTypes: errorMap,
       weakTopics,
-      flScores:   [],
+      flScores,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Failed";

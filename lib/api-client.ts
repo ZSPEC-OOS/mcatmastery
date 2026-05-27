@@ -140,7 +140,7 @@ export async function* generateQuestions(params: {
 
 // ─── Sessions ────────────────────────────────────────────────────────────────
 
-export async function createSession(section: Section, timed: boolean) {
+export async function createSession(section: string, timed: boolean) {
   const res = await fetch("/api/sessions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
