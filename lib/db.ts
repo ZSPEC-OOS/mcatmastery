@@ -120,7 +120,9 @@ export async function ensureSchema(): Promise<void> {
   ];
 
   for (const sql of stmts) {
-    await db.$executeRawUnsafe(sql).catch(() => {});
+    await db.$executeRawUnsafe(sql).catch((err: unknown) => {
+      console.error("[ensureSchema] statement failed:", err instanceof Error ? err.message : err);
+    });
   }
 
   _schemaEnsured = true;

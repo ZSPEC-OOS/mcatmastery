@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     const user = { firstName: firstName.trim(), lastName: lastName.trim(), email: userId };
     const res  = NextResponse.json({ ok: true, user });
-    res.cookies.set("pin_uid", userId, { path: "/", sameSite: "lax", maxAge: 60 * 60 * 24 * 30 });
+    res.cookies.set("pin_uid", userId, { path: "/", sameSite: "lax", httpOnly: true, maxAge: 60 * 60 * 24 * 30 });
     return res;
   } catch (err) {
     if (err instanceof z.ZodError)
