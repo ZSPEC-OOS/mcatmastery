@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { z } from "zod";
 import { db, ensureSchema } from "../../../../lib/db";
+import { saveUser } from "../../../../lib/firestore";
 
 const Schema = z.object({
   firstName: z.string().min(1).max(50),
@@ -46,8 +47,12 @@ export async function POST(req: NextRequest) {
     `;
 
     const user = { firstName: firstName.trim(), lastName: lastName.trim(), email: userId };
-    const res  = NextResponse.json({ ok: true, user });
-    res.cookies.set("pin_uid", userId, { path: "/", sameSite: "lax", httpOnly: true, maxAge: 60 * 60 * 24 * 30 });
+
+    // Mirror full account to Firestore (including pinHash) so credentials are never lost
+    saveUser({ userId, firstName: user.firstName, lastName: user.lastName, email: userId, pinHash, createdAt: new Date().toISOString() }).catch(() => {});
+
+    const res = NextResponse.json({ ok: true, user });
+    res.cookies.set("pin_uid", userId, { path: "/", sameSite: "lax", httpOnly: true, maxAge: 60 * 60 * 24 * 365 * 10 });
     return res;
   } catch (err) {
     if (err instanceof z.ZodError)

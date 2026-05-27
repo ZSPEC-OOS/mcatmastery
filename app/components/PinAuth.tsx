@@ -10,17 +10,17 @@ export type PinUser = {
 
 export function getCurrentUser(): PinUser | null {
   try {
-    const raw = sessionStorage.getItem("pin_current_user");
+    const raw = localStorage.getItem("pin_current_user");
     return raw ? (JSON.parse(raw) as PinUser) : null;
   } catch { return null; }
 }
 
 export function setCurrentUser(user: PinUser) {
-  sessionStorage.setItem("pin_current_user", JSON.stringify(user));
+  localStorage.setItem("pin_current_user", JSON.stringify(user));
 }
 
 export async function clearCurrentUser() {
-  sessionStorage.removeItem("pin_current_user");
+  localStorage.removeItem("pin_current_user");
   await fetch("/api/auth/signout", { method: "POST" }).catch(() => {});
 }
 
