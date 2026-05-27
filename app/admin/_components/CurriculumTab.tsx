@@ -331,7 +331,7 @@ export default function CurriculumTab() {
         )}
 
         {/* Desktop sidebar — hidden on mobile */}
-        <div className="hidden md:block flex-shrink-0">
+        <div className="hidden md:flex flex-col flex-shrink-0">
           <TopicSidebar activeKey={activeKey} onSelect={setActiveKey} />
         </div>
 
