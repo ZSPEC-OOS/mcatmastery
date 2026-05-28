@@ -11,20 +11,23 @@ function applyChemistry(text: string): string {
   );
 }
 
-// Parses **bold**, *italic*, ==highlight==, __underline__ within a single line.
+// Parses **bold**, *italic*, ==highlight==, __underline__, <u>underline</u> within a single line.
+// Each token's inner content is recursively processed so nesting works (e.g. ==**bold**==).
 function renderInline(text: string, keyPrefix: string): React.ReactNode {
   const processed = applyChemistry(text);
-  const segments = processed.split(/(\*\*(?:[^*]|\*(?!\*))+?\*\*|\*[^*\n]+?\*|==.+?==|__[^_\n]+?__)/g);
+  const segments = processed.split(/(\*\*(?:[^*]|\*(?!\*))+?\*\*|\*[^*\n]+?\*|==.+?==|__[^_\n]+?__|<u>.*?<\/u>)/g);
   return segments.map((seg, i) => {
     const k = `${keyPrefix}-${i}`;
     if (seg.startsWith("**") && seg.endsWith("**") && seg.length > 4)
-      return <strong key={k}>{seg.slice(2, -2)}</strong>;
+      return <strong key={k}>{renderInline(seg.slice(2, -2), `${k}-b`)}</strong>;
     if (seg.startsWith("*") && seg.endsWith("*") && seg.length > 2)
-      return <em key={k}>{seg.slice(1, -1)}</em>;
+      return <em key={k}>{renderInline(seg.slice(1, -1), `${k}-i`)}</em>;
     if (seg.startsWith("==") && seg.endsWith("==") && seg.length > 4)
-      return <mark key={k}>{seg.slice(2, -2)}</mark>;
+      return <mark key={k}>{renderInline(seg.slice(2, -2), `${k}-m`)}</mark>;
     if (seg.startsWith("__") && seg.endsWith("__") && seg.length > 4)
-      return <span key={k} style={{ textDecoration: "underline" }}>{seg.slice(2, -2)}</span>;
+      return <span key={k} style={{ textDecoration: "underline" }}>{renderInline(seg.slice(2, -2), `${k}-u`)}</span>;
+    if (seg.startsWith("<u>") && seg.endsWith("</u>") && seg.length > 7)
+      return <span key={k} style={{ textDecoration: "underline" }}>{renderInline(seg.slice(3, -4), `${k}-u`)}</span>;
     return <Fragment key={k}>{seg}</Fragment>;
   });
 }
