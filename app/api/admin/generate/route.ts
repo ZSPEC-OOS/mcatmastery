@@ -339,13 +339,13 @@ export async function POST(req: NextRequest) {
                     optionD:        q.optionD as string,
                     correctAnswer:  q.correctAnswer as string,
                     explanation:    q.explanation as string,
-                    difficulty:     (q.difficulty as string) ?? "medium",
+                    difficulty:     body.difficulty ?? (q.difficulty as string) ?? "medium",
                     aiGenerated:    true,
                   });
                   savedStems.push(stem);
                   setCount++;
                   totalSaved++;
-                  const savedDiff = ((q.difficulty as string) ?? "medium") as DiffKey;
+                  const savedDiff = (body.difficulty ?? (q.difficulty as string) ?? "medium") as DiffKey;
                   if (savedDiff in diffCounts) diffCounts[savedDiff]++;
                   enqueue({ type: "question", question: saved });
                 }
@@ -433,7 +433,7 @@ export async function POST(req: NextRequest) {
                         optionD:        final.optionD as string,
                         correctAnswer:  final.correctAnswer as string,
                         explanation:    final.explanation as string,
-                        difficulty:     (final.difficulty as string) ?? "medium",
+                        difficulty:     body.difficulty ?? (final.difficulty as string) ?? "medium",
                         aiGenerated:    true,
                       });
 
@@ -460,7 +460,7 @@ export async function POST(req: NextRequest) {
 
                       savedStems.push(final.stem as string);
                       totalSaved++;
-                      const actualDiff = ((final.difficulty as string) ?? "medium") as DiffKey;
+                      const actualDiff = (body.difficulty ?? (final.difficulty as string) ?? "medium") as DiffKey;
                       if (actualDiff in diffCounts) diffCounts[actualDiff]++;
                       if (counts2D && targetTopic && targetSubTypeId) {
                         counts2D[targetTopic][targetSubTypeId] = (counts2D[targetTopic][targetSubTypeId] ?? 0) + 1;

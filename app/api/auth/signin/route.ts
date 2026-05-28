@@ -32,13 +32,11 @@ export async function POST(req: NextRequest) {
       if (rows.length) {
         ({ userId, firstName, lastName, email } = rows[0]);
       } else {
-        // Postgres found nothing — try Firestore as backup
-        const fsUser = await getUserByPinHash(pinHash).catch(() => null);
-        if (!fsUser) return NextResponse.json({ error: "Incorrect PIN. Try again." }, { status: 401 });
-        ({ userId, firstName, lastName, email } = fsUser);
+        // Postgres is up but found no match — wrong PIN (not a DB outage), reject immediately
+        return NextResponse.json({ error: "Incorrect PIN. Try again." }, { status: 401 });
       }
     } catch {
-      // Postgres unavailable — fall back to Firestore entirely
+      // Postgres unavailable — fall back to Firestore so users can still sign in
       const fsUser = await getUserByPinHash(pinHash).catch(() => null);
       if (!fsUser) return NextResponse.json({ error: "Incorrect PIN. Try again." }, { status: 401 });
       ({ userId, firstName, lastName, email } = fsUser);
@@ -46,8 +44,8 @@ export async function POST(req: NextRequest) {
 
     const user = { firstName, lastName, email };
 
-    // Keep Firestore copy current on every sign-in
-    saveUser({ userId, firstName, lastName, email, pinHash, createdAt: new Date().toISOString() }).catch(() => {});
+    // Refresh Firestore copy but omit createdAt so the original signup timestamp is preserved
+    saveUser({ userId, firstName, lastName, email, pinHash }).catch(() => {});
 
     const res = NextResponse.json({ ok: true, user });
     res.cookies.set("pin_uid", userId, { path: "/", sameSite: "lax", httpOnly: true, maxAge: 60 * 60 * 24 * 365 * 10 });
