@@ -87,6 +87,7 @@ const AdminGenerateSchema = z.object({
   dedupThreshold:  z.number().min(0.3).max(0.99).default(0.75),
   imageGeneration: z.boolean().default(false),
   imageModelId:    z.string().optional(),
+  difficulty:      z.enum(["easy", "medium", "hard"]).optional(),
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -254,8 +255,8 @@ export async function POST(req: NextRequest) {
               : undefined;
           }
 
-          // Pick the difficulty with the lowest count for even distribution
-          const targetDifficulty = (["easy", "medium", "hard"] as const).reduce(
+          // Use pinned difficulty if provided, otherwise pick lowest count for even distribution
+          const targetDifficulty: DiffKey = body.difficulty ?? (["easy", "medium", "hard"] as const).reduce(
             (best, d) => diffCounts[d] < diffCounts[best] ? d : best, "easy" as DiffKey,
           );
 
