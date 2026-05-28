@@ -13,11 +13,11 @@ export default function Footer() {
             Terms
           </a>
           <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-            © 2024 MCAT
+            © 2026 MCAT
           </span>
         </div>
         <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-          © 2024 MCAT Mastery. All rights reserved.
+          © 2026 MCAT Mastery. All rights reserved.
         </span>
       </div>
     </footer>
