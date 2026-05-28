@@ -170,6 +170,8 @@ export default function PinAuth({ onAuth }: Props) {
               <input
                 type="password"
                 inputMode="numeric"
+                autoComplete="off"
+                autoCorrect="off"
                 maxLength={6}
                 value={pin}
                 onChange={(e) => { setPin(e.target.value.replace(/\D/g, "")); setError(""); }}
@@ -211,14 +213,14 @@ export default function PinAuth({ onAuth }: Props) {
             </div>
             <div>
               <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>PIN</label>
-              <input type="password" inputMode="numeric" maxLength={6} value={pin}
+              <input type="password" inputMode="numeric" autoComplete="off" autoCorrect="off" maxLength={6} value={pin}
                 onChange={(e) => { setPin(e.target.value.replace(/\D/g, "")); setError(""); }}
                 placeholder="Choose a 4–6 digit PIN" className="w-full px-3 py-2.5 rounded-xl text-sm"
                 style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", outline: "none" }} />
             </div>
             <div>
               <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Confirm PIN</label>
-              <input type="password" inputMode="numeric" maxLength={6} value={pinConfirm}
+              <input type="password" inputMode="numeric" autoComplete="off" autoCorrect="off" maxLength={6} value={pinConfirm}
                 onChange={(e) => { setConfirm(e.target.value.replace(/\D/g, "")); setError(""); }}
                 onKeyDown={(e) => e.key === "Enter" && handleSignup()}
                 placeholder="Re-enter PIN" className="w-full px-3 py-2.5 rounded-xl text-sm"
