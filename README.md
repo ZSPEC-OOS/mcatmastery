@@ -1,36 +1,62 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MCAT Mastery
 
-## Getting Started
+A full-featured MCAT study platform with adaptive practice, performance analytics, and an AI-powered question bank.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## What It Does
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+MCAT Mastery lets students practice MCAT-style questions, track their progress over time, and drill the specific topics they struggle with most. An admin panel handles question generation and database management.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Features
 
-## Learn More
+### Practice Sessions
+- Choose from all four MCAT sections: **Chem/Phys**, **CARS**, **Bio/Biochem**, **Psych/Soc**
+- Filter by **difficulty** (Easy / Medium / Hard) or leave on Any for a mixed set
+- Filter by **topic subtypes** within each section
+- Set question count (1–50) and choose timed or untimed mode
+- Passage-based and discrete question formats
+- Keyboard shortcuts for fast navigation (A–D or 1–4 to answer, Enter to submit, P for passage)
+- Flag questions for later review
+- Inline simplified explanations powered by AI
 
-To learn more about Next.js, take a look at the following resources:
+### Results & Review
+- Post-session summary with accuracy, per-section breakdown, and time-per-question
+- Visual question grid showing correct / incorrect at a glance
+- Flagged question list for targeted re-review
+- Full mistake log: filter all missed questions by section, error type, or review status
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Dashboard & Analytics
+- Overall accuracy and total questions answered
+- Per-section accuracy bars
+- Auto-detected weak topics with one-click drill mode
+- Full-length test score tracker (out of 528)
+- Progress trends over time
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Admin Panel
+- **AI Question Generation** — generate discrete or passage-based questions by section and subtopic, with optional figure generation; streams results in real time
+- **Question Database** — search, filter, edit, and audit the full question bank
+- **Formatting Tools** — batch-clean passage and explanation formatting
+- **Custom Models** — plug in any OpenAI-compatible model for generation or auditing
+- **Curriculum Mapping** — link questions to specific MCAT topic areas
 
-## Deploy on Vercel
+### Auth & Accounts
+- PIN-based student login — one account works across all devices
+- Session persists across browser restarts (no daily re-login)
+- Account data backed up to Firestore so credentials are never lost
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Stack
+
+- **Framework**: Next.js (App Router)
+- **Database**: PostgreSQL via Prisma
+- **Storage**: Firebase Firestore + Cloud Storage
+- **AI**: Anthropic Claude API (question generation, simplified explanations)
+- **Auth**: Custom PIN auth with HTTP-only cookies
+
+---
+
+© 2026 MCAT Mastery. All rights reserved.
