@@ -96,11 +96,17 @@ export default function PracticePage() {
   }
 
   function toggleDifficulty(d: Difficulty) {
-    setDifficulties(prev =>
-      prev.includes(d)
-        ? prev.length > 1 ? prev.filter(x => x !== d) : prev
-        : [...prev, d]
-    );
+    const isAny = difficulties.length === DIFFICULTIES.length;
+    if (isAny) {
+      // Switch from "any" to just this one difficulty
+      setDifficulties([d]);
+    } else {
+      setDifficulties(prev =>
+        prev.includes(d)
+          ? prev.length > 1 ? prev.filter(x => x !== d) : DIFFICULTIES.slice()
+          : [...prev, d]
+      );
+    }
   }
 
   // Pre-fill weak topics when arriving from dashboard ?weak=1
@@ -281,12 +287,25 @@ export default function PracticePage() {
 
           {/* Difficulty */}
           <div>
-            <label className="text-xs mb-1 block" style={{ color: "var(--text-muted)" }}>
-              Difficulty <span style={{ fontWeight: 400 }}>({difficulties.length} selected)</span>
-            </label>
+            <label className="text-xs mb-1 block" style={{ color: "var(--text-muted)" }}>Difficulty</label>
             <div className="flex gap-2">
+              {/* Any button */}
+              {(() => {
+                const isAny = difficulties.length === DIFFICULTIES.length;
+                return (
+                  <button onClick={() => setDifficulties(DIFFICULTIES.slice())}
+                    className="flex-1 py-2 rounded text-sm font-medium"
+                    style={{
+                      background: isAny ? "rgba(99,102,241,0.15)" : "var(--bg-card-hover)",
+                      color: isAny ? "#6366f1" : "var(--text-secondary)",
+                      border: `1px solid ${isAny ? "#6366f1" : "var(--border)"}`,
+                    }}>
+                    Any
+                  </button>
+                );
+              })()}
               {DIFFICULTIES.map(d => {
-                const active = difficulties.includes(d);
+                const active = difficulties.includes(d) && difficulties.length < DIFFICULTIES.length;
                 return (
                   <button key={d} onClick={() => toggleDifficulty(d)}
                     className="flex-1 py-2 rounded text-sm font-medium flex items-center justify-center gap-1.5"
@@ -295,10 +314,6 @@ export default function PracticePage() {
                       color: active ? DIFF_COLOR[d] : "var(--text-secondary)",
                       border: `1px solid ${active ? DIFF_COLOR[d] : "var(--border)"}`,
                     }}>
-                    <span className="w-4 h-4 rounded flex items-center justify-center text-xs flex-shrink-0"
-                      style={{ background: active ? `${DIFF_COLOR[d]}30` : "var(--border)", color: active ? DIFF_COLOR[d] : "transparent" }}>
-                      {active ? "✓" : ""}
-                    </span>
                     {DIFF_LABEL[d]}
                   </button>
                 );
