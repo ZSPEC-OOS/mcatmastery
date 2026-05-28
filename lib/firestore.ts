@@ -116,7 +116,7 @@ export interface UserDoc {
   lastName: string;
   email: string;
   pinHash: string;
-  createdAt: string;
+  createdAt?: string;
 }
 
 export async function saveUser(data: UserDoc): Promise<void> {
