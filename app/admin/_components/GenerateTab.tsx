@@ -241,7 +241,7 @@ export default function GenerateTab() {
                 return (
                   <button key={label} onClick={() => setDifficulty(d)}
                     disabled={running}
-                    className="px-4 py-2 rounded-lg text-xs font-semibold"
+                    className="px-3 py-2 rounded-lg text-xs font-semibold"
                     style={{
                       background: active ? `${color}20` : "var(--bg-card)",
                       border: `1px solid ${active ? color : "var(--border)"}`,
