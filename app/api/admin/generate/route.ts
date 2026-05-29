@@ -57,7 +57,7 @@ Output ONLY valid JSON in this exact shape:
   "optionD": "<choice D>",
   "correctAnswer": "A" | "B" | "C" | "D",
   "explanation": "<detailed explanation referencing what the figure shows>",
-  "difficulty": "easy" | "medium" | "hard",
+  "difficulty": "foundational" | "easy" | "medium" | "hard",
   "figure_prompt": "<detailed image generation prompt: chart type, axis labels with units, data trends, key features, clean white background, publication-quality scientific style, no text overlays except axis labels>"
 }`;
 
@@ -87,7 +87,7 @@ const AdminGenerateSchema = z.object({
   dedupThreshold:  z.number().min(0.3).max(0.99).default(0.75),
   imageGeneration: z.boolean().default(false),
   imageModelId:    z.string().optional(),
-  difficulty:      z.enum(["easy", "medium", "hard"]).optional(),
+  difficulty:      z.enum(["foundational", "easy", "medium", "hard"]).optional(),
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -202,8 +202,8 @@ export async function POST(req: NextRequest) {
         : null;
 
     // Build difficulty coverage tracker for even distribution
-    type DiffKey = "easy" | "medium" | "hard";
-    const diffCounts: Record<DiffKey, number> = { easy: 0, medium: 0, hard: 0 };
+    type DiffKey = "foundational" | "easy" | "medium" | "hard";
+    const diffCounts: Record<DiffKey, number> = { foundational: 0, easy: 0, medium: 0, hard: 0 };
     for (const q of existing) {
       const d = (q.difficulty ?? "medium") as DiffKey;
       if (d in diffCounts) diffCounts[d]++;
@@ -256,8 +256,8 @@ export async function POST(req: NextRequest) {
           }
 
           // Use pinned difficulty if provided, otherwise pick lowest count for even distribution
-          const targetDifficulty: DiffKey = body.difficulty ?? (["easy", "medium", "hard"] as const).reduce(
-            (best, d) => diffCounts[d] < diffCounts[best] ? d : best, "easy" as DiffKey,
+          const targetDifficulty: DiffKey = body.difficulty ?? (["foundational", "easy", "medium", "hard"] as const).reduce(
+            (best, d) => diffCounts[d] < diffCounts[best] ? d : best, "foundational" as DiffKey,
           );
 
           const subTypeDef   = targetSubTypeId ? getSubTypeById(targetSubTypeId) : undefined;
@@ -286,7 +286,7 @@ export async function POST(req: NextRequest) {
                 topicClause,
                 subTypeClause,
                 difficultyClause,
-                `Distribute difficulties evenly across the questions (mix of easy, medium, and hard).`,
+                `Distribute difficulties evenly across the questions (mix of foundational, easy, medium, and hard).`,
               ].filter(Boolean).join(" ");
 
               const raw = await callModel({

@@ -24,9 +24,10 @@ export async function GET() {
         "Psych/Soc":   bySection["Psych/Soc"]   ?? 0,
       },
       byDifficulty: {
-        easy:   byDifficulty["easy"]   ?? 0,
-        medium: byDifficulty["medium"] ?? 0,
-        hard:   byDifficulty["hard"]   ?? 0,
+        foundational: byDifficulty["foundational"] ?? 0,
+        easy:         byDifficulty["easy"]         ?? 0,
+        medium:       byDifficulty["medium"]       ?? 0,
+        hard:         byDifficulty["hard"]         ?? 0,
       },
       needsAudit,
     });

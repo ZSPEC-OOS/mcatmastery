@@ -100,7 +100,7 @@ Output ONLY valid JSON in this exact shape:
   "optionD": "<choice D>",
   "correctAnswer": "A" | "B" | "C" | "D",
   "explanation": "<detailed explanation>",
-  "difficulty": "easy" | "medium" | "hard"
+  "difficulty": "foundational" | "easy" | "medium" | "hard"
 }`;
 
 const DEFAULT_VAL_PROMPT = `You are an MCAT content auditor. You will receive a JSON object with two fields: "question" (the generated question) and "requestedSubType" (the subtype label it was supposed to match). Review the question for:
@@ -164,7 +164,7 @@ Output ONLY valid JSON in this exact shape:
   "optionD": "<choice D>",
   "correctAnswer": "A" | "B" | "C" | "D",
   "explanation": "<detailed explanation referencing what the figure shows>",
-  "difficulty": "easy" | "medium" | "hard",
+  "difficulty": "foundational" | "easy" | "medium" | "hard",
   "figure_prompt": "<detailed image generation prompt: chart type, axis labels with units, data trends, key features, clean white background, publication-quality scientific style, no text overlays except axis labels>"
 }`;
 
