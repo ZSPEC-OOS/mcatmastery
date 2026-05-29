@@ -294,7 +294,7 @@ export default function PracticePage() {
                 const isAny = difficulties.length === DIFFICULTIES.length;
                 return (
                   <button onClick={() => setDifficulties(DIFFICULTIES.slice())}
-                    className="flex-1 py-2 rounded text-sm font-medium"
+                    className="flex-[0.7] py-2 rounded text-sm font-medium"
                     style={{
                       background: isAny ? "rgba(99,102,241,0.15)" : "var(--bg-card-hover)",
                       color: isAny ? "#6366f1" : "var(--text-secondary)",
@@ -308,7 +308,7 @@ export default function PracticePage() {
                 const active = difficulties.includes(d) && difficulties.length < DIFFICULTIES.length;
                 return (
                   <button key={d} onClick={() => toggleDifficulty(d)}
-                    className="flex-1 py-2 rounded text-sm font-medium flex items-center justify-center gap-1.5"
+                    className={`${d === "foundational" ? "flex-[1.4]" : "flex-1"} py-2 rounded text-sm font-medium flex items-center justify-center gap-1.5`}
                     style={{
                       background: active ? `${DIFF_COLOR[d]}20` : "var(--bg-card-hover)",
                       color: active ? DIFF_COLOR[d] : "var(--text-secondary)",
