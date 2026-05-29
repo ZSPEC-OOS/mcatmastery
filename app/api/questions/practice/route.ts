@@ -5,7 +5,7 @@ import type { QuestionDoc } from "../../../../lib/firestore";
 
 const Schema = z.object({
   sections:     z.array(z.enum(["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"])).min(1),
-  difficulties: z.array(z.enum(["easy", "medium", "hard"])).default(["easy", "medium", "hard"]),
+  difficulties: z.array(z.enum(["foundational", "easy", "medium", "hard"])).default(["foundational", "easy", "medium", "hard"]),
   subTypes:     z.array(z.string()).optional(),
   count:        z.number().min(1).max(50).default(10),
 });

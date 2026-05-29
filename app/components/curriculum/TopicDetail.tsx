@@ -555,7 +555,7 @@ export default function TopicDetail({ selectionKey }: Props) {
                         </span>
                       )}
                       <span className="flex items-center gap-1 ml-auto flex-shrink-0">
-                        {(["easy", "medium", "hard"] as const).filter((d) => diffCounts[d]).map((d) => (
+                        {(["foundational", "easy", "medium", "hard"] as const).filter((d) => diffCounts[d]).map((d) => (
                           <span key={d} className="px-1.5 py-0.5 rounded text-xs font-semibold capitalize"
                             style={{ background: `${DIFF_COLORS[d]}18`, color: DIFF_COLORS[d] }}>
                             {diffCounts[d]}{d[0].toUpperCase()}

@@ -6,6 +6,7 @@ export const SECTION_COLORS: Record<string, string> = {
 };
 
 export const DIFF_COLORS: Record<string, string> = {
+  foundational: "#38bdf8",
   easy: "#4ade80",
   medium: "#f0a500",
   hard: "#e05c5c",

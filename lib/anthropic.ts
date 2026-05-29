@@ -70,11 +70,17 @@ Psych/Soc subtypes:
 - "least likely" → elimination reasoning
 Never use "always", "never", "proves", or "definitively" unless the passage explicitly justifies the absolute claim.
 
-**Indirectness — never ask retrieval directly:**
-Bad: "What is the product of glycolysis?"
-Good: "The mutation in phosphoglycerate kinase would most directly impair which step in ATP generation?"
+**Difficulty calibration:**
+- foundational: Pure single-step recall or recognition. No passage, no reasoning chain. Tests whether the student knows a definition, name, equation, classification, or property directly. Example stem forms: "What is X?", "Which amino acid contains…?", "What are the units of…?", "What does X stand for?", "Is X hydrophilic or hydrophobic?". Wrong answers should be plausible alternatives, not nonsense. Set passage to null.
+- easy: Single-concept application with minimal passage context. One deductive step beyond recall.
+- medium: Multi-step reasoning anchored to a short scenario or passage. Requires combining two concepts.
+- hard: Complex multi-step analysis, experimental interpretation, or synthesis of multiple principles.
 
-**Multi-step reasoning — every question must chain:** context/passage information → scientific principle → inference. Single-step retrieval is not acceptable.
+**Indirectness — applies to easy/medium/hard only, NOT foundational:**
+Bad (for easy+): "What is the product of glycolysis?"
+Good (for easy+): "The mutation in phosphoglycerate kinase would most directly impair which step in ATP generation?"
+
+**Multi-step reasoning — applies to easy/medium/hard:** context/passage information → scientific principle → inference. For foundational questions, single-step retrieval IS the goal.
 
 **Section-specific stem patterns:**
 - Chem/Phys: "Which process best explains…" / "If [variable] increases, what happens to [Y]?" / "The data most support which conclusion?" / "If the mutation were introduced into…"
@@ -100,7 +106,7 @@ Output ONLY valid JSON in this exact shape:
   "optionD": "<choice D>",
   "correctAnswer": "A" | "B" | "C" | "D",
   "explanation": "<detailed explanation>",
-  "difficulty": "easy" | "medium" | "hard"
+  "difficulty": "foundational" | "easy" | "medium" | "hard"
 }`;
 
 export const PASSAGE_SET_SYSTEM_PROMPT = `You are an expert MCAT question writer trained to produce AAMC-quality passage sets.
@@ -168,7 +174,7 @@ QUESTION REQUIREMENTS (all sections)
 - Four plausible choices (A–D); exactly one correct; distractors represent common misconceptions
 - Explanation: 3–5 sentences citing specific passage evidence, why the correct answer is right, and why each distractor fails
 - No two questions test the same cognitive move or the same passage sentence
-- Vary difficulty across the set (easy, medium, hard mix)
+- Vary difficulty across the set (foundational, easy, medium, hard mix)
 - Bad stem: "According to the passage, which enzyme was used?" — retrieval only
 - Good stem: "If the Asp102Ala mutant were tested at pH 5.0, which result would be most consistent with the passage findings?" — reasoning required
 
@@ -209,7 +215,7 @@ Output ONLY valid JSON — no markdown fences, no extra text:
       "optionD": "<choice D>",
       "correctAnswer": "A" | "B" | "C" | "D",
       "explanation": "<3–5 sentence explanation citing passage evidence>",
-      "difficulty": "easy" | "medium" | "hard"
+      "difficulty": "foundational" | "easy" | "medium" | "hard"
     }
   ]
 }`;

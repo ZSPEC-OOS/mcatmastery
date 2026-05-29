@@ -23,17 +23,17 @@ export default function TopicSidebar({ activeKey, onSelect }: Props) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>(
     { chem: true, cars: true, bio: true, psych: true }
   );
-  type TopicCount = { total: number; discrete: number; sets: number; passageQs: number; easy: number; medium: number; hard: number };
+  type TopicCount = { total: number; discrete: number; sets: number; passageQs: number; foundational: number; easy: number; medium: number; hard: number };
   const [countMap, setCountMap] = useState<Record<string, TopicCount>>({});
 
   useEffect(() => {
     fetch("/api/curriculum")
       .then((r) => r.json())
-      .then((data: { topicCounts: { topic: string; count: number; discrete: number; sets: number; passageQs: number; easy: number; medium: number; hard: number }[] }) => {
+      .then((data: { topicCounts: { topic: string; count: number; discrete: number; sets: number; passageQs: number; foundational: number; easy: number; medium: number; hard: number }[] }) => {
         if (data.topicCounts?.length > 0) {
           const m: Record<string, TopicCount> = {};
           for (const t of data.topicCounts) {
-            m[t.topic] = { total: t.count, discrete: t.discrete ?? t.count, sets: t.sets ?? 0, passageQs: t.passageQs ?? 0, easy: t.easy ?? 0, medium: t.medium ?? 0, hard: t.hard ?? 0 };
+            m[t.topic] = { total: t.count, discrete: t.discrete ?? t.count, sets: t.sets ?? 0, passageQs: t.passageQs ?? 0, foundational: t.foundational ?? 0, easy: t.easy ?? 0, medium: t.medium ?? 0, hard: t.hard ?? 0 };
           }
           setCountMap(m);
         }
@@ -135,10 +135,11 @@ export default function TopicSidebar({ activeKey, onSelect }: Props) {
                     {grp.topics.map((label) => {
                       const isActive = isTopicActive(sec.id, label);
                       const tc = countMap[label];
-                      const total  = tc?.total  ?? 0;
-                      const easy   = tc?.easy   ?? 0;
-                      const medium = tc?.medium ?? 0;
-                      const hard   = tc?.hard   ?? 0;
+                      const total       = tc?.total       ?? 0;
+                      const foundational = tc?.foundational ?? 0;
+                      const easy        = tc?.easy        ?? 0;
+                      const medium      = tc?.medium      ?? 0;
+                      const hard        = tc?.hard        ?? 0;
                       return (
                         <button
                           key={label}
@@ -159,12 +160,15 @@ export default function TopicSidebar({ activeKey, onSelect }: Props) {
                           >
                             {label}
                           </span>
-                          {/* Difficulty labels: E# M# H# */}
+                          {/* Difficulty labels: F# E# M# H# */}
                           <div className="flex items-center ml-1 gap-0.5 flex-shrink-0">
                             {total === 0 ? (
                               <span className="text-xs font-semibold tabular-nums" style={{ color: "var(--text-muted)" }}>—</span>
                             ) : (
                               <>
+                                {foundational > 0 && (
+                                  <span className="text-xs font-semibold tabular-nums leading-none" style={{ color: isActive ? "var(--accent-blue)" : "#38bdf8" }}>F{foundational}</span>
+                                )}
                                 {easy > 0 && (
                                   <span className="text-xs font-semibold tabular-nums leading-none" style={{ color: isActive ? "var(--accent-blue)" : "#4ade80" }}>E{easy}</span>
                                 )}

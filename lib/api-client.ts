@@ -1,6 +1,6 @@
 export type Section    = "Chem/Phys" | "CARS" | "Bio/Biochem" | "Psych/Soc";
 export type Answer     = "A" | "B" | "C" | "D";
-export type Difficulty = "easy" | "medium" | "hard";
+export type Difficulty = "foundational" | "easy" | "medium" | "hard";
 export type ErrorType = "Content Gap" | "Logic Error" | "Misread Question" | "Timing";
 export type ReviewStatus = "pending" | "reviewed";
 

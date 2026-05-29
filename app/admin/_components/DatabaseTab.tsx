@@ -840,7 +840,7 @@ export default function DatabaseTab() {
           style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-primary)" }}>
           {stats.total} total questions
         </div>
-        {(["easy", "medium", "hard"] as const).map((d) => (
+        {(["foundational", "easy", "medium", "hard"] as const).map((d) => (
           <span key={d} className="px-3 py-1.5 rounded-full text-xs font-semibold capitalize"
             style={{ background: `${DIFF_COLORS[d]}18`, color: DIFF_COLORS[d], border: `1px solid ${DIFF_COLORS[d]}40` }}>
             {stats.byDifficulty[d] ?? 0} {d}

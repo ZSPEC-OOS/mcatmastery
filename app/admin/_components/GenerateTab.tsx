@@ -28,7 +28,7 @@ export default function GenerateTab() {
   const [imageGenEnabled, setImageGen]  = useState(false);
   const [imageModelId, setImageModelId] = useState("");
   const [discreteOnlyMode, setDiscreteOnlyMode] = useState(false);
-  const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard" | null>(null);
+  const [difficulty, setDifficulty] = useState<"foundational" | "easy" | "medium" | "hard" | null>(null);
 
   useEffect(() => {
     fetch("/api/admin/models")
@@ -234,9 +234,9 @@ export default function GenerateTab() {
           <div>
             <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Difficulty</label>
             <div className="flex gap-2">
-              {([null, "easy", "medium", "hard"] as const).map((d) => {
+              {([null, "foundational", "easy", "medium", "hard"] as const).map((d) => {
                 const label  = d === null ? "Any" : d.charAt(0).toUpperCase() + d.slice(1);
-                const color  = d === null ? "#6366f1" : d === "easy" ? "#4ade80" : d === "medium" ? "#f0a500" : "#f87171";
+                const color  = d === null ? "#6366f1" : d === "foundational" ? "#38bdf8" : d === "easy" ? "#4ade80" : d === "medium" ? "#f0a500" : "#f87171";
                 const active = difficulty === d;
                 return (
                   <button key={label} onClick={() => setDifficulty(d)}
@@ -254,7 +254,7 @@ export default function GenerateTab() {
               })}
             </div>
             {difficulty === null && (
-              <p className="text-xs mt-1.5" style={{ color: "var(--text-muted)" }}>Auto-balances easy / medium / hard across generated questions.</p>
+              <p className="text-xs mt-1.5" style={{ color: "var(--text-muted)" }}>Auto-balances foundational / easy / medium / hard across generated questions.</p>
             )}
           </div>
 

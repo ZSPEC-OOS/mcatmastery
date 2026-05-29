@@ -10,10 +10,10 @@ import {
 import { SECTION_SUBTYPES, getSubTypesForSections } from "../../lib/subtypes";
 
 const SECTIONS: Section[]        = ["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"];
-const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard"];
+const DIFFICULTIES: Difficulty[] = ["foundational", "easy", "medium", "hard"];
 
-const DIFF_LABEL: Record<Difficulty, string> = { easy: "Easy", medium: "Medium", hard: "Hard" };
-const DIFF_COLOR: Record<Difficulty, string> = { easy: "#4ade80", medium: "#f0a500", hard: "#f87171" };
+const DIFF_LABEL: Record<Difficulty, string> = { foundational: "Foundational", easy: "Easy", medium: "Medium", hard: "Hard" };
+const DIFF_COLOR: Record<Difficulty, string> = { foundational: "#38bdf8", easy: "#4ade80", medium: "#f0a500", hard: "#f87171" };
 
 const SEC_COLOR: Record<Section, string> = {
   "Chem/Phys":  "#6366f1",
@@ -33,7 +33,7 @@ export default function PracticePage() {
     getSubTypesForSections(secs).map(s => s.id);
 
   const [sections,     setSections]     = useState<Section[]>(["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"]);
-  const [difficulties, setDifficulties] = useState<Difficulty[]>(["easy", "medium", "hard"]);
+  const [difficulties, setDifficulties] = useState<Difficulty[]>(["foundational", "easy", "medium", "hard"]);
   const [subTypes,     setSubTypes]     = useState<string[]>(() =>
     allSubTypeIds(["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"]));
   const [count,        setCount]        = useState(10);
