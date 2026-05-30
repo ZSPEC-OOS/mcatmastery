@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { SECTION_COLORS } from "./shared";
 
 type ModelRole = string;
 
@@ -233,6 +234,21 @@ const PROMPT_DEFAULTS: Record<PromptKey, string> = {
   audit_prompt:            DEFAULT_AUDIT_PROMPT,
 };
 
+const GH_SECTIONS = ["Chem/Phys", "CARS", "Bio/Biochem", "Psych/Soc"] as const;
+const GH_DIFFICULTIES = ["foundational", "easy", "medium", "hard"] as const;
+
+interface GhSectionCfg {
+  targetPerTopicSubtype: number;
+  targetPerDifficulty: Record<string, number>;
+}
+interface GhCfg {
+  dedupThreshold: number;
+  concurrency: number;
+  passageSetsEnabled: boolean;
+  resumePreviousRun: boolean;
+  sections: Record<string, GhSectionCfg>;
+}
+
 function PinModal({
   label, onUnlock, onCancel,
 }: {
@@ -349,6 +365,19 @@ export default function SettingsTab() {
   const [modelTests, setModelTests]   = useState<Record<string, { ok: boolean; msg: string }>>({});
   const [testingId, setTestingId]     = useState<string | null>(null);
 
+  // GitHub Config state
+  const [ghOpen, setGhOpen]               = useState(false);
+  const [ghLoading, setGhLoading]         = useState(false);
+  const [ghTokenSet, setGhTokenSet]       = useState(false);
+  const [ghEditCfg, setGhEditCfg]         = useState<GhCfg | null>(null);
+  const [ghSaving, setGhSaving]           = useState(false);
+  const [ghSaveMsg, setGhSaveMsg]         = useState("");
+  const [ghTokenInput, setGhTokenInput]   = useState("");
+  const [ghTokenMsg, setGhTokenMsg]       = useState("");
+  const [ghSavingToken, setGhSavingToken] = useState(false);
+  const [ghShowTokenField, setGhShowTokenField] = useState(false);
+  const ghLoaded = useRef(false);
+
   useEffect(() => {
     fetch("/api/admin/settings")
       .then((r) => r.json())
@@ -369,6 +398,70 @@ export default function SettingsTab() {
       .then((d: { models?: ModelConfig[] }) => { if (d.models) setModels(d.models); })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!ghOpen || ghLoaded.current) return;
+    ghLoaded.current = true;
+    setGhLoading(true);
+    fetch("/api/admin/automation")
+      .then((r) => r.json())
+      .then((d: { config: GhCfg; githubTokenSet: boolean }) => {
+        setGhTokenSet(d.githubTokenSet);
+        setGhEditCfg(d.config);
+      })
+      .catch(() => {})
+      .finally(() => setGhLoading(false));
+  }, [ghOpen]);
+
+  async function ghSaveToken() {
+    if (!ghTokenInput.trim()) return;
+    setGhSavingToken(true); setGhTokenMsg("");
+    try {
+      const res = await fetch("/api/admin/automation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "save_token", token: ghTokenInput }),
+      });
+      const json = await res.json() as { success?: boolean; error?: string };
+      if (json.success) {
+        setGhTokenMsg("Token saved");
+        setGhTokenInput("");
+        setGhShowTokenField(false);
+        setGhTokenSet(true);
+      } else {
+        setGhTokenMsg(json.error ?? "Error");
+      }
+    } catch { setGhTokenMsg("Error saving token"); }
+    finally { setGhSavingToken(false); setTimeout(() => setGhTokenMsg(""), 4000); }
+  }
+
+  async function ghSaveConfig() {
+    if (!ghEditCfg) return;
+    setGhSaving(true); setGhSaveMsg("");
+    try {
+      await fetch("/api/admin/automation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "save_config", config: ghEditCfg }),
+      });
+      setGhSaveMsg("Saved");
+    } catch { setGhSaveMsg("Error saving"); }
+    finally { setGhSaving(false); setTimeout(() => setGhSaveMsg(""), 3000); }
+  }
+
+  function ghUpdateTarget(section: string, diff: string, val: number) {
+    if (!ghEditCfg) return;
+    setGhEditCfg({
+      ...ghEditCfg,
+      sections: {
+        ...ghEditCfg.sections,
+        [section]: {
+          ...ghEditCfg.sections[section],
+          targetPerDifficulty: { ...ghEditCfg.sections[section].targetPerDifficulty, [diff]: val },
+        },
+      },
+    });
+  }
 
   function parseMaxTokensInput(s: string): number | undefined {
     if (!s.trim()) return undefined;
@@ -894,6 +987,154 @@ export default function SettingsTab() {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Card: GitHub Config */}
+      <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+        <button
+          className="w-full px-5 py-3.5 flex items-center justify-between text-left"
+          style={{ background: "var(--bg-card)", borderBottom: ghOpen ? "1px solid var(--border)" : "none" }}
+          onClick={() => setGhOpen((o) => !o)}
+        >
+          <div>
+            <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>GitHub Config</h2>
+            <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+              GitHub token and automation targets for background generation runs.
+            </p>
+          </div>
+          <svg
+            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            strokeLinecap="round" strokeLinejoin="round"
+            style={{ color: "var(--text-muted)", flexShrink: 0, transform: ghOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+
+        {ghOpen && (
+          <div className="px-5 py-4 space-y-5">
+            {ghLoading ? (
+              <p className="text-xs py-4 text-center" style={{ color: "var(--text-muted)" }}>Loading…</p>
+            ) : (
+              <>
+                {/* Token */}
+                <div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>GitHub Token</p>
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                      style={{
+                        background: ghTokenSet ? "rgba(74,222,128,0.12)" : "rgba(240,165,0,0.12)",
+                        color: ghTokenSet ? "#4ade80" : "#f0a500",
+                        border: `1px solid ${ghTokenSet ? "rgba(74,222,128,0.3)" : "rgba(240,165,0,0.3)"}`,
+                      }}>
+                      {ghTokenSet ? "Configured" : "Not set"}
+                    </span>
+                  </div>
+
+                  {!ghShowTokenField ? (
+                    <button onClick={() => setGhShowTokenField(true)} className="text-xs" style={{ color: "var(--text-muted)" }}>
+                      {ghTokenSet ? "Update token →" : "Set up token →"}
+                    </button>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                        Create at github.com → Settings → Developer settings → Personal access tokens → Fine-grained tokens.
+                        Grant <strong>Actions: Read and write</strong> on the mcatmastery repo.
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          type="password"
+                          value={ghTokenInput}
+                          onChange={(e) => setGhTokenInput(e.target.value)}
+                          placeholder="github_pat_…"
+                          className="flex-1 px-3 py-1.5 rounded-lg text-xs font-mono"
+                          style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+                        />
+                        <button onClick={ghSaveToken} disabled={ghSavingToken || !ghTokenInput.trim()}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                          style={{ background: "var(--accent-blue)", color: "#fff", opacity: ghSavingToken ? 0.6 : 1 }}>
+                          {ghSavingToken ? "Saving…" : "Save"}
+                        </button>
+                        <button onClick={() => { setGhShowTokenField(false); setGhTokenInput(""); }}
+                          className="px-3 py-1.5 rounded-lg text-xs"
+                          style={{ color: "var(--text-muted)", border: "1px solid var(--border)" }}>
+                          Cancel
+                        </button>
+                      </div>
+                      {ghTokenMsg && <p className="text-xs" style={{ color: ghTokenMsg === "Token saved" ? "#4ade80" : "#e05c5c" }}>{ghTokenMsg}</p>}
+                    </div>
+                  )}
+                </div>
+
+                {/* Automation config */}
+                {ghEditCfg && (
+                  <div className="space-y-4 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
+                    <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Automation Settings</p>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                      {[
+                        { label: "Concurrency",     key: "concurrency",    min: 1,    max: 10,   step: 1 },
+                        { label: "Dedup Threshold", key: "dedupThreshold", min: 0.3,  max: 0.99, step: 0.01 },
+                      ].map(({ label, key, min, max, step }) => (
+                        <div key={key}>
+                          <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>{label}</label>
+                          <input type="number" min={min} max={max} step={step}
+                            value={(ghEditCfg as Record<string, unknown>)[key] as number}
+                            onChange={(e) => setGhEditCfg({ ...ghEditCfg, [key]: parseFloat(e.target.value) })}
+                            className="w-full px-3 py-2 rounded-lg text-sm"
+                            style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+                          />
+                        </div>
+                      ))}
+
+                      <div className="flex items-center gap-2 mt-5">
+                        <input type="checkbox" checked={ghEditCfg.passageSetsEnabled}
+                          onChange={(e) => setGhEditCfg({ ...ghEditCfg, passageSetsEnabled: e.target.checked })}
+                          className="w-4 h-4" id="gh-passage-sets" />
+                        <label htmlFor="gh-passage-sets" className="text-sm cursor-pointer" style={{ color: "var(--text-primary)" }}>Passage Sets</label>
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>
+                        Target questions per difficulty (per topic × subtype slot)
+                      </p>
+                      <div className="space-y-3">
+                        {GH_SECTIONS.map((section) => (
+                          <div key={section}>
+                            <div className="text-xs font-medium mb-1.5" style={{ color: SECTION_COLORS[section] }}>{section}</div>
+                            <div className="grid grid-cols-4 gap-2">
+                              {GH_DIFFICULTIES.map((diff) => (
+                                <div key={diff}>
+                                  <label className="block text-xs mb-1" style={{ color: "var(--text-muted)" }}>{diff}</label>
+                                  <input type="number" min={0} max={100}
+                                    value={ghEditCfg.sections[section]?.targetPerDifficulty[diff] ?? 0}
+                                    onChange={(e) => ghUpdateTarget(section, diff, parseInt(e.target.value) || 0)}
+                                    className="w-full px-2 py-1.5 rounded-lg text-xs"
+                                    style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <button onClick={ghSaveConfig} disabled={ghSaving}
+                        className="px-4 py-2 rounded-lg text-sm font-semibold"
+                        style={{ background: "var(--accent-blue)", color: "#fff", opacity: ghSaving ? 0.6 : 1 }}>
+                        {ghSaving ? "Saving…" : "Save"}
+                      </button>
+                      {ghSaveMsg && <span className="text-xs" style={{ color: ghSaveMsg === "Saved" ? "#4ade80" : "#e05c5c" }}>{ghSaveMsg}</span>}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Card 4: Generation Prompts */}

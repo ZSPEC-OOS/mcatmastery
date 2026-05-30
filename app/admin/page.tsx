@@ -9,9 +9,8 @@ import DatabaseTab from "./_components/DatabaseTab";
 import FormattingTab from "./_components/FormattingTab";
 import LockedTab from "./_components/LockedTab";
 import CurriculumTab from "./_components/CurriculumTab";
-import AutomationTab from "./_components/AutomationTab";
 
-type Tab = "generate" | "settings" | "database" | "formatting" | "locked" | "curriculum" | "automation";
+type Tab = "generate" | "settings" | "database" | "formatting" | "locked" | "curriculum";
 
 const ADMIN_USER = "admin";
 const ADMIN_PASS = "MCATadmin";
@@ -168,7 +167,7 @@ export default function AdminPage() {
             msOverflowStyle: "none",
           }}
         >
-          {(["generate", "automation", "database", "formatting", "locked", "curriculum", "settings"] as Tab[]).map((t) => (
+          {(["generate", "database", "formatting", "locked", "curriculum", "settings"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -180,7 +179,6 @@ export default function AdminPage() {
               }}
             >
               {t === "generate"    ? "Question Generation"
-                : t === "automation"  ? "Automation"
                 : t === "database"    ? "Audit"
                 : t === "formatting"  ? "Formatting"
                 : t === "locked"      ? "Locked"
@@ -191,7 +189,6 @@ export default function AdminPage() {
         </div>
 
         {tab === "generate"    && <GenerateTab />}
-        {tab === "automation"  && <AutomationTab />}
         {tab === "settings"    && <SettingsTab />}
         {tab === "database"    && <DatabaseTab />}
         {tab === "formatting"  && <FormattingTab />}
