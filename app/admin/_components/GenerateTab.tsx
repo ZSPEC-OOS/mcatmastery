@@ -29,6 +29,10 @@ export default function GenerateTab() {
   const [imageModelId, setImageModelId] = useState("");
   const [discreteOnlyMode, setDiscreteOnlyMode] = useState(false);
   const [difficulty, setDifficulty] = useState<"foundational" | "easy" | "medium" | "hard" | null>(null);
+  const [continueInBackground, setContinueInBackground] = useState(false);
+  const [bgTokenSet, setBgTokenSet] = useState(false);
+  const [bgMsg, setBgMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [bgTriggering, setBgTriggering] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/models")
@@ -38,6 +42,10 @@ export default function GenerateTab() {
       })
       .catch(() => {})
       .finally(() => setModelsLoading(false));
+    fetch("/api/admin/automation")
+      .then((r) => r.json())
+      .then((d: { githubTokenSet?: boolean }) => setBgTokenSet(d.githubTokenSet ?? false))
+      .catch(() => {});
   }, []);
 
   const sectionSubtypes = SECTION_SUBTYPES[section] ?? [];
@@ -45,6 +53,28 @@ export default function GenerateTab() {
     subTypes.every(id => sectionSubtypes.find(s => s.id === id)?.passageBased ?? false);
 
   async function handleGenerate() {
+    if (continueInBackground) {
+      setBgTriggering(true);
+      setBgMsg(null);
+      try {
+        const res = await fetch("/api/admin/automation", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "trigger", ref: "main" }),
+        });
+        const json = await res.json() as { success?: boolean; error?: string };
+        setBgMsg(json.success
+          ? { text: "Run started — you can close this window. Check back here for progress.", ok: true }
+          : { text: json.error ?? "Failed to start run", ok: false }
+        );
+      } catch {
+        setBgMsg({ text: "Network error", ok: false });
+      } finally {
+        setBgTriggering(false);
+      }
+      return;
+    }
+
     setRunning(true);
     setEvents([]);
     setProgress({ current: 0, total: isPassageMode ? passageSets : count });
@@ -401,24 +431,66 @@ export default function GenerateTab() {
             </p>
           </div>
 
+          {/* Continue in Background */}
+          <div className="rounded-lg px-3 py-3 space-y-2" style={{ background: "var(--bg-card)", border: `1px solid ${continueInBackground ? "var(--accent-blue)" : "var(--border)"}` }}>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="continue-in-bg"
+                checked={continueInBackground}
+                onChange={(e) => { setContinueInBackground(e.target.checked); setBgMsg(null); }}
+                disabled={running || bgTriggering}
+                className="w-4 h-4"
+                style={{ accentColor: "var(--accent-blue)" }}
+              />
+              <label htmlFor="continue-in-bg" className="text-sm font-semibold cursor-pointer" style={{ color: continueInBackground ? "var(--accent-blue)" : "var(--text-primary)" }}>
+                Continue in background
+              </label>
+            </div>
+            {continueInBackground && (
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                Triggers a GitHub Actions run to fill coverage gaps. Runs until the balance is exhausted — you can close this page.
+              </p>
+            )}
+            {continueInBackground && !bgTokenSet && (
+              <p className="text-xs" style={{ color: "#f0a500" }}>
+                GitHub token not configured — add it in Settings → GitHub Config.
+              </p>
+            )}
+          </div>
+
           {/* Generate button */}
           <button
             onClick={handleGenerate}
-            disabled={running || (imageGenEnabled && !imageModelId)}
+            disabled={running || bgTriggering || (continueInBackground && !bgTokenSet) || (!continueInBackground && imageGenEnabled && !imageModelId)}
             className="w-full py-2.5 rounded-lg text-sm font-semibold"
             style={{
-              background: running ? "var(--bg-card)" : "var(--accent-blue)",
-              color: running ? "var(--text-muted)" : "#fff",
-              border: running ? "1px solid var(--border)" : "none",
-              cursor: running ? "not-allowed" : "pointer",
+              background: (running || bgTriggering) ? "var(--bg-card)" : "var(--accent-blue)",
+              color: (running || bgTriggering) ? "var(--text-muted)" : "#fff",
+              border: (running || bgTriggering) ? "1px solid var(--border)" : "none",
+              cursor: (running || bgTriggering || (continueInBackground && !bgTokenSet)) ? "not-allowed" : "pointer",
             }}
           >
-            {running
+            {bgTriggering
+              ? "Starting…"
+              : continueInBackground
+              ? "Start Background Run"
+              : running
               ? `Generating ${progress.current} / ${progress.total}…`
               : isPassageMode
                 ? `Generate ${passageSets} Passage Set${passageSets !== 1 ? "s" : ""}`
                 : `Generate ${count} Question${count !== 1 ? "s" : ""}`}
           </button>
+
+          {bgMsg && (
+            <div className="px-3 py-2 rounded-lg text-xs" style={{
+              background: bgMsg.ok ? "rgba(74,222,128,0.1)" : "rgba(224,92,92,0.1)",
+              color: bgMsg.ok ? "#4ade80" : "#e05c5c",
+              border: `1px solid ${bgMsg.ok ? "rgba(74,222,128,0.3)" : "rgba(224,92,92,0.3)"}`,
+            }}>
+              {bgMsg.text}
+            </div>
+          )}
         </div>
 
         {/* Right: live output */}
