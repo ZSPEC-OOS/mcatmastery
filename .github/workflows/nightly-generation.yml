@@ -1,8 +1,6 @@
-name: Nightly Question Generation
+name: Question Generation
 
 on:
-  schedule:
-    - cron: "0 2 * * *"   # 2:00 AM UTC every day
   workflow_dispatch:
     inputs:
       triggered_by:
@@ -29,11 +27,11 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
-      - name: Run nightly generation
+      - name: Run generation
         env:
           DATABASE_URL:             ${{ secrets.DATABASE_URL }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           FIREBASE_STORAGE_BUCKET:  ${{ secrets.FIREBASE_STORAGE_BUCKET }}
           ANTHROPIC_API_KEY:        ${{ secrets.ANTHROPIC_API_KEY }}
-          TRIGGERED_BY:             ${{ github.event.inputs.triggered_by || 'scheduler' }}
+          TRIGGERED_BY:             ${{ github.event.inputs.triggered_by || 'manual' }}
         run: npx tsx scripts/generate-nightly.ts
