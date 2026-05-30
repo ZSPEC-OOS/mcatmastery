@@ -107,6 +107,38 @@ export async function ensureSchema(): Promise<void> {
     )`,
     // Add figureUrl to Question if it was created before this column existed
     `ALTER TABLE "Question" ADD COLUMN IF NOT EXISTS "figureUrl" TEXT`,
+    `CREATE TABLE IF NOT EXISTS "GenerationRun" (
+      "id"             TEXT PRIMARY KEY,
+      "triggeredBy"    TEXT NOT NULL DEFAULT 'scheduler',
+      "status"         TEXT NOT NULL DEFAULT 'running',
+      "configSnapshot" TEXT NOT NULL DEFAULT '{}',
+      "startedAt"      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      "completedAt"    TIMESTAMPTZ,
+      "totalAttempted" INTEGER NOT NULL DEFAULT 0,
+      "totalSaved"     INTEGER NOT NULL DEFAULT 0,
+      "totalSkipped"   INTEGER NOT NULL DEFAULT 0,
+      "totalErrors"    INTEGER NOT NULL DEFAULT 0,
+      "errorMessage"   TEXT,
+      "report"         TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS "GenerationTask" (
+      "id"              TEXT PRIMARY KEY,
+      "runId"           TEXT NOT NULL,
+      "section"         TEXT NOT NULL,
+      "topic"           TEXT NOT NULL,
+      "subTypeId"       TEXT NOT NULL,
+      "subTypeLabel"    TEXT NOT NULL DEFAULT '',
+      "difficulty"      TEXT NOT NULL,
+      "passageBased"    BOOLEAN NOT NULL DEFAULT FALSE,
+      "status"          TEXT NOT NULL DEFAULT 'pending',
+      "skipReason"      TEXT,
+      "errorMessage"    TEXT,
+      "savedQuestionId" TEXT,
+      "createdAt"       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      "updatedAt"       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      FOREIGN KEY ("runId") REFERENCES "GenerationRun"("id")
+    )`,
+    `CREATE INDEX IF NOT EXISTS "GenerationTask_runId_status_idx" ON "GenerationTask"("runId", "status")`,
     // UserPin: persistent PIN-based user accounts (no Clerk dependency)
     `CREATE TABLE IF NOT EXISTS "UserPin" (
       "pinHash"   TEXT PRIMARY KEY,

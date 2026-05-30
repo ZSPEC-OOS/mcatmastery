@@ -7,6 +7,8 @@ const READABLE_KEYS = [
   "image_generation_prompt",
   "image_validation_prompt",
   "audit_prompt",
+  "passage_generation_prompt",
+  "automation_config",
 ];
 
 export async function GET() {
