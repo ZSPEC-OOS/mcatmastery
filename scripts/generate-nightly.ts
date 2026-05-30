@@ -5,7 +5,7 @@
  *
  * Reads automation_config from AppSetting, identifies coverage gaps across all
  * section × topic × subtype × difficulty combinations, and generates questions
- * until every slot is at target or the Anthropic API runs out of credits.
+ * until every slot is at target or the AI provider runs out of credits.
  */
 
 import { config as dotenvConfig } from "dotenv";
@@ -286,8 +286,18 @@ async function generateOne(
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    // Surface billing/auth errors immediately so the runner can stop
-    if (msg.includes("credit") || msg.includes("billing") || msg.includes("quota") || msg.includes("insufficient")) {
+    // Surface billing/auth errors immediately so the runner can stop.
+    // Covers Anthropic ("credit balance"), DeepSeek ("Insufficient Balance", 402),
+    // and generic quota/rate-limit patterns from any OpenAI-compatible provider.
+    const lowerMsg = msg.toLowerCase();
+    const isBillingError =
+      lowerMsg.includes("credit") ||
+      lowerMsg.includes("billing") ||
+      lowerMsg.includes("quota") ||
+      lowerMsg.includes("insufficient") ||
+      lowerMsg.includes("balance") ||
+      msg.includes("402");
+    if (isBillingError) {
       throw err;
     }
     return { saved: null, reason: `error: ${msg}` };
