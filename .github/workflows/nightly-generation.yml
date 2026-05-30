@@ -1,0 +1,39 @@
+name: Nightly Question Generation
+
+on:
+  schedule:
+    - cron: "0 2 * * *"   # 2:00 AM UTC every day
+  workflow_dispatch:
+    inputs:
+      triggered_by:
+        description: "Who triggered this run"
+        required: false
+        default: "manual"
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360    # 6 hours — runs until all gaps filled or credits exhausted
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Run nightly generation
+        env:
+          DATABASE_URL:             ${{ secrets.DATABASE_URL }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_STORAGE_BUCKET:  ${{ secrets.FIREBASE_STORAGE_BUCKET }}
+          ANTHROPIC_API_KEY:        ${{ secrets.ANTHROPIC_API_KEY }}
+          TRIGGERED_BY:             ${{ github.event.inputs.triggered_by || 'scheduler' }}
+        run: npx tsx scripts/generate-nightly.ts

@@ -111,3 +111,41 @@ model AppSetting {
   value     String
   updatedAt DateTime @updatedAt
 }
+
+model GenerationRun {
+  id             String   @id @default(cuid())
+  triggeredBy    String   @default("scheduler")
+  status         String   @default("running")
+  configSnapshot String   @default("{}")
+  startedAt      DateTime @default(now())
+  completedAt    DateTime?
+  totalAttempted Int      @default(0)
+  totalSaved     Int      @default(0)
+  totalSkipped   Int      @default(0)
+  totalErrors    Int      @default(0)
+  errorMessage   String?
+  report         String?
+
+  tasks GenerationTask[]
+}
+
+model GenerationTask {
+  id              String   @id @default(cuid())
+  runId           String
+  section         String
+  topic           String
+  subTypeId       String
+  subTypeLabel    String
+  difficulty      String
+  passageBased    Boolean  @default(false)
+  status          String   @default("pending")
+  skipReason      String?
+  errorMessage    String?
+  savedQuestionId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  run GenerationRun @relation(fields: [runId], references: [id])
+
+  @@index([runId, status])
+}
