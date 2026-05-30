@@ -9,6 +9,7 @@ const READABLE_KEYS = [
   "audit_prompt",
   "passage_generation_prompt",
   "automation_config",
+  "github_token",
 ];
 
 export async function GET() {
